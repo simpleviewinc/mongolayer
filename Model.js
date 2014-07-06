@@ -1,4 +1,4 @@
-var mongoLayer = require("./index.js");
+var mongolayer = require("./index.js");
 var objectLib = require("./lib/objectLib.js");
 var arrayLib = require("./lib/arrayLib.js");
 
@@ -66,21 +66,21 @@ var Model = function(args) {
 	self.collection = null; // stores reference to MongoClient.Db.collection()
 	
 	self.Document = function(args) {
-		mongoLayer.Document.call(this, args); // call constructor of parent but pass this as context
+		mongolayer.Document.call(this, args); // call constructor of parent but pass this as context
 	};
 	
-	// ensures that all documents we create are instanceof mongoLayer.Document and instanceof self.Document
-	self.Document.prototype = Object.create(mongoLayer.Document.prototype);
+	// ensures that all documents we create are instanceof mongolayer.Document and instanceof self.Document
+	self.Document.prototype = Object.create(mongolayer.Document.prototype);
 	
 	// adds _id field
 	self.addField({
 		name : "_id",
 		default : function(args, cb) {
-			cb(null, new mongoLayer.ObjectId());
+			cb(null, new mongolayer.ObjectId());
 		},
 		validation : {
 			type : "class",
-			class : mongoLayer.ObjectId
+			class : mongolayer.ObjectId
 		}
 	});
 	
@@ -189,7 +189,7 @@ Model.prototype.addVirtual = function(args) {
 				return;
 			}
 			
-			this[args.options.key] = new mongoLayer.ObjectId(val);
+			this[args.options.key] = new mongolayer.ObjectId(val);
 		};
 	} else if (args.type === "jsonToObject") {
 		args.get = function() {
@@ -239,7 +239,7 @@ Model.prototype.addRelationship = function(args) {
 			name : idKey,
 			validation : {
 				type : "class",
-				class : mongoLayer.ObjectId
+				class : mongolayer.ObjectId
 			}
 		});
 		
@@ -259,7 +259,7 @@ Model.prototype.addRelationship = function(args) {
 				var ids = [];
 				
 				args.docs.forEach(function(val, i) {
-					if (val[idKey] instanceof mongoLayer.ObjectId) {
+					if (val[idKey] instanceof mongolayer.ObjectId) {
 						ids.push(val[idKey]);
 					}
 				});
@@ -276,7 +276,7 @@ Model.prototype.addRelationship = function(args) {
 					var index = arrayLib.index(docs, "id");
 					
 					args.docs.forEach(function(val, i) {
-						if (val[idKey] instanceof mongoLayer.ObjectId && index[val[idKey].toString()] !== undefined) {
+						if (val[idKey] instanceof mongolayer.ObjectId && index[val[idKey].toString()] !== undefined) {
 							val[objectKey] = index[val[idKey].toString()];
 						}
 					});
@@ -294,7 +294,7 @@ Model.prototype.addRelationship = function(args) {
 				type : "array",
 				schema : {
 					type : "class",
-					class : mongoLayer.ObjectId
+					class : mongolayer.ObjectId
 				}
 			}
 		});

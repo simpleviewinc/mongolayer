@@ -1,19 +1,19 @@
 var assert = require("assert");
 var domain = require("domain");
-var mongoLayer = require("../index.js");
+var mongolayer = require("../index.js");
 var config = require("./config.js");
 
 var async = require("async");
 
 describe(__filename, function() {
 	it("should create", function(done) {
-		var model = new mongoLayer.Model({ collection : "foo" });
+		var model = new mongolayer.Model({ collection : "foo" });
 		
 		done();
 	});
 	
 	it("should setConnection", function(done) {
-		var model = new mongoLayer.Model({ collection : "some_table" });
+		var model = new mongolayer.Model({ collection : "some_table" });
 		
 		model._setConnection({
 			connection : { _db : { collection : function() {} }, foo : "bar" }
@@ -27,7 +27,7 @@ describe(__filename, function() {
 	});
 	
 	it("should get id and _id fields by default", function(done) {
-		var model = new mongoLayer.Model({ collection : "foo" });
+		var model = new mongolayer.Model({ collection : "foo" });
 		
 		assert.notEqual(model._fields["_id"], undefined);
 		assert.notEqual(model._virtuals["id"], undefined);
@@ -36,7 +36,7 @@ describe(__filename, function() {
 	});
 	
 	it("should addFields in constructor", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } },
@@ -54,7 +54,7 @@ describe(__filename, function() {
 	});
 	
 	it("should addVirtuals in constructor", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			virtuals : [
 				{ name : "bar", get : function() { return "barValue" } },
@@ -77,7 +77,7 @@ describe(__filename, function() {
 	});
 	
 	it("should addMethods in constructor", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			methods : [
 				{
@@ -99,7 +99,7 @@ describe(__filename, function() {
 	});
 	
 	it("should addIndexes in constructor", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			indexes : [
 				{ keys : { foo : 1 } }
@@ -112,7 +112,7 @@ describe(__filename, function() {
 	});
 	
 	it("should defaultHooks in constructor", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			defaultHooks : {
 				beforeFind : ["foo"]
@@ -128,21 +128,21 @@ describe(__filename, function() {
 	});
 	
 	it("should have working idToString virtual", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			virtuals : [
 				{ name : "string", type : "idToString", options : { key : "raw" } }
 			]
 		});
 		
-		var id = mongoLayer.ObjectId();
+		var id = mongolayer.ObjectId();
 		var doc = new model.Document({ raw : id });
 		
 		// check if getter with value works
 		assert.equal(doc.string, id.toString());
 		
 		// check if setter with value works
-		var newid = mongoLayer.ObjectId();
+		var newid = mongolayer.ObjectId();
 		doc.string = newid.toString();
 		assert.equal(doc.raw.toString(), newid.toString());
 		
@@ -159,14 +159,14 @@ describe(__filename, function() {
 	});
 	
 	it("should have working jsonToObject virtual", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			virtuals : [
 				{ name : "foo", type : "jsonToObject", options : { key : "obj" } }
 			]
 		});
 		
-		var id = mongoLayer.ObjectId()
+		var id = mongolayer.ObjectId()
 		var data = { foo : "fooValue", bar : [1,2] };
 		var temp = new model.Document({ _id : id, obj : data });
 		
@@ -192,7 +192,7 @@ describe(__filename, function() {
 	});
 	
 	it("should _validateDocData and fail on invalid type", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } }
@@ -207,7 +207,7 @@ describe(__filename, function() {
 	});
 	
 	it("should _validateDocData and fail on invalid column", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } }
@@ -222,7 +222,7 @@ describe(__filename, function() {
 	});
 	
 	it("should _validateDocData and succeed on valid type", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } }
@@ -237,7 +237,7 @@ describe(__filename, function() {
 	});
 	
 	it("should _fillDocDefaults", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } },
@@ -269,7 +269,7 @@ describe(__filename, function() {
 	});
 	
 	it("should _checkRequired and fail on required column", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } },
@@ -285,7 +285,7 @@ describe(__filename, function() {
 	});
 	
 	it("should _processDocs and run validation and defaults and required", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } },
@@ -305,7 +305,7 @@ describe(__filename, function() {
 	});
 	
 	it("should _processDocs and fail if document errors", function(done) {
-		var model = new mongoLayer.Model({
+		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } },
@@ -326,7 +326,7 @@ describe(__filename, function() {
 	});
 	
 	it("should addHook", function(done) {
-		var model = new mongoLayer.Model({ collection : "foo" });
+		var model = new mongolayer.Model({ collection : "foo" });
 		model.addHook({
 			name : "foo",
 			type : "beforeFind",
@@ -338,12 +338,12 @@ describe(__filename, function() {
 	});
 	
 	it("should have valid Document", function(done) {
-		var model = new mongoLayer.Model({ collection : "foo" });
+		var model = new mongolayer.Model({ collection : "foo" });
 		var doc = new model.Document({ foo : "fooValue" });
 		
 		assert.equal(doc.foo, "fooValue");
 		assert.equal(doc instanceof model.Document, true);
-		assert.equal(doc instanceof mongoLayer.Document, true);
+		assert.equal(doc instanceof mongolayer.Document, true);
 		
 		done();
 	});
@@ -352,7 +352,7 @@ describe(__filename, function() {
 		var model;
 		
 		before(function(done) {
-			model = new mongoLayer.Model({ collection : "foo" });
+			model = new mongolayer.Model({ collection : "foo" });
 			model.addHook({
 				name : "foo",
 				type : "beforeFind",
@@ -503,34 +503,34 @@ describe(__filename, function() {
 		var conn;
 		
 		beforeEach(function(done) {
-			mongoLayer.connect(config, function(err, tempConn) {
+			mongolayer.connect(config, function(err, tempConn) {
 				conn = tempConn;
 				
-				model = new mongoLayer.Model({
-					collection : "mongoLayer_test",
+				model = new mongolayer.Model({
+					collection : "mongolayer_test",
 					fields : [
 						{ name : "foo", validation : { type : "string" } },
 						{ name : "bar", validation : { type : "string" } },
 						{ name : "baz", default : false, validation : { type : "boolean" } }
 					],
 					relationships : [
-						{ name : "single", type : "single", modelName : "mongoLayer_testRelated" },
-						{ name : "multiple", type : "multiple", modelName : "mongoLayer_testRelated" }
+						{ name : "single", type : "single", modelName : "mongolayer_testRelated" },
+						{ name : "multiple", type : "multiple", modelName : "mongolayer_testRelated" }
 					]
 				});
 				
-				modelRelated = new mongoLayer.Model({
-					collection : "mongoLayer_testRelated",
+				modelRelated = new mongolayer.Model({
+					collection : "mongolayer_testRelated",
 					fields : [
 						{ name : "title", validation : { type : "string" } }
 					],
 					relationships : [
-						{ name : "singleSecond", type : "single", modelName : "mongoLayer_testRelated2" }
+						{ name : "singleSecond", type : "single", modelName : "mongolayer_testRelated2" }
 					]
 				});
 				
-				modelRelated2 = new mongoLayer.Model({
-					collection : "mongoLayer_testRelated2",
+				modelRelated2 = new mongolayer.Model({
+					collection : "mongolayer_testRelated2",
 					fields : [
 						{ name : "title", validation : { type : "string" } }
 					]
@@ -999,8 +999,8 @@ describe(__filename, function() {
 		});
 		
 		describe("update", function() {
-			var id1 = mongoLayer.ObjectId();
-			var id2 = mongoLayer.ObjectId();
+			var id1 = mongolayer.ObjectId();
+			var id2 = mongolayer.ObjectId();
 			
 			beforeEach(function(done) {
 				model.remove({}, function(err) {
@@ -1143,7 +1143,7 @@ describe(__filename, function() {
 				it("should find", function(done) {
 					model.find({}, function(err, docs) {
 						assert.equal(docs[0] instanceof model.Document, true);
-						assert.equal(docs[0] instanceof mongoLayer.Document, true);
+						assert.equal(docs[0] instanceof mongolayer.Document, true);
 						assert.equal(docs.length, 3);
 						
 						done();
@@ -1220,14 +1220,14 @@ describe(__filename, function() {
 					});
 				});
 				
-				it("should have working mongoLayer.toPlain() after find on doc and array", function(done) {
+				it("should have working mongolayer.toPlain() after find on doc and array", function(done) {
 					model.find({}, function(err, docs) {
-						var temp = docs.map(function(val, i) { return mongoLayer.toPlain(val) });
+						var temp = docs.map(function(val, i) { return mongolayer.toPlain(val) });
 						
 						assert.equal(temp[0] instanceof model.Document, false);
 						assert.equal(temp[0]._id.toString(), temp[0].id);
 						
-						var temp = mongoLayer.toPlain(docs);
+						var temp = mongolayer.toPlain(docs);
 						
 						assert.equal(temp[0] instanceof model.Document, false);
 						assert.equal(temp[0]._id.toString(), temp[0].id);
@@ -1238,16 +1238,16 @@ describe(__filename, function() {
 			});
 			
 			describe("relationships", function(done) {
-				var root1 = new mongoLayer.ObjectId();
-				var root2 = new mongoLayer.ObjectId();
-				var root3 = new mongoLayer.ObjectId();
-				var root4 = new mongoLayer.ObjectId();
-				var related1_1 = new mongoLayer.ObjectId();
-				var related1_2 = new mongoLayer.ObjectId();
-				var related1_3 = new mongoLayer.ObjectId();
-				var related1_4 = new mongoLayer.ObjectId();
-				var related2_1 = new mongoLayer.ObjectId();
-				var related2_2 = new mongoLayer.ObjectId();
+				var root1 = new mongolayer.ObjectId();
+				var root2 = new mongolayer.ObjectId();
+				var root3 = new mongolayer.ObjectId();
+				var root4 = new mongolayer.ObjectId();
+				var related1_1 = new mongolayer.ObjectId();
+				var related1_2 = new mongolayer.ObjectId();
+				var related1_3 = new mongolayer.ObjectId();
+				var related1_4 = new mongolayer.ObjectId();
+				var related2_1 = new mongolayer.ObjectId();
+				var related2_2 = new mongolayer.ObjectId();
 				
 				beforeEach(function(done) {
 					async.parallel([
@@ -1356,7 +1356,7 @@ describe(__filename, function() {
 		
 		describe("_id semantic testing", function(done) {
 			it("should insert ObjectId for _id", function(done) {
-				var id = new mongoLayer.ObjectId();
+				var id = new mongolayer.ObjectId();
 				
 				model.insert({
 					_id : id,
@@ -1371,7 +1371,7 @@ describe(__filename, function() {
 			});
 			
 			it("should fail insert string for _id", function(done) {
-				var id = new mongoLayer.ObjectId();
+				var id = new mongolayer.ObjectId();
 				
 				model.insert({
 					_id : id.toString(),
@@ -1384,7 +1384,7 @@ describe(__filename, function() {
 			});
 			
 			it("should find on _id with object", function(done) {
-				var id = new mongoLayer.ObjectId();
+				var id = new mongolayer.ObjectId();
 				
 				model.insert({
 					_id : id,
@@ -1401,7 +1401,7 @@ describe(__filename, function() {
 			});
 			
 			it("should fail on find on _id with string", function(done) {
-				var id = new mongoLayer.ObjectId();
+				var id = new mongolayer.ObjectId();
 				
 				model.insert({
 					_id : id,

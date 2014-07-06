@@ -1,17 +1,17 @@
 var assert = require("assert");
-var mongoLayer = require("../index.js");
+var mongolayer = require("../index.js");
 var config = require("./config.js");
 var async = require("async");
 
 describe(__filename, function() {
 	it("should add", function(done) {
-		var connection = new mongoLayer.Connection({
+		var connection = new mongolayer.Connection({
 			db : {
 				collection : function() {}
 			}
 		});
-		var model1 = new mongoLayer.Model({ collection : "foo" });
-		var model2 = new mongoLayer.Model({ name : "foo_bar", collection : "foo" });
+		var model1 = new mongolayer.Model({ collection : "foo" });
+		var model2 = new mongolayer.Model({ name : "foo_bar", collection : "foo" });
 		
 		async.parallel([
 			function(cb) {
@@ -35,13 +35,13 @@ describe(__filename, function() {
 	});
 	
 	it("should ensureIndexes on add", function(done) {
-		mongoLayer.connect(config, function(err, conn) {
+		mongolayer.connect(config, function(err, conn) {
 			assert.ifError(err);
 			
 			conn._db.dropCollection("foo", function(err) {
 				assert.ifError(err);
 				
-				var model1 = new mongoLayer.Model({
+				var model1 = new mongolayer.Model({
 					collection : "foo",
 					fields : [
 						{ name : "foo", validation : { type : "string" }, index : true }
