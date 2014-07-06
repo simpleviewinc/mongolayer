@@ -1,0 +1,24 @@
+{
+	"name" : "mongoLayer",
+	"description" : "MongoDB model layer with validation and hooks, similar to Mongoose but thinner.",
+	"author" : "Owen Allen <owenallenaz@gmail.com>",
+	"version" : "0.1.0",
+	"devDependencies" : {
+		"mocha" : "*"
+	},
+	"dependencies" : {
+		"async" : "*",
+		"extend" : "*",
+		"jsvalidator" : "*",
+		"mongodb" : "*"
+	},
+	"engines" : { "node" : ">=0.10.x" },
+	"scripts" : {
+		"test" : "mocha --debug $(find testing/ -name *.test.js) -R spec --colors --check-leaks"
+	},
+	"repository" : {
+		"type" : "git",
+		"url" : "https://github.com/simpleviewinc/mongoLayer.git"
+	},
+	"license" : "MIT"
+}
