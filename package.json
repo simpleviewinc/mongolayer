@@ -1,5 +1,5 @@
 {
-	"name" : "mongoLayer",
+	"name" : "mongolayer",
 	"description" : "MongoDB model layer with validation and hooks, similar to Mongoose but thinner.",
 	"author" : "Owen Allen <owenallenaz@gmail.com>",
 	"version" : "0.1.0",
@@ -18,7 +18,7 @@
 	},
 	"repository" : {
 		"type" : "git",
-		"url" : "https://github.com/simpleviewinc/mongoLayer.git"
+		"url" : "https://github.com/simpleviewinc/mongolayer.git"
 	},
 	"license" : "MIT"
 }
