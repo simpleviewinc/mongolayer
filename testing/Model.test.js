@@ -12,16 +12,24 @@ describe(__filename, function() {
 		done();
 	});
 	
-	it("should setConnection", function(done) {
+	it("should _setConnection and _disconnect", function(done) {
 		var model = new mongolayer.Model({ collection : "some_table" });
 		
+		var collection = function() { return "collectionReturn" }
+		
 		model._setConnection({
-			connection : { _db : { collection : function() {} }, foo : "bar" }
+			connection : { _db : { collection : collection }, foo : "bar" }
 		});
 		
 		assert.equal(model.connected, true);
 		assert.equal(model._connection.foo, "bar");
-		assert.equal(model._collectionName, "some_table");
+		assert.equal(model.collection, "collectionReturn");
+		
+		model._disconnect();
+		
+		assert.equal(model.connected, false);
+		assert.equal(model._connection, null);
+		assert.equal(model.collection, null);
 		
 		done();
 	});
@@ -41,14 +49,12 @@ describe(__filename, function() {
 			fields : [
 				{ name : "foo", validation : { type : "string" } },
 				{ name : "bar", validation : { type : "number" } },
-				{ name : "baz", validation : { type : "string" }, index : true, unique : true }
+				{ name : "baz", validation : { type : "string" } }
 			]
 		});
 		
 		assert.equal(model._fields["foo"].validation.type, "string");
 		assert.equal(model._fields["bar"].validation.type, "number");
-		assert.equal(model._indexes[0].keys.baz, 1);
-		assert.equal(model._indexes[0].options.unique, true);
 		
 		done();
 	});
@@ -244,12 +250,12 @@ describe(__filename, function() {
 				{ name : "bar", default : "my new value", validation : { type : "string" } },
 				{
 					name : "baz",
-					default : function(args, cb) {
+					default : function(args) {
 						assert.equal(args.column, "baz");
 						assert.equal(args.raw.foo, "fooValue");
 						assert.equal(args.raw.bar, "my new value");
 						
-						cb(null, "somethingawesome")
+						return "somethingawesome";
 					},
 					validation : {
 						type : "string"
@@ -259,13 +265,12 @@ describe(__filename, function() {
 		});
 		
 		var test = { foo : "fooValue" };
-		model._fillDocDefaults(test, function(err) {
-			assert.equal(test.bar, "my new value");
-			assert.equal(test.foo, "fooValue");
-			assert.equal(test.baz, "somethingawesome");
-			
-			done();
-		});
+		model._fillDocDefaults(test)
+		assert.equal(test.bar, "my new value");
+		assert.equal(test.foo, "fooValue");
+		assert.equal(test.baz, "somethingawesome");
+		
+		done();
 	});
 	
 	it("should _checkRequired and fail on required column", function(done) {
@@ -294,11 +299,45 @@ describe(__filename, function() {
 			]
 		});
 		
-		var test = { foo : "something" };
-		model._processDocs({ data : [test], validate : true, defaults : true, checkRequired : true }, function(err) {
-			assert.equal(err instanceof Error, true);
-			assert.equal(test.baz, 5);
-			assert.equal(test.foo, "something");
+		var args = { validate : true, defaults : true, checkRequired : true };
+		
+		async.series([
+			function(cb) {
+				// should fail required
+				args.data = [{ foo : "something" }];
+				
+				model._processDocs(args, function(err, cleanDocs) {
+					assert.equal(err instanceof Error, true);
+					assert.equal(cleanDocs, undefined);
+					
+					cb(null);
+				});
+			},
+			function(cb) {
+				// should have default rolled in
+				args.data = [{ foo : "something", bar : true }];
+				
+				model._processDocs(args, function(err, cleanDocs) {
+					assert.ifError(err);
+					
+					assert.equal(cleanDocs[0].baz, 5);
+					
+					cb(null);
+				});
+			},
+			function(cb) {
+				// should fail validation
+				args.data = [{ foo : "something", bar : "false" }];
+				
+				model._processDocs(args, function(err, cleanDocs) {
+					assert.equal(err instanceof Error, true);
+					assert.equal(cleanDocs, undefined);
+					
+					cb(null);
+				});
+			}
+		], function(err) {
+			assert.ifError(err);
 			
 			done();
 		});
@@ -316,10 +355,9 @@ describe(__filename, function() {
 		var test = { foo : 5 };
 		var test2 = { foo : "something" };
 		
-		model._processDocs({ data : [test, test2], validate : true, defaults : true }, function(err) {
+		model._processDocs({ data : [test, test2], validate : true, defaults : true }, function(err, cleanDocs) {
 			assert.equal(err instanceof Error, true);
-			assert.equal(test2.bar, undefined);
-			assert.equal(test.bar, 5);
+			assert.equal(cleanDocs, undefined);
 			
 			done();
 		});
@@ -344,6 +382,23 @@ describe(__filename, function() {
 		assert.equal(doc.foo, "fooValue");
 		assert.equal(doc instanceof model.Document, true);
 		assert.equal(doc instanceof mongolayer.Document, true);
+		
+		done();
+	});
+	
+	it("should have Document which fills defaults", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "foo", validation : { type : "string" } },
+				{ name : "bar", default : "awesome!", validation : { type : "string" } }
+			]
+		});
+		var doc = new model.Document({ foo : "fooValue" });
+		
+		assert.notEqual(doc.id, undefined);
+		assert.equal(doc.foo, "fooValue");
+		assert.equal(doc.bar, "awesome!");
 		
 		done();
 	});
@@ -429,7 +484,7 @@ describe(__filename, function() {
 		});
 		
 		it("should _executeHooks by name and include required hooks", function(done) {
-			model._executeHooks({ type : "beforeFind", hooks : [{ name : "bar" }, { name : "foo" }], args : { data : [] } }, function(err, args) {
+			model._executeHooks({ type : "beforeFind", hooks : [{ name : "bar" }, { name : "foo" }], args : { filter : {}, data : [] } }, function(err, args) {
 				assert.ifError(err);
 				
 				assert.equal(args.data[0], "bar");
@@ -441,7 +496,7 @@ describe(__filename, function() {
 		});
 		
 		it("should _executeHooks and not execute after an error", function(done) {
-			model._executeHooks({ type : "beforeFind", hooks : [{ name : "errors" }, { name : "foo" }], args : { data : [] } }, function(err, args) {
+			model._executeHooks({ type : "beforeFind", hooks : [{ name : "errors" }, { name : "foo" }], args : { filter : {}, data : [] } }, function(err, args) {
 				assert.equal(err instanceof Error, true);
 				assert.equal(args.data.length, 0);
 				
@@ -450,7 +505,7 @@ describe(__filename, function() {
 		});
 		
 		it("should _executeHooks with args", function(done) {
-			model._executeHooks({ type : "beforeFind", hooks : [{ name : "withArgs", args : { foo : "fooValue" } }], args : { data : [] } }, function(err, args) {
+			model._executeHooks({ type : "beforeFind", hooks : [{ name : "withArgs", args : { foo : "fooValue" } }], args : { filter : {}, data : [] } }, function(err, args) {
 				assert.ifError(err);
 				
 				assert.equal(args.data[0], "withArgs_fooValue");
@@ -461,7 +516,7 @@ describe(__filename, function() {
 		});
 		
 		it("should not _executeHooks twice on required", function(done) {
-			model._executeHooks({ type : "beforeFind", hooks : [{ name : "baz" }], args : { data : [] } }, function(err, args) {
+			model._executeHooks({ type : "beforeFind", hooks : [{ name : "baz" }], args : { filter : {}, data : [] } }, function(err, args) {
 				assert.ifError(err);
 				
 				assert.equal(args.data[0], "baz");
@@ -490,22 +545,22 @@ describe(__filename, function() {
 		});
 	});
 	
-	describe("indexes", function(done) {
-		
-		
-		
-	});
-	
 	describe("CRUD", function(done) {
 		var model;
 		var modelRelated;
 		var modelRelated2;
 		var conn;
 		
-		beforeEach(function(done) {
+		before(function(done) {
 			mongolayer.connect(config, function(err, tempConn) {
 				conn = tempConn;
 				
+				done();
+			});
+		});
+		
+		beforeEach(function(done) {
+			conn.removeAll(function(err) {
 				model = new mongolayer.Model({
 					collection : "mongolayer_test",
 					fields : [
@@ -557,6 +612,9 @@ describe(__filename, function() {
 							},
 							function(cb) {
 								modelRelated.remove({}, cb);
+							},
+							function(cb) {
+								modelRelated2.remove({}, cb);
 							}
 						], cb);
 					}
@@ -575,6 +633,21 @@ describe(__filename, function() {
 					assert.ifError(err);
 					
 					assert.equal(docs[0].foo, "fooValue");
+					
+					done();
+				});
+			});
+			
+			it("should run virtuals on insert", function(done) {
+				var _id = new mongolayer.ObjectId();
+				
+				model.insert({
+					id : _id.toString(),
+					foo : "fooValue"
+				}, function(err, docs) {
+					assert.ifError(err);
+					
+					assert.equal(docs[0].id, _id.toString());
 					
 					done();
 				});
@@ -672,6 +745,19 @@ describe(__filename, function() {
 				});
 			});
 			
+			it("should allow insert of Document type", function(done) {
+				var doc = new model.Document({ foo : "fooValue" });
+				
+				model.insert(doc, function(err, docs) {
+					assert.ifError(err);
+					
+					assert.equal(docs[0].id, doc.id);
+					assert.equal(docs[0].foo, doc.foo);
+					
+					done();
+				});
+			});
+			
 			it("should run hooks properly", function(done) {
 				var beforeCalled;
 				var afterCalled;
@@ -695,7 +781,10 @@ describe(__filename, function() {
 					name : "process",
 					type : "afterInsert",
 					handler : function(args, cb) {
-						assert.equal(args.docs, data);
+						assert.equal(args.docs.length, 1);
+						assert.equal(args.docs[0] instanceof model.Document, true);
+						assert.equal(args.docs[0].foo, "fooValue1");
+						assert.equal(args.docs[0].bar, "barValue1");
 						assert.notEqual(args.options, undefined);
 						
 						afterCalled = true;
@@ -866,54 +955,50 @@ describe(__filename, function() {
 				model.save({
 					foo : "fooValue1",
 					bar : "barValue1"
-				}, function(err, result) {
+				}, function(err, doc, result) {
 					assert.ifError(err);
 					
-					assert.equal(result[0].n, 1);
+					assert.equal(doc instanceof model.Document, true);
+					assert.equal(doc.foo, "fooValue1");
+					assert.equal(doc.bar, "barValue1");
+					assert.equal(result.n, 1);
 					
 					done();
 				});
 			});
 			
-			it("should save multiple including upsert", function(done) {
-				model.insert({
-					foo : "fooValue1",
-					bar : "barValue1"
-				}, function(err, docs) {
+			it("should prevent bulk save", function(done) {
+				model.save([{ foo : "fooValue1", bar : "barValue1" }, { foo : "fooValue2", bar : "barValue2" }], function(err, doc, result) {
+					assert.equal(err instanceof Error, true);
+					assert.notEqual(err.message.match(/bulk operations/), null);
+					
+					done();
+				});
+			});
+			
+			it("should allow save of Document type", function(done) {
+				var doc = new model.Document({ foo : "fooValue1", bar : "barValue1" });
+				var _id = doc._id;
+				
+				model.save(doc, function(err, doc) {
 					assert.ifError(err);
 					
-					var id = docs[0]._id;
+					assert.equal(doc.id, _id.toString());
 					
-					model.save([
-						{ _id : docs[0]._id, foo : "fooValue1_a", bar : "barValue1_b" },
-						{ foo : "fooValue2", bar : "barValue2" }
-					], function(err, result) {
-						assert.ifError(err);
-						
-						assert.equal(result[0].upserted, undefined);
-						assert.notEqual(result[1].upserted, undefined);
-						
-						model.find({}, function(err, docs) {
-							assert.equal(id.toString(), docs[0]._id.toString());
-							assert.equal(docs[0].foo, "fooValue1_a");
-							assert.equal(docs[1].foo, "fooValue2");
-							
-							done();
-						});
-					});
+					done();
 				});
 			});
 			
 			it("should run hooks properly", function(done) {
 				var beforeCalled;
 				var afterCalled;
-				var data = [{ foo : "fooValue1", bar : "barValue1"}];
+				var data = { foo : "fooValue1", bar : "barValue1"};
 				
 				model.addHook({
 					name : "process",
 					type : "beforeSave",
 					handler : function(args, cb) {
-						assert.equal(args.docs, data);
+						assert.equal(args.doc, data);
 						assert.notEqual(args.options, undefined);
 						
 						beforeCalled = true;
@@ -927,9 +1012,9 @@ describe(__filename, function() {
 					name : "process",
 					type : "afterSave",
 					handler : function(args, cb) {
-						assert.equal(args.docs, data);
+						assert.equal(args.doc instanceof model.Document, true);
 						assert.notEqual(args.options, undefined);
-						assert.notEqual(args.results, undefined);
+						assert.notEqual(args.result, undefined);
 						
 						afterCalled = true;
 						
@@ -1122,6 +1207,18 @@ describe(__filename, function() {
 			});
 		});
 		
+		describe("count", function() {
+			it("should count", function(done) {
+				model.insert([{ foo : "1" }, { foo : "2" }, { foo : "1" }], function(err) {
+					model.count({ foo : "1" }, function(err, count) {
+						assert.equal(count, 2);
+						
+						done();
+					});
+				});
+			});
+		});
+		
 		describe("find", function() {
 			describe("basic", function(done) {
 				beforeEach(function(done) {
@@ -1233,6 +1330,46 @@ describe(__filename, function() {
 						assert.equal(temp[0]._id.toString(), temp[0].id);
 						
 						done();
+					});
+				});
+				
+				it("should have working findById with object and string", function(done) {
+					model.find({}, function(err, docs) {
+						assert.ifError(err);
+						
+						var _id = docs[0]._id;
+						var id = docs[1].id;
+						
+						async.parallel([
+							function(cb) {
+								model.findById(_id, function(err, doc) {
+									assert.ifError(err);
+									assert.equal(doc.foo, 1);
+									
+									cb(null);
+								});
+							},
+							function(cb) {
+								model.findById(id, function(err, doc) {
+									assert.ifError(err);
+									assert.equal(doc.foo, 2);
+									
+									cb(null);
+								});
+							},
+							function(cb) {
+								model.findById(new mongolayer.ObjectId(), function(err, doc) {
+									assert.ifError(err);
+									assert.equal(doc, null);
+									
+									cb(null);
+								});
+							}
+						], function(err) {
+							assert.ifError(err);
+							
+							done();
+						});
 					});
 				});
 			});
@@ -1378,6 +1515,20 @@ describe(__filename, function() {
 					foo : "test"
 				}, function(err, docs) {
 					assert.equal(err instanceof Error, true);
+					
+					done();
+				});
+			});
+			
+			it("should insert string for id", function(done) {
+				var id = new mongolayer.ObjectId();
+				
+				model.insert({
+					id : id.toString(),
+					foo : "test"
+				}, function(err, docs) {
+					assert.ifError(err);
+					assert.equal(docs[0].id, id.toString());
 					
 					done();
 				});

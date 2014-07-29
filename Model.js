@@ -47,7 +47,9 @@ var Model = function(args) {
 		beforeFind : {},
 		afterFind : {},
 		beforeRemove : {},
-		afterRemove : {}
+		afterRemove : {},
+		beforeCount : {},
+		afterCount : {}
 	};
 	self.defaultHooks = extend(true, {
 		beforeInsert : [],
@@ -59,24 +61,29 @@ var Model = function(args) {
 		beforeFind : [],
 		afterFind : [],
 		beforeRemove : [],
-		afterRemove : []
+		afterRemove : [],
+		beforeCount : [],
+		afterCount : []
 	}, args.defaultHooks);
 	self._connection = null; // stores Connection ref
 	self._collectionName = args.collection;
 	self.collection = null; // stores reference to MongoClient.Db.collection()
 	
-	self.Document = function(args) {
-		mongolayer.Document.call(this, args); // call constructor of parent but pass this as context
+	self._Document = function(model, args) {
+		mongolayer.Document.call(this, model, args); // call constructor of parent but pass this as context
 	};
 	
 	// ensures that all documents we create are instanceof mongolayer.Document and instanceof self.Document
-	self.Document.prototype = Object.create(mongolayer.Document.prototype);
+	self._Document.prototype = Object.create(mongolayer.Document.prototype);
+	
+	// binds the model into the document so that the core document is aware of the model, but not required when instantiating a new one
+	self.Document = self._Document.bind(self._Document, self);
 	
 	// adds _id field
 	self.addField({
 		name : "_id",
 		default : function(args, cb) {
-			cb(null, new mongolayer.ObjectId());
+			return new mongolayer.ObjectId();
 		},
 		validation : {
 			type : "class",
@@ -133,6 +140,15 @@ Model.prototype._setConnection = function(args) {
 	self.connected = true;
 }
 
+Model.prototype._disconnect = function() {
+	var self = this;
+	
+	self._connection = null;
+	self.collection = null;
+	
+	self.connected = false;
+}
+
 Model.prototype.addField = function(args) {
 	var self = this;
 	
@@ -140,30 +156,7 @@ Model.prototype.addField = function(args) {
 	// args.default
 	// args.required
 	// args.persist
-	// args.index
-	// args.unique
-	// args.validation.type
-	// args.validation.default
-	// args.validation.required
-	// args.validation.class (for validation)
-	// args.validation.schema (for validation)
-	// args.validation.allowExtraKeys (for validation)
-	// args.validation.deleteExtraKeys (for validation)
-	
-	if (args.index === true) {
-		var index = {
-			keys : {},
-			options : {}
-		}
-		
-		index.keys[args.name] = 1;
-		
-		if (args.unique === true) {
-			index.options.unique = true;
-		}
-		
-		self.addIndex(index);
-	}
+	// args.validation (jsvalidator syntax)
 	
 	self._fields[args.name] = args;
 }
@@ -212,7 +205,7 @@ Model.prototype.addVirtual = function(args) {
 	args.set = args.set || undefined;
 	args.enumerable = args.enumerable !== undefined ? args.enumerable : true;
 	
-	Object.defineProperty(self.Document.prototype, args.name, {
+	Object.defineProperty(self._Document.prototype, args.name, {
 		get : args.get !== undefined ? args.get : undefined,
 		set : args.set !== undefined ? args.set : undefined,
 		enumerable : args.enumerable
@@ -408,14 +401,16 @@ Model.prototype.insert = function(docs, options, cb) {
 		if (err) { return cb(err); }
 		
 		// validate/add defaults
-		self._processDocs({ data : args.docs, validate : true, defaults : true, checkRequired : true }, function(err) {
+		self._processDocs({ data : args.docs, validate : true, checkRequired : true }, function(err, cleanDocs) {
 			if (err) { return cb(err); }
 			
 			// insert the data into mongo
-			self.collection.insert(args.docs, args.options.options, function(err, objects) {
+			self.collection.insert(cleanDocs, args.options.options, function(err, objects) {
 				if (err) { return cb(err); }
 				
-				self._executeHooks({ type : "afterInsert", hooks : options.afterHooks, args : { docs : objects, options : args.options } }, function(err, args) {
+				var castedDocs = self._castDocs(objects);
+				
+				self._executeHooks({ type : "afterInsert", hooks : options.afterHooks, args : { docs : castedDocs, options : args.options } }, function(err, args) {
 					if (err) { return cb(err); }
 					
 					cb(null, args.docs);
@@ -425,18 +420,19 @@ Model.prototype.insert = function(docs, options, cb) {
 	});
 }
 
-Model.prototype.save = function(docs, options, cb) {
+Model.prototype.save = function(doc, options, cb) {
 	var self = this;
 	
 	// if no options, callback is options
 	cb = cb || options;
 	
 	if (self.connected === false) {
-		return cb(new Error("Model not connected to a MongoDB database"));
+		return cb(new Error("Model not connected to a MongoDB database."));
 	}
 	
-	// ensure docs is always an array
-	docs = docs instanceof Array ? docs : [docs];
+	if (doc instanceof Array) {
+		return cb(new Error("Save does not support bulk operations."));
+	}
 	
 	// if options is callback, default the options
 	options = options === cb ? {} : options;
@@ -444,38 +440,37 @@ Model.prototype.save = function(docs, options, cb) {
 	options.afterHooks = self._normalizeHooks(options.afterHooks || self.defaultHooks.afterSave);
 	options.options = options.options || {};
 	
-	self._executeHooks({ type : "beforeSave", hooks : options.beforeHooks, args : { docs : docs, options : options } }, function(err, args) {
+	self._executeHooks({ type : "beforeSave", hooks : options.beforeHooks, args : { doc : doc, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
 		// validate/add defaults
-		self._processDocs({ data : args.docs, validate : true, defaults : true, checkRequired : true }, function(err) {
+		self._processDocs({ data : [args.doc], validate : true, checkRequired : true }, function(err, cleanDocs) {
 			if (err) { return cb(err); }
 			
-			// insert the data into mongo
-			var calls = [];
-			var results = [];
-			args.docs.forEach(function(val, i) {
-				calls.push(function(cb) {
-					self.collection.save(val, args.options.options, function(err, number, result) {
-						if (err) { return cb(err); }
-						
-						results.push(result);
-						
-						cb(null);
-					});
-				});
-			});
-			
-			async.series(calls, function(err) {
+			self.collection.save(cleanDocs[0], args.options.options, function(err, number, result) {
 				if (err) { return cb(err); }
 				
-				self._executeHooks({ type : "afterSave", hooks : args.options.afterHooks, args : { results : results, docs : args.docs, options : args.options } }, function(err, args) {
+				var castedDoc = self._castDocs(cleanDocs)[0];
+				
+				self._executeHooks({ type : "afterSave", hooks : args.options.afterHooks, args : { result : result, doc : castedDoc, options : args.options } }, function(err, args) {
 					if (err) { return cb(err); }
 					
-					cb(null, args.results);
+					cb(null, castedDoc, args.result);
 				});
 			});
 		});
+	});
+}
+
+Model.prototype.findById = function(id, options, cb) {
+	var self = this;
+	
+	cb = cb || options;
+	
+	self.find({ _id : id instanceof mongolayer.ObjectId ? id : new mongolayer.ObjectId(id) }, options, function(err, docs) {
+		if (err) { return cb(err); }
+		
+		cb(null, docs.length === 0 ? null : docs[0]);
 	});
 }
 
@@ -505,15 +500,41 @@ Model.prototype.find = function(filter, options, cb) {
 		cursor.toArray(function(err, docs) {
 			if (err) { return cb(err); }
 			
-			var castedDocs = [];
-			docs.forEach(function(val, i) {
-				castedDocs.push(new self.Document(val));
-			});
+			var castedDocs = self._castDocs(docs);
 			
 			self._executeHooks({ type : "afterFind", hooks : options.afterHooks, args : { filter : args.filter, options : args.options, docs : castedDocs } }, function(err, args) {
 				if (err) { return cb(err); }
 				
-				cb(err, args.docs);
+				cb(null, args.docs);
+			});
+		});
+	});
+}
+
+Model.prototype.count = function(filter, options, cb) {
+	var self = this;
+	
+	cb = cb || options;
+	
+	if (self.connected === false) {
+		return cb(new Error("Model not connected to a MongoDB database"));
+	}
+	
+	options = options === cb ? {} : options;
+	options.beforeHooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.beforeCount);
+	options.afterHooks = self._normalizeHooks(options.afterHooks || self.defaultHooks.afterCount);
+	options.options = options.options || {};
+	
+	self._executeHooks({ type : "beforeCount", hooks : options.beforeHooks, args : { filter : filter, options : options } }, function(err, args) {
+		if (err) { return cb(err); }
+		
+		self.collection.count(args.filter, args.options.options, function(err, count) {
+			if (err) { return cb(err); }
+			
+			self._executeHooks({ type : "afterCount", hooks : options.afterHooks, args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
+				if (err) { return cb(err); }
+				
+				cb(null, args.count);
 			});
 		});
 	});
@@ -664,23 +685,44 @@ Model.prototype._executeHooks = function(args, cb) {
 	});
 }
 
+Model.prototype._castDocs = function(docs) {
+	var self = this;
+	
+	var castedDocs = [];
+	docs.forEach(function(val, i) {
+		castedDocs.push(new self.Document(val));
+	});
+	
+	return castedDocs;
+}
+
 // Validate and fill defaults into an array of documents. If one document fails it will cb an error
 Model.prototype._processDocs = function(args, cb) {
 	var self = this;
 	
 	// args.data
 	// args.validate
-	// args.defaults
 	// args.checkRequired
 	
 	var calls = [];
 	var noop = function(cb) { cb(null); }
 	
+	var newData = [];
 	args.data.forEach(function(val, i) {
+		// convert data to Document and back toPlain to ensure virtual setters are ran and we know "simple" data is being passed to the DB
+		if (val instanceof self.Document) {
+			newData.push(mongolayer.toPlain(val));
+		} else {
+			var temp = new self.Document(val);
+			newData.push(mongolayer.toPlain(temp));
+		}
+	});
+	
+	newData.forEach(function(val, i) {
 		calls.push(function(cb) {
-			if (args.defaults === true) {
+			if (args.validate === true) {
 				var call = function(cb) {
-					self._fillDocDefaults(val, cb);
+					self._validateDocData(val, cb);
 				}
 			} else {
 				var call = noop;
@@ -689,12 +731,12 @@ Model.prototype._processDocs = function(args, cb) {
 			call(function(err) {
 				if (err) {
 					err.message = util.format("Document %s. %s", i, err.message);
-					return cb(err)
+					return cb(err);
 				}
-					
-				if (args.validate === true) {
+				
+				if (args.checkRequired === true) {
 					var call = function(cb) {
-						self._validateDocData(val, cb);
+						self._checkRequired(val, cb);
 					}
 				} else {
 					var call = noop;
@@ -706,28 +748,17 @@ Model.prototype._processDocs = function(args, cb) {
 						return cb(err);
 					}
 					
-					if (args.checkRequired === true) {
-						var call = function(cb) {
-							self._checkRequired(val, cb);
-						}
-					} else {
-						var call = noop;
-					}
-					
-					call(function(err) {
-						if (err) {
-							err.message = util.format("Document %s. %s", i, err.message);
-							return cb(err);
-						}
-						
-						cb(null);
-					});
+					cb(null);
 				});
 			});
 		});
 	});
 	
-	async.series(calls, cb);
+	async.series(calls, function(err) {
+		if (err) { return cb(err); }
+		
+		cb(null, newData);
+	});
 }
 
 Model.prototype._validateDocData = function(data, cb) {
@@ -757,7 +788,8 @@ Model.prototype._validateDocData = function(data, cb) {
 			var result = validator.validate(val, self._fields[i].validation);
 			
 			if (result.success === false) {
-				errs.push(util.format("Column '%s' is not of valid type '%s'.", i, self._fields[i].validation.type));
+				var validationErrors = result.errors.map(function(val) { return val.err.message}).join(",");
+				errs.push(util.format("Column '%s' is not of valid type '%s'. Validation Error is: '%s'", i, self._fields[i].validation.type, validationErrors));
 			}
 			
 			return;
@@ -792,7 +824,7 @@ Model.prototype._checkRequired = function(data, cb) {
 	cb(null);
 }
 
-Model.prototype._fillDocDefaults = function(data, cb) {
+Model.prototype._fillDocDefaults = function(data) {
 	var self = this;
 	
 	var calls = [];
@@ -800,27 +832,11 @@ Model.prototype._fillDocDefaults = function(data, cb) {
 	objectLib.forEach(self._fields, function(val, i) {
 		if (val.default !== undefined && data[i] === undefined) {
 			if (typeof val.default === "function") {
-				calls.push(function(cb) {
-					val.default({ raw : data, column : i }, function(err, temp) {
-						if (err) { return cb(err); }
-						
-						data[i] = temp;
-						
-						cb(null);
-					});
-				});
+				data[i] = val.default({ raw : data, column : i });
 			} else {
-				calls.push(function(cb) {
-					data[i] = val.default;
-					
-					cb(null);
-				});
+				data[i] = val.default;
 			}
 		}
-	});
-	
-	async.series(calls, function(err) {
-		cb(err);
 	});
 }
 

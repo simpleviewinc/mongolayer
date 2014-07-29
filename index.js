@@ -11,9 +11,8 @@ var connect = function(args, cb) {
 	// args.options
 	
 	args.options = args.options || {};
-	args.options.options = args.options.options || {};
 	
-	mongodb.MongoClient.connect(args.connectionString, args.options.options, function(err, db) {
+	mongodb.MongoClient.connect(args.connectionString, args.options, function(err, db) {
 		if (err) { return cb(err) }
 		
 		var connection = new Connection({ db : db });
