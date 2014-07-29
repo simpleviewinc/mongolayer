@@ -23,7 +23,8 @@ var Model = function(args) {
 	args.fields = args.fields || [];
 	args.virtuals = args.virtuals || [];
 	args.relationships = args.relationships || [];
-	args.methods = args.methods || [];
+	args.modelMethods = args.modelMethods || [];
+	args.documentMethods = args.documentMethods || [];
 	args.indexes = args.indexes || [];
 	args.defaultHooks = args.defaultHooks || {};
 	
@@ -36,6 +37,8 @@ var Model = function(args) {
 	self._virtuals = {};
 	self._relationships = {};
 	self.methods = {};
+	self._modelMethods = {};
+	self._documentMethods = {};
 	self._indexes = [];
 	self._hooks = {
 		beforeInsert : {},
@@ -108,8 +111,12 @@ var Model = function(args) {
 		}
 	});
 	
-	args.methods.forEach(function(val, i) {
-		self.addMethod(val);
+	args.modelMethods.forEach(function(val, i) {
+		self.addModelMethod(val);
+	});
+	
+	args.documentMethods.forEach(function(val, i) {
+		self.addDocumentMethod(val);
 	});
 	
 	args.fields.forEach(function(val, i) {
@@ -368,13 +375,24 @@ Model.prototype._getMyHooks = function(myKey, hooks) {
 	return myHooks;
 }
 
-Model.prototype.addMethod = function(args) {
+Model.prototype.addModelMethod = function(args) {
 	var self = this;
 	
 	// args.name
 	// args.handler
 	
 	self.methods[args.name] = args.handler.bind(self);
+	self._modelMethods[args.name] = args;
+}
+
+Model.prototype.addDocumentMethod = function(args) {
+	var self = this;
+	
+	// args.name
+	// args.handler
+	
+	self._Document.prototype[args.name] = args.handler;
+	self._documentMethods[args.name] = args;
 }
 
 Model.prototype.insert = function(docs, options, cb) {
@@ -769,6 +787,12 @@ Model.prototype._validateDocData = function(data, cb) {
 	objectLib.forEach(data, function(val, i) {
 		if (self._virtuals[i] !== undefined) {
 			// value is a virtual 
+			delete data[i];
+			return;
+		}
+		
+		if (self._documentMethods[i] !== undefined) {
+			// value is a documentMethod
 			delete data[i];
 			return;
 		}

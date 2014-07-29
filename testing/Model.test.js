@@ -85,23 +85,37 @@ describe(__filename, function() {
 	it("should addMethods in constructor", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
-			methods : [
+			fields : [
+				{ name : "foo", validation : { type : "string" } }
+			],
+			modelMethods : [
 				{
 					name : "foo",
-					handler : function(args, cb) {
+					handler : function(args) {
 						assert.equal(this, model);
 						
-						cb(null, args)
+						return args;
+					}
+				}
+			],
+			documentMethods : [
+				{
+					name : "foo2",
+					handler : function(args) {
+						assert.equal(this, doc);
+						
+						return this.foo + " " + args;
 					}
 				}
 			]
 		});
 		
-		model.methods.foo({ foo : "bar" }, function(err, args) {
-			assert.equal(args.foo, "bar");
-			
-			done();
-		});
+		var doc = new model.Document({ foo : "fooValue" });
+		
+		assert.equal(model.methods.foo("modelMethod"), "modelMethod");
+		assert.equal(doc.foo2("documentMethod"), "fooValue documentMethod");
+		
+		done();
 	});
 	
 	it("should addIndexes in constructor", function(done) {
@@ -571,6 +585,9 @@ describe(__filename, function() {
 					relationships : [
 						{ name : "single", type : "single", modelName : "mongolayer_testRelated" },
 						{ name : "multiple", type : "multiple", modelName : "mongolayer_testRelated" }
+					],
+					documentMethods : [
+						{ name : "testMethod", handler : function() { return "testMethodReturn" } }
 					]
 				});
 				
