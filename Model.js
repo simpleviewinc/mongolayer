@@ -54,7 +54,7 @@ var Model = function(args) {
 		beforeCount : {},
 		afterCount : {}
 	};
-	self.defaultHooks = extend(true, {
+	self.defaultHooks = extend({
 		beforeInsert : [],
 		afterInsert : [],
 		beforeSave : [],
@@ -81,6 +81,8 @@ var Model = function(args) {
 	
 	// binds the model into the document so that the core document is aware of the model, but not required when instantiating a new one
 	self.Document = self._Document.bind(self._Document, self);
+	
+	self.ObjectId = mongolayer.ObjectId;
 	
 	// adds _id field
 	self.addField({
@@ -142,7 +144,7 @@ Model.prototype._setConnection = function(args) {
 	// args.connection
 	
 	self._connection = args.connection;
-	self.collection = args.connection._db.collection(self._collectionName);
+	self.collection = args.connection.db.collection(self._collectionName);
 	
 	self.connected = true;
 }
@@ -408,6 +410,8 @@ Model.prototype.insert = function(docs, options, cb) {
 	// if options is callback, default the options
 	options = options === cb ? {} : options;
 	
+	var isArray = docs instanceof Array;
+	
 	// ensure docs is always an array
 	docs = docs instanceof Array ? docs : [docs];
 	
@@ -431,7 +435,7 @@ Model.prototype.insert = function(docs, options, cb) {
 				self._executeHooks({ type : "afterInsert", hooks : options.afterHooks, args : { docs : castedDocs, options : args.options } }, function(err, args) {
 					if (err) { return cb(err); }
 					
-					cb(null, args.docs);
+					cb(null, isArray ? args.docs : args.docs[0]);
 				});
 			});
 		});

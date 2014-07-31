@@ -5,7 +5,7 @@ var Connection = function(args) {
 	
 	args = args || {};
 	
-	self._db = args.db;
+	self.db = args.db;
 	
 	self.models = {};
 }
@@ -62,7 +62,7 @@ Connection.prototype.dropCollection = function(args, cb) {
 	
 	// args.name
 	
-	self._db.dropCollection(args.name, function(err) {
+	self.db.dropCollection(args.name, function(err) {
 		if (err && err.message.match(/ns not found/) === null) {
 			return cb(err);
 		}

@@ -6,6 +6,16 @@ var config = require("./config.js");
 var async = require("async");
 
 describe(__filename, function() {
+	var conn;
+	
+	beforeEach(function(done) {
+		mongolayer.connectCached(config, function(err, temp) {
+			conn = temp;
+			
+			done();
+		});
+	});
+	
 	it("should create", function(done) {
 		var model = new mongolayer.Model({ collection : "foo" });
 		
@@ -18,7 +28,7 @@ describe(__filename, function() {
 		var collection = function() { return "collectionReturn" }
 		
 		model._setConnection({
-			connection : { _db : { collection : collection }, foo : "bar" }
+			connection : { db : { collection : collection }, foo : "bar" }
 		});
 		
 		assert.equal(model.connected, true);
@@ -563,81 +573,70 @@ describe(__filename, function() {
 		var model;
 		var modelRelated;
 		var modelRelated2;
-		var conn;
-		
-		before(function(done) {
-			mongolayer.connect(config, function(err, tempConn) {
-				conn = tempConn;
-				
-				done();
-			});
-		});
 		
 		beforeEach(function(done) {
-			conn.removeAll(function(err) {
-				model = new mongolayer.Model({
-					collection : "mongolayer_test",
-					fields : [
-						{ name : "foo", validation : { type : "string" } },
-						{ name : "bar", validation : { type : "string" } },
-						{ name : "baz", default : false, validation : { type : "boolean" } }
-					],
-					relationships : [
-						{ name : "single", type : "single", modelName : "mongolayer_testRelated" },
-						{ name : "multiple", type : "multiple", modelName : "mongolayer_testRelated" }
-					],
-					documentMethods : [
-						{ name : "testMethod", handler : function() { return "testMethodReturn" } }
-					]
-				});
-				
-				modelRelated = new mongolayer.Model({
-					collection : "mongolayer_testRelated",
-					fields : [
-						{ name : "title", validation : { type : "string" } }
-					],
-					relationships : [
-						{ name : "singleSecond", type : "single", modelName : "mongolayer_testRelated2" }
-					]
-				});
-				
-				modelRelated2 = new mongolayer.Model({
-					collection : "mongolayer_testRelated2",
-					fields : [
-						{ name : "title", validation : { type : "string" } }
-					]
-				});
-				
-				async.series([
-					function(cb) {
-						async.parallel([
-							function(cb) {
-								conn.add({ model : model }, cb);
-							},
-							function(cb) {
-								conn.add({ model : modelRelated }, cb);
-							},
-							function(cb) {
-								conn.add({ model : modelRelated2 }, cb);
-							}
-						], cb);
-					},
-					function(cb) {
-						async.parallel([
-							function(cb) {
-								model.remove({}, cb);
-							},
-							function(cb) {
-								modelRelated.remove({}, cb);
-							},
-							function(cb) {
-								modelRelated2.remove({}, cb);
-							}
-						], cb);
-					}
-				], function(err) {
-					done();
-				});
+			model = new mongolayer.Model({
+				collection : "mongolayer_test",
+				fields : [
+					{ name : "foo", validation : { type : "string" } },
+					{ name : "bar", validation : { type : "string" } },
+					{ name : "baz", default : false, validation : { type : "boolean" } }
+				],
+				relationships : [
+					{ name : "single", type : "single", modelName : "mongolayer_testRelated" },
+					{ name : "multiple", type : "multiple", modelName : "mongolayer_testRelated" }
+				],
+				documentMethods : [
+					{ name : "testMethod", handler : function() { return "testMethodReturn" } }
+				]
+			});
+			
+			modelRelated = new mongolayer.Model({
+				collection : "mongolayer_testRelated",
+				fields : [
+					{ name : "title", validation : { type : "string" } }
+				],
+				relationships : [
+					{ name : "singleSecond", type : "single", modelName : "mongolayer_testRelated2" }
+				]
+			});
+			
+			modelRelated2 = new mongolayer.Model({
+				collection : "mongolayer_testRelated2",
+				fields : [
+					{ name : "title", validation : { type : "string" } }
+				]
+			});
+			
+			async.series([
+				function(cb) {
+					async.parallel([
+						function(cb) {
+							conn.add({ model : model }, cb);
+						},
+						function(cb) {
+							conn.add({ model : modelRelated }, cb);
+						},
+						function(cb) {
+							conn.add({ model : modelRelated2 }, cb);
+						}
+					], cb);
+				},
+				function(cb) {
+					async.parallel([
+						function(cb) {
+							model.remove({}, cb);
+						},
+						function(cb) {
+							modelRelated.remove({}, cb);
+						},
+						function(cb) {
+							modelRelated2.remove({}, cb);
+						}
+					], cb);
+				}
+			], function(err) {
+				done();
 			});
 		});
 		
@@ -646,10 +645,10 @@ describe(__filename, function() {
 				model.insert({
 					foo : "fooValue",
 					bar : "barValue"
-				}, function(err, docs) {
+				}, function(err, doc) {
 					assert.ifError(err);
 					
-					assert.equal(docs[0].foo, "fooValue");
+					assert.equal(doc.foo, "fooValue");
 					
 					done();
 				});
@@ -661,10 +660,10 @@ describe(__filename, function() {
 				model.insert({
 					id : _id.toString(),
 					foo : "fooValue"
-				}, function(err, docs) {
+				}, function(err, doc) {
 					assert.ifError(err);
 					
-					assert.equal(docs[0].id, _id.toString());
+					assert.equal(doc.id, _id.toString());
 					
 					done();
 				});
@@ -673,7 +672,7 @@ describe(__filename, function() {
 			it("should fail validation on single", function(done) {
 				model.insert({
 					foo : 5
-				}, function(err, docs) {
+				}, function(err, doc) {
 					assert.equal(err instanceof Error, true);
 					
 					done();
@@ -683,10 +682,10 @@ describe(__filename, function() {
 			it("should default values on single", function(done) {
 				model.insert({
 					foo : "something"
-				}, function(err, docs) {
-					assert.equal(docs[0].baz, false);
-					assert.equal(docs[0].foo, "something");
-					assert.equal(docs[0].bar, undefined);
+				}, function(err, doc) {
+					assert.equal(doc.baz, false);
+					assert.equal(doc.foo, "something");
+					assert.equal(doc.bar, undefined);
 					
 					done();
 				});
@@ -741,10 +740,10 @@ describe(__filename, function() {
 			it("should insert empty string", function(done) {
 				model.insert({
 					foo : ""
-				}, function(err, docs) {
+				}, function(err, doc) {
 					assert.ifError(err);
 					
-					assert.equal(docs[0].foo, "");
+					assert.equal(doc.foo, "");
 					
 					done();
 				});
@@ -753,10 +752,10 @@ describe(__filename, function() {
 			it("should allow insert null on other types", function(done) {
 				model.insert({
 					foo : null
-				}, function(err, docs) {
+				}, function(err, doc) {
 					assert.ifError(err);
 					
-					assert.equal(docs[0].foo, null);
+					assert.equal(doc.foo, null);
 					
 					done();
 				});
@@ -765,11 +764,11 @@ describe(__filename, function() {
 			it("should allow insert of Document type", function(done) {
 				var doc = new model.Document({ foo : "fooValue" });
 				
-				model.insert(doc, function(err, docs) {
+				model.insert(doc, function(err, doc) {
 					assert.ifError(err);
 					
-					assert.equal(docs[0].id, doc.id);
-					assert.equal(docs[0].foo, doc.foo);
+					assert.equal(doc.id, doc.id);
+					assert.equal(doc.foo, doc.foo);
 					
 					done();
 				});
@@ -1515,10 +1514,10 @@ describe(__filename, function() {
 				model.insert({
 					_id : id,
 					foo : "test"
-				}, function(err, docs) {
+				}, function(err, doc) {
 					assert.ifError(err);
 					
-					assert.equal(docs[0]._id.toString(), id.toString());
+					assert.equal(doc._id.toString(), id.toString());
 					
 					done();
 				});
@@ -1530,7 +1529,7 @@ describe(__filename, function() {
 				model.insert({
 					_id : id.toString(),
 					foo : "test"
-				}, function(err, docs) {
+				}, function(err, doc) {
 					assert.equal(err instanceof Error, true);
 					
 					done();
@@ -1543,9 +1542,9 @@ describe(__filename, function() {
 				model.insert({
 					id : id.toString(),
 					foo : "test"
-				}, function(err, docs) {
+				}, function(err, doc) {
 					assert.ifError(err);
-					assert.equal(docs[0].id, id.toString());
+					assert.equal(doc.id, id.toString());
 					
 					done();
 				});
