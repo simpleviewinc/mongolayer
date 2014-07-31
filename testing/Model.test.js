@@ -597,7 +597,8 @@ describe(__filename, function() {
 					{ name : "title", validation : { type : "string" } }
 				],
 				relationships : [
-					{ name : "singleSecond", type : "single", modelName : "mongolayer_testRelated2" }
+					{ name : "singleSecond", type : "single", modelName : "mongolayer_testRelated2" },
+					{ name : "singleRequired", type : "single", modelName : "mongolayer_testRelated2", required : true }
 				]
 			});
 			
@@ -1432,21 +1433,25 @@ describe(__filename, function() {
 							modelRelated.insert([
 								{
 									_id : related1_1,
-									title : "title1_1"
+									title : "title1_1",
+									singleRequired_id : related2_1
 								},
 								{
 									_id : related1_2,
 									title : "title1_2",
-									singleSecond_id : related2_1
+									singleSecond_id : related2_1,
+									singleRequired_id : related2_1
 								},
 								{
 									_id : related1_3,
 									title : "title1_3",
-									singleSecond_id : related2_2
+									singleSecond_id : related2_2,
+									singleRequired_id : related2_1
 								},
 								{
 									_id : related1_4,
-									title : "title1_4"
+									title : "title1_4",
+									singleRequired_id : related2_1
 								}
 							], cb);
 						},
@@ -1500,6 +1505,16 @@ describe(__filename, function() {
 						
 						assert.equal(docs.length, 1);
 						assert.equal(docs[0].single.singleSecond.title, "title2_1");
+						
+						done();
+					});
+				});
+				
+				it("should require related", function(done) {
+					modelRelated.insert({
+						title : "titleRequire"
+					}, function(err) {
+						assert.ok(err.message.match(/is required/));
 						
 						done();
 					});

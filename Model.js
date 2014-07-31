@@ -229,6 +229,7 @@ Model.prototype.addRelationship = function(args) {
 	// args.name
 	// args.type
 	// args.modelName
+	// args.required
 	
 	var idKey;
 	var objectKey = args.name;
@@ -242,7 +243,8 @@ Model.prototype.addRelationship = function(args) {
 			validation : {
 				type : "class",
 				class : mongolayer.ObjectId
-			}
+			},
+			required : args.required === true
 		});
 		
 		self.addField({
@@ -298,7 +300,8 @@ Model.prototype.addRelationship = function(args) {
 					type : "class",
 					class : mongolayer.ObjectId
 				}
-			}
+			},
+			required : args.required === true
 		});
 		
 		self.addField({
