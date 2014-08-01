@@ -844,7 +844,7 @@ Model.prototype._checkRequired = function(data, cb) {
 	
 	objectLib.forEach(self._fields, function(val, i) {
 		if (val.required === true && data[i] === undefined) {
-			errs.push(util.format("Column '%s' is required and not provided", i));
+			errs.push(util.format("Column '%s' is required and not provided.", i));
 		}
 	});
 	
