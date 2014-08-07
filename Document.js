@@ -6,9 +6,10 @@ var Document = function(model, args) {
 	
 	args = args || {};
 	
-	extend(self, args);
+	extend(true, self, args);
 	
 	model._fillDocDefaults(self);
+	model._onInit.call(self);
 }
 
 module.exports = Document;

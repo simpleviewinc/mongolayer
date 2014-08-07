@@ -27,12 +27,15 @@ var Model = function(args) {
 	args.documentMethods = args.documentMethods || [];
 	args.indexes = args.indexes || [];
 	args.defaultHooks = args.defaultHooks || {};
+	args.hooks = args.hooks || [];
+	args.onInit = args.onInit || function() {};
 	
 	// public
 	self.name = args.name || args.collection;
 	self.connected = false;
 	
 	// private
+	self._onInit = args.onInit;
 	self._fields = {};
 	self._virtuals = {};
 	self._relationships = {};
@@ -131,6 +134,10 @@ var Model = function(args) {
 	
 	args.relationships.forEach(function(val, i) {
 		self.addRelationship(val);
+	});
+	
+	args.hooks.forEach(function(val, i) {
+		self.addHook(val);
 	});
 	
 	args.indexes.forEach(function(val, i) {

@@ -58,13 +58,7 @@ var toPlain = function(data) {
 		});
 	}
 	
-	var temp = {};
-	
-	for(var i in data) {
-		temp[i] = data[i];
-	}
-	
-	return temp;
+	return extend(true, {}, data);
 }
 
 extend(module.exports, {

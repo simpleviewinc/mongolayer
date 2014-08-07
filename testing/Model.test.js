@@ -427,6 +427,24 @@ describe(__filename, function() {
 		done();
 	});
 	
+	it("should call onInit on document", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			onInit : function() {
+				this.bar = "barValue_" + this.foo;
+			},
+			fields : [
+				{ name : "foo", validation : { type : "string" } },
+				{ name : "bar", persist : false }
+			]
+		});
+		
+		var doc = new model.Document({ foo : "fooValue" });
+		assert.equal(doc.bar, "barValue_fooValue");
+		
+		done();
+	});
+	
 	describe("hooks", function(done) {
 		var model;
 		

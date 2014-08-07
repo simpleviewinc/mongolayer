@@ -66,4 +66,63 @@ describe(__filename, function() {
 			done();
 		});
 	});
+	
+	describe("toPlain", function() {
+		var model;
+		
+		beforeEach(function(done) {
+			model = new mongolayer.Model({
+				collection : "foo",
+				onInit : function() {
+					if (this.arrayData !== undefined) {
+						this.arrayData.forEach(function(val, i) {
+							Object.defineProperty(val, "nuts", {
+								get : function() {
+									return this.foo + "-nuts";
+								}
+							});
+						});
+					}
+				},
+				fields : [
+					{ name : "foo", validation : { type : "string" } },
+					{ name : "arrayData", validation : { type : "array", schema : { type : "object" } } }
+				]
+			});
+			
+			done();
+		});
+		
+		it("should work on single documents", function(done) {
+			var doc = new model.Document({ foo : "bar", arrayData : [{ foo : "bar" }, { foo : "bar2" }] });
+			
+			assert.equal(doc instanceof model.Document, true);
+			
+			var temp = mongolayer.toPlain(doc);
+			
+			assert.equal(temp instanceof model.Document, false);
+			
+			assert.equal(temp.foo, "bar");
+			assert.equal(temp.arrayData[0].foo, "bar");
+			assert.equal(temp.arrayData[1].foo, "bar2");
+			assert.equal(temp.arrayData[0].nuts, undefined);
+			assert.equal(temp.arrayData[1].nuts, undefined);
+			
+			done();
+		});
+		
+		it("should work on arrays", function(done) {
+			var doc = new model.Document({ foo : "bar" });
+			var doc2 = new model.Document({ foo : "bar2" });
+			
+			var temp = mongolayer.toPlain([doc,doc2]);
+			
+			assert.equal(temp[0] instanceof model.Document, false);
+			assert.equal(temp[1] instanceof model.Document, false);
+			assert.equal(temp[0].foo, "bar");
+			assert.equal(temp[1].foo, "bar2");
+			
+			done();
+		});
+	});
 });
