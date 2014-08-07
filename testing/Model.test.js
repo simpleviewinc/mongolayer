@@ -10,6 +10,8 @@ describe(__filename, function() {
 	
 	beforeEach(function(done) {
 		mongolayer.connectCached(config, function(err, temp) {
+			assert.ifError(err);
+			
 			conn = temp;
 			
 			done();
@@ -655,6 +657,8 @@ describe(__filename, function() {
 					], cb);
 				}
 			], function(err) {
+				assert.ifError(err);
+				
 				done();
 			});
 		});
