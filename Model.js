@@ -281,7 +281,7 @@ Model.prototype.addRelationship = function(args) {
 				
 				var afterHooks = self._getMyHooks(objectKey, args.options.afterHooks);
 				var beforeHooks = self._getMyHooks(objectKey, args.options.beforeHooks);
-				self._connection.models[modelName].model.find({ _id : { "$in" : ids } }, { beforeHooks : beforeHooks, afterHooks : afterHooks }, function(err, docs) {
+				self._connection.models[modelName].find({ _id : { "$in" : ids } }, { beforeHooks : beforeHooks, afterHooks : afterHooks }, function(err, docs) {
 					if (err) { return cb(err); }
 					
 					var index = arrayLib.index(docs, "id");
@@ -338,7 +338,7 @@ Model.prototype.addRelationship = function(args) {
 				
 				var afterHooks = self._getMyHooks(objectKey, args.options.afterHooks);
 				var beforeHooks = self._getMyHooks(objectKey, args.options.beforeHooks);
-				self._connection.models[modelName].model.find({ _id : { "$in" : ids } }, { beforeHooks : beforeHooks, afterHooks : afterHooks }, function(err, docs) {
+				self._connection.models[modelName].find({ _id : { "$in" : ids } }, { beforeHooks : beforeHooks, afterHooks : afterHooks }, function(err, docs) {
 					if (err) { return cb(err); }
 					
 					var index = arrayLib.index(docs, "id");

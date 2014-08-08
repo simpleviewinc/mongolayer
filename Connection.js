@@ -7,7 +7,8 @@ var Connection = function(args) {
 	
 	self.db = args.db;
 	
-	self.models = {};
+	self.models = {}; // store public facing models
+	self._models = {}; // store arguments of Connection.add()
 }
 
 Connection.prototype.add = function(args, cb) {
@@ -28,7 +29,8 @@ Connection.prototype.add = function(args, cb) {
 	async.series(calls, function(err) {
 		if (err) { return cb(err); }
 		
-		self.models[args.model.name] = args;
+		self.models[args.model.name] = args.model;
+		self._models[args.model.name] = args;
 		
 		cb(null);
 	});
@@ -39,6 +41,7 @@ Connection.prototype.remove = function(args, cb) {
 	
 	args.model._disconnect();
 	delete self.models[args.model.name];
+	delete self._models[args.model.name];
 	
 	cb(null);
 }
@@ -50,7 +53,7 @@ Connection.prototype.removeAll = function(cb) {
 	
 	Object.keys(self.models).forEach(function(val, i) {
 		calls.push(function(cb) {
-			self.remove({ model : self.models[val].model }, cb);
+			self.remove({ model : self.models[val] }, cb);
 		});
 	});
 	

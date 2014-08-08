@@ -28,12 +28,14 @@ describe(__filename, function() {
 		], function(err) {
 			assert.ifError(err);
 			
-			assert.equal(conn.models.foo.model._collectionName, "foo");
-			assert.equal(conn.models.foo.model, model1);
-			assert.equal(conn.models.foo.model.connected, true);
-			assert.equal(conn.models.foo_bar.model._collectionName, "foo");
-			assert.equal(conn.models.foo_bar.model, model2);
-			assert.equal(conn.models.foo_bar.model.connected, true);
+			assert.equal(conn.models.foo._collectionName, "foo");
+			assert.equal(conn.models.foo, model1);
+			assert.equal(conn.models.foo.connected, true);
+			assert.equal(conn._models.foo.model, model1);
+			assert.equal(conn.models.foo_bar._collectionName, "foo");
+			assert.equal(conn.models.foo_bar, model2);
+			assert.equal(conn.models.foo_bar.connected, true);
+			assert.equal(conn._models.foo_bar.model, model2);
 			
 			done();
 		});
@@ -57,6 +59,7 @@ describe(__filename, function() {
 				assert.equal(model1.connected, true);
 				assert.equal(model2.connected, false);
 				assert.equal(conn.models["foo_bar"], undefined);
+				assert.equal(conn._models["foo_bar"], undefined);
 				
 				done();
 			});
@@ -81,7 +84,9 @@ describe(__filename, function() {
 				assert.equal(model1.connected, false);
 				assert.equal(model2.connected, false);
 				assert.equal(conn.models["foo"], undefined);
+				assert.equal(conn._models["foo"], undefined);
 				assert.equal(conn.models["foo_bar"], undefined);
+				assert.equal(conn._models["foo_bar"], undefined);
 				
 				done();
 			});
