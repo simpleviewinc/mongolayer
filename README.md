@@ -4,31 +4,31 @@
 
 Mongolayer is a rich document system similar to Mongoose, but thinner, more type-strict, and with more developer flexibility.
 
+This module is an attempt at providing the vision of `mongoose` (validation, hooks, relationships) but with less eccentricities, less magic under the hood providing developers with more consistent behaviors.
+
 # Features
 0. Supports the basic queries: `find`, `findById`, `save`, `update`, `count`, and `remove`.
 0. Infinitely recursive field validation on `insert`, `save`, and `update`. Allowing you to validate arrays, objects, and any recursive combination of them.
-0. You have the ability to set required fields which are enforced on `insert` both batch and single, `save` and `update` with `$set` and `$setOnInsert` operators.
-0. Robust hook system allowing you declare functions to be run before or after (or both) wrapping all of the query pathways. These hooks receive control flow, in example, allowing you to alter the filter of a `find` query before it runs, or possibly running an async task after a find to merge in other data not managed in MongoDB.
-0. Manage relationships between Models, allowing automatic and recursive population of related records (implemented using the hook system). In example, if you have a blogPost model and an authorModel, when you do a `find` on the blogPost model, you can have the author populated in. At the same time, if the author Model has it's own nested relationships, they can be pulled down from a query on the blogPost model. In Mongoose, your relationships can only go one level deep.
+0. Set required fields and field defaults enforced on `insert`, `save` and `update` with with `$set` and `$setOnInsert` operators.
+0. Robust hook system to run async code before and after any query. You can set default hooks, required hooks, and specify which hooks run at query time.
+0. Declare relationships between models allowing infinite recursive population of related records. Related records will be pulled with virtuals and methods.
 0. Supports getter and setter virtuals on the document level.
 0. Supports methods on the document level.
 0. Supports methods on the model level.
-0. Recursive populate and relationship system ensures that a Document from a Model is the same whether it's fresh from a query, or nested inside another Document meaning virtuals and populates on nested documents are preserved.
 
 # Why not just use Mongoose?
 
 `mongoose` is a powerful package to which this module owes great homage, but after using `mongoose` for a while I became frustrated with some of it's eccentricities. In attempting to contribute to the module it became clear that the codebase was quite burdened by legacy.
 
-This module is an attempt at providing the vision of `mongoose` (validation, hooks, relationships) but with less eccentricities and more developer freedom. This module does a lot less 'magic' behind the scenes, which I believe makes it more consistent for developers to work. If I try and put a `string` into a `boolean` field it won't work and my insert will fail. If I try and put a field into a database, and that field isn't declared in my Model, it will error. Mongoose does a lot of 'magic' under the hood and I find it just makes things more frustrating, especially when the magic goes wrong.
-
 Here are some examples of frustrations I personally came across using `mongoose`.
 
 0. If a record in the DB does not have a value in a field, it will still fill that field with a default value when you pull it out of the database. This gives the illusion a value exists in the db, when it doesn't.
-0. Unable to recursive populate recursive records (populate in a populate). You can only populate one level deep, in addition, when records are populated, they are plain objects, lacking virtuals.
-0. Unable to run post-find hooks with async code that gets flow control. There is no mechanism for running async code after a `find` in order to fill data from alternate sources.
+0. Unable to recursive populate recursive records (populate in a populate). You can only populate one level deep.
+0. When records are populated, they are plain objects, lacking virtuals and methods that they would have if acquired with a normal query.
+0. Unable to run post-query hooks with async code that gets flow control.
 0. Too many differences from the way that node-mongodb-native and mongodb function out of the box. In example, `mongoose` wraps `update` with `$set` causing queries that 'look' correct in mongodb shell and node-mongodb-native to perform entirelly different. Mongoose calls it `create` while node-mongodb-native and mongodb shell call it `insert`.
 0. Update method doesn't run hooks, validation.
-0. `save` method not implemented with mongoose unless using the new doc() syntax. So `find`, `create`, all use one syntax, but `save` uses an entirely different... why?
+0. `save` method not implemented with mongoose unless using the new doc() syntax. So `find`, `create`, all use one syntax, but `save` uses an entirely different syntax.
 0. Each document in mongoose is an instance of the Schema. That just doesn't make sense to me. The fields on my Document should only be the fields I add, nothing more, nothing less.
 
 # Getting Started
@@ -120,7 +120,7 @@ mongolayer.connectCached({ connectionString : "mongodb://127.0.0.1/mongolayer" }
 
 Converts an instance of a `Document` into a simple JS object without virtuals or methods.
 
-* `data` - `mongolayer.Document` - Can be a single `Document` or an array of `Document`.
+* `data` - `mongolayer.Document` - `required` - Can be a single `Document` or an array of `Document`.
 
 Example:
 
@@ -173,7 +173,7 @@ Removes all **Models** from a **Connection**. Sometimes used in unit testing if 
 ### connection.dropCollection(args, cb)
 
 * `args`
-	* `name` - `string` - The name of the collection to remove
+	* `name` - `string` - `required` - The name of the collection to remove
 * `callback`
 	* `Error` or null
 	
@@ -184,20 +184,20 @@ Removes all **Models** from a **Connection**. Sometimes used in unit testing if 
 Creates an instance of a `mongolayer.Model`.
 
 * `args`
-	* `collection` - `String` - The name of the collection
-	* `fields` - `Array` - Array of fields to add to the Model. See model.addField for syntax.
-	* `virtuals` - `Array` - Array of virtuals to be added to Documents returned from queries. See model.addVirtual for syntax.
-	* `relationships` - `Array` - Array of relationships. See model.addRelationship for syntax.
+	* `collection` - `string` - `required` - The name of the collection
+	* `fields` - `array` - `optional` - Array of fields to add to the Model. See model.addField for syntax.
+	* `virtuals` - `array` - `optional` - Array of virtuals to be added to Documents returned from queries. See model.addVirtual for syntax.
+	* `relationships` - `array` - `optional` - Array of relationships. See model.addRelationship for syntax.
 
 ### model.addField(args)
 
 Adds a field to a model. This is the basic schema that each document in the collection will have.
 
-* `name` - `string` - required - Name of the field.
-* `validation` - `object` - required - Validation schema for the key, using `jsvalidator` syntax.
-* `default` - `any` - optional - Default value for the field. Can be a function who's return will be the value.
-* `required` - `boolean` - optional - Whether the field is required before putting into the database.
-* `persist` - `boolean` - optional - default `true`. If false, then the value of the field is not persisted into the database.
+* `name` - `string` - `required` - Name of the field.
+* `validation` - `object` - `required` - Validation schema for the key, using `jsvalidator` syntax.
+* `default` - `any` - `optional` - Default value for the field. Can be a function who's return will be the value.
+* `required` - `boolean` - `optional` - Whether the field is required before putting into the database.
+* `persist` - `boolean` - `optional` - `default true`. If false, then the value of the field is not persisted into the database.
 
 Example:
 
@@ -256,7 +256,13 @@ console.log(doc.description_formatted);
 
 ### model.addRelationship(args)
 
-TODO
+Adds a relationship to a model. This automatically creates an afterFind hook for you which will populate related records.
+
+* `args`
+	* `name` - `string` - `required` - The name of key where the related record will be populated. That id/ids for the related records will be stored in `[name]_id`
+	* `type` - `string` - `required` - Possible values are 'single' and 'multiple'. 
+	
+TODO FINISH
 
 ### model.addHook(args)
 
