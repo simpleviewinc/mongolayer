@@ -33,6 +33,8 @@ var Model = function(args) {
 	// public
 	self.name = args.name || args.collection;
 	self.connected = false;
+	self.collection = null; // stores reference to MongoClient.Db.collection()
+	self.ObjectId = mongolayer.ObjectId;
 	
 	// private
 	self._onInit = args.onInit;
@@ -55,28 +57,24 @@ var Model = function(args) {
 		beforeRemove : {},
 		afterRemove : {},
 		beforeCount : {},
-		afterCount : {}
+		afterCount : {},
+		beforePut : {},
+		afterPut : {},
+		beforeFilter : {}
 	};
 	self.defaultHooks = extend({
-		beforeInsert : [],
-		afterInsert : [],
-		beforeSave : [],
-		afterSave : [],
-		beforeUpdate : [],
-		afterUpdate : [],
-		beforeFind : [],
-		afterFind : [],
-		beforeRemove : [],
-		afterRemove : [],
-		beforeCount : [],
-		afterCount : []
+		find : [],
+		count : [],
+		insert : [],
+		update : [],
+		save : [],
+		remove : []
 	}, args.defaultHooks);
 	self._connection = null; // stores Connection ref
 	self._collectionName = args.collection;
-	self.collection = null; // stores reference to MongoClient.Db.collection()
 	
 	self._Document = function(model, args) {
-		mongolayer.Document.call(this, model, args); // call constructor of parent but pass this as context
+		mongolayer.Document.apply(this, arguments); // call constructor of parent but pass this as context
 	};
 	
 	// ensures that all documents we create are instanceof mongolayer.Document and instanceof self.Document
@@ -84,8 +82,6 @@ var Model = function(args) {
 	
 	// binds the model into the document so that the core document is aware of the model, but not required when instantiating a new one
 	self.Document = self._Document.bind(self._Document, self);
-	
-	self.ObjectId = mongolayer.ObjectId;
 	
 	// adds _id field
 	self.addField({
@@ -237,6 +233,7 @@ Model.prototype.addRelationship = function(args) {
 	// args.type
 	// args.modelName
 	// args.required
+	// args.hookRequired
 	
 	var idKey;
 	var objectKey = args.name;
@@ -279,9 +276,13 @@ Model.prototype.addRelationship = function(args) {
 					return cb(null, args);
 				}
 				
-				var afterHooks = self._getMyHooks(objectKey, args.options.afterHooks);
-				var beforeHooks = self._getMyHooks(objectKey, args.options.beforeHooks);
-				self._connection.models[modelName].find({ _id : { "$in" : ids } }, { beforeHooks : beforeHooks, afterHooks : afterHooks }, function(err, docs) {
+				// ensure we only pass hooks if we have them allowing defaultHooks on related models to execute
+				var tempHooks = self._getMyHooks(objectKey, args.options.hooks);
+				if (tempHooks.length === 0) {
+					tempHooks = undefined;
+				}
+				
+				self._connection.models[modelName].find({ _id : { "$in" : ids } }, { hooks : tempHooks }, function(err, docs) {
 					if (err) { return cb(err); }
 					
 					var index = arrayLib.index(docs, "id");
@@ -294,7 +295,8 @@ Model.prototype.addRelationship = function(args) {
 					
 					cb(null, args);
 				});
-			}
+			},
+			required : args.hookRequired === true
 		});
 	} else if (args.type === "multiple") {
 		idKey = args.name + "_ids";
@@ -336,9 +338,13 @@ Model.prototype.addRelationship = function(args) {
 					return cb(null, args);
 				}
 				
-				var afterHooks = self._getMyHooks(objectKey, args.options.afterHooks);
-				var beforeHooks = self._getMyHooks(objectKey, args.options.beforeHooks);
-				self._connection.models[modelName].find({ _id : { "$in" : ids } }, { beforeHooks : beforeHooks, afterHooks : afterHooks }, function(err, docs) {
+				// ensure we only pass hooks if we have them allowing defaultHooks on related models to execute
+				var tempHooks = self._getMyHooks(objectKey, args.options.hooks);
+				if (tempHooks.length === 0) {
+					tempHooks = undefined;
+				}
+				
+				self._connection.models[modelName].find({ _id : { "$in" : ids } }, { hooks : tempHooks }, function(err, docs) {
 					if (err) { return cb(err); }
 					
 					var index = arrayLib.index(docs, "id");
@@ -359,7 +365,8 @@ Model.prototype.addRelationship = function(args) {
 					
 					cb(null, args);
 				});
-			}
+			},
+			required : args.hookRequired === true
 		});
 	}
 }
@@ -371,20 +378,6 @@ Model.prototype.addIndex = function(args) {
 	// args.options
 	
 	self._indexes.push(args);
-}
-
-Model.prototype._getMyHooks = function(myKey, hooks) {
-	// gets only hooks which apply to my namespace and de-namespaces them
-	var myHooks = [];
-	var regMatch = new RegExp("^" + myKey + "\\..*");
-	var regReplace = new RegExp("^" + myKey + "\\.");
-	hooks.forEach(function(val, i) {
-		if (val.name.match(regMatch) !== null) {
-			myHooks.push(extend(true, {}, val, { name : val.name.replace(regReplace, "") }));
-		}
-	});
-	
-	return myHooks;
 }
 
 Model.prototype.addModelMethod = function(args) {
@@ -407,6 +400,17 @@ Model.prototype.addDocumentMethod = function(args) {
 	self._documentMethods[args.name] = args;
 }
 
+Model.prototype.addHook = function(args, cb) {
+	var self = this;
+	
+	// args.type
+	// args.name
+	// args.handler
+	// args.required
+	
+	self._hooks[args.type][args.name] = args;
+}
+
 Model.prototype.insert = function(docs, options, cb) {
 	var self = this;
 	
@@ -425,27 +429,62 @@ Model.prototype.insert = function(docs, options, cb) {
 	// ensure docs is always an array
 	docs = docs instanceof Array ? docs : [docs];
 	
-	options.beforeHooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.beforeInsert);
-	options.afterHooks = self._normalizeHooks(options.afterHooks || self.defaultHooks.afterInsert);
+	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.insert);
 	options.options = options.options || {};
+	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
-	self._executeHooks({ type : "beforeInsert", hooks : options.beforeHooks, args : { docs : docs, options : options } }, function(err, args) {
-		if (err) { return cb(err); }
+	// used in beforePut and afterPut because that hook takes a single document while insert could work on bulk
+	var callPutHook = function(args, cb) {
+		// args.hooks
+		// args.docs
+		// args.type
 		
-		// validate/add defaults
-		self._processDocs({ data : args.docs, validate : true, checkRequired : true }, function(err, cleanDocs) {
-			if (err) { return cb(err); }
-			
-			// insert the data into mongo
-			self.collection.insert(cleanDocs, args.options.options, function(err, objects) {
-				if (err) { return cb(err); }
-				
-				var castedDocs = self._castDocs(objects);
-				
-				self._executeHooks({ type : "afterInsert", hooks : options.afterHooks, args : { docs : castedDocs, options : args.options } }, function(err, args) {
+		var calls = [];
+		var newDocs = [];
+		args.docs.forEach(function(val, i) {
+			calls.push(function(cb) {
+				self._executeHooks({ type : args.type, hooks : args.hooks, args : { doc : val } }, function(err, temp) {
 					if (err) { return cb(err); }
 					
-					cb(null, isArray ? args.docs : args.docs[0]);
+					newDocs[i] = temp.doc;
+					
+					cb(null);
+				});
+			});
+		});
+		
+		async.parallel(calls, function(err) {
+			if (err) { return cb(err); }
+			
+			cb(null, newDocs);
+		});
+	}
+	
+	self._executeHooks({ type : "beforeInsert", hooks : self._getHooksByType("beforeInsert", options.hooks), args : { docs : docs, options : options } }, function(err, args) {
+		if (err) { return cb(err); }
+		
+		callPutHook({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), docs : args.docs }, function(err, newDocs) {
+			if (err) { return cb(err); }
+			
+			// validate/add defaults
+			self._processDocs({ data : newDocs, validate : true, checkRequired : true }, function(err, cleanDocs) {
+				if (err) { return cb(err); }
+				
+				// insert the data into mongo
+				self.collection.insert(cleanDocs, args.options.options, function(err, result) {
+					if (err) { return cb(err); }
+					
+					var castedDocs = self._castDocs(cleanDocs);
+					
+					callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs }, function(err, castedDocs) {
+						if (err) { return cb(err); }
+						
+						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : castedDocs, options : args.options } }, function(err, args) {
+							if (err) { return cb(err); }
+							
+							cb(null, isArray ? args.docs : args.docs[0], result);
+						});
+					});
 				});
 			});
 		});
@@ -468,26 +507,33 @@ Model.prototype.save = function(doc, options, cb) {
 	
 	// if options is callback, default the options
 	options = options === cb ? {} : options;
-	options.beforeHooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.beforeSave);
-	options.afterHooks = self._normalizeHooks(options.afterHooks || self.defaultHooks.afterSave);
+	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.save);
 	options.options = options.options || {};
 	
-	self._executeHooks({ type : "beforeSave", hooks : options.beforeHooks, args : { doc : doc, options : options } }, function(err, args) {
+	self._executeHooks({ type : "beforeSave", hooks : self._getHooksByType("beforeSave", options.hooks), args : { doc : doc, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		// validate/add defaults
-		self._processDocs({ data : [args.doc], validate : true, checkRequired : true }, function(err, cleanDocs) {
+		self._executeHooks({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), args : { doc : args.doc } }, function(err, tempArgs) {
 			if (err) { return cb(err); }
 			
-			self.collection.save(cleanDocs[0], args.options.options, function(err, number, result) {
+			// validate/add defaults
+			self._processDocs({ data : [tempArgs.doc], validate : true, checkRequired : true }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
-				var castedDoc = self._castDocs(cleanDocs)[0];
-				
-				self._executeHooks({ type : "afterSave", hooks : args.options.afterHooks, args : { result : result, doc : castedDoc, options : args.options } }, function(err, args) {
+				self.collection.save(cleanDocs[0], args.options.options, function(err, number, result) {
 					if (err) { return cb(err); }
 					
-					cb(null, castedDoc, args.result);
+					var castedDoc = self._castDocs(cleanDocs)[0];
+					
+					self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc } }, function(err, tempArgs) {
+						if (err) { return cb(err); }
+						
+						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : tempArgs.doc, options : args.options } }, function(err, args) {
+							if (err) { return cb(err); }
+							
+							cb(null, castedDoc, args.result);
+						});
+					});
 				});
 			});
 		});
@@ -516,28 +562,31 @@ Model.prototype.find = function(filter, options, cb) {
 	}
 	
 	options = options === cb ? {} : options;
-	options.beforeHooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.beforeFind);
-	options.afterHooks = self._normalizeHooks(options.afterHooks || self.defaultHooks.afterFind);
+	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.find);
 	options.fields = options.fields || null;
 	options.options = options.options || {};
 	
-	self._executeHooks({ type : "beforeFind", hooks : options.beforeHooks, args : { filter : filter, options : options } }, function(err, args) {
+	self._executeHooks({ type : "beforeFind", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		var cursor = self.collection.find(args.filter, args.options.fields, args.options.options);
-		if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
-		if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
-		if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
-		
-		cursor.toArray(function(err, docs) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
-			var castedDocs = self._castDocs(docs);
+			var cursor = self.collection.find(args.filter, args.options.fields, args.options.options);
+			if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
+			if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
+			if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
 			
-			self._executeHooks({ type : "afterFind", hooks : options.afterHooks, args : { filter : args.filter, options : args.options, docs : castedDocs } }, function(err, args) {
+			cursor.toArray(function(err, docs) {
 				if (err) { return cb(err); }
 				
-				cb(null, args.docs);
+				var castedDocs = self._castDocs(docs);
+				
+				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs } }, function(err, args) {
+					if (err) { return cb(err); }
+					
+					cb(null, args.docs);
+				});
 			});
 		});
 	});
@@ -553,20 +602,23 @@ Model.prototype.count = function(filter, options, cb) {
 	}
 	
 	options = options === cb ? {} : options;
-	options.beforeHooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.beforeCount);
-	options.afterHooks = self._normalizeHooks(options.afterHooks || self.defaultHooks.afterCount);
+	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.count);
 	options.options = options.options || {};
 	
-	self._executeHooks({ type : "beforeCount", hooks : options.beforeHooks, args : { filter : filter, options : options } }, function(err, args) {
+	self._executeHooks({ type : "beforeCount", hooks : self._getHooksByType("beforeCount", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self.collection.count(args.filter, args.options.options, function(err, count) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
-			self._executeHooks({ type : "afterCount", hooks : options.afterHooks, args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
+			self.collection.count(args.filter, args.options.options, function(err, count) {
 				if (err) { return cb(err); }
 				
-				cb(null, args.count);
+				self._executeHooks({ type : "afterCount", hooks : self._getHooksByType("afterCount", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
+					if (err) { return cb(err); }
+					
+					cb(null, args.count);
+				});
 			});
 		});
 	});
@@ -576,47 +628,64 @@ Model.prototype.update = function(filter, delta, options, cb) {
 	var self = this;
 	
 	cb = cb || options;
+	
+	if (self.connected === false) {
+		return cb(new Error("Model not connected to a MongoDB database"));
+	}
+	
 	options = options === cb ? {} : options;
-	options.beforeHooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.beforeUpdate);
-	options.afterHooks = self._normalizeHooks(options.afterHooks || self.defaultHooks.afterUpdate);
+	options.hooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.update);
 	options.options = options.options || {};
 	
-	self._executeHooks({ type : "beforeUpdate", hooks : options.beforeHooks, args : { filter : filter, delta: delta, options : options } }, function(err, args) {
+	self._executeHooks({ type : "beforeUpdate", hooks : self._getHooksByType("beforeUpdate", options.hooks), args : { filter : filter, delta: delta, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		var calls = [];
-		
-		if (Object.keys(args.delta).filter(function(val, i) { return val.match(/^\$/) !== null }).length === 0) {
-			// no $ operators at the root level, validate the whole delta
-			calls.push(function(cb) {
-				self._validateDocData(args.delta, cb);
-			});
-		} else {
-			if (args.delta["$set"] !== undefined) {
-				// validate the $set argument
-				calls.push(function(cb) {
-					self._validateDocData(args.delta["$set"], cb);
-				});
-			}
-			
-			if (args.delta["$setOnInsert"] !== undefined) {
-				// validate the $setOnInsert argument
-				calls.push(function(cb) {
-					self._validateDocData(args.delta["$setOnInsert"], cb);
-				});
-			}
-		}
-		
-		async.series(calls, function(err) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } }, function(err, tempArgs) {
 			if (err) { return cb(err); }
 			
-			self.collection.update(args.filter, args.delta, args.options.options, function(err, count, result) {
+			var calls = [];
+			
+			if (Object.keys(args.delta).filter(function(val, i) { return val.match(/^\$/) !== null }).length === 0) {
+				// no $ operators at the root level, validate the whole delta
+				calls.push(function(cb) {
+					self._processDocs({ data : [args.delta], validate : true, checkRequired : true }, function(err, cleanDocs) {
+						if (err) { return cb(err); }
+						
+						args.delta = cleanDocs[0];
+						
+						// update delta cannot modify _id
+						delete args.delta._id;
+						
+						cb(null);
+					});
+				});
+			} else {
+				if (args.delta["$set"] !== undefined) {
+					// validate the $set argument
+					calls.push(function(cb) {
+						self._validateDocData(args.delta["$set"], cb);
+					});
+				}
+				
+				if (args.delta["$setOnInsert"] !== undefined) {
+					// validate the $setOnInsert argument
+					calls.push(function(cb) {
+						self._validateDocData(args.delta["$setOnInsert"], cb);
+					});
+				}
+			}
+			
+			async.series(calls, function(err) {
 				if (err) { return cb(err); }
 				
-				self._executeHooks({ type : "afterUpdate", hooks : options.afterHooks, args : { filter : args.filter, delta : args.delta, options : args.options, count : count, result : result } }, function(err, args) {
+				self.collection.update(tempArgs.filter, args.delta, tempArgs.options.options, function(err, count, result) {
 					if (err) { return cb(err); }
 					
-					cb(null, count, result);
+					self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, count : count, result : result } }, function(err, args) {
+						if (err) { return cb(err); }
+						
+						cb(null, count, result);
+					});
 				});
 			});
 		});
@@ -624,7 +693,6 @@ Model.prototype.update = function(filter, delta, options, cb) {
 }
 
 // Removes from model
-// returns err, count
 Model.prototype.remove = function(filter, options, cb) {
 	var self = this;
 	
@@ -635,22 +703,39 @@ Model.prototype.remove = function(filter, options, cb) {
 	}
 	
 	options = options === cb ? {} : options;
-	options.beforeHooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.beforeRemove);
-	options.afterHooks = self._normalizeHooks(options.afterHooks || self.defaultHooks.afterRemove);
+	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.remove);
 	options.options = options.options || {};
 	
-	self._executeHooks({ type : "beforeRemove", hooks : options.beforeHooks, args : { filter : filter, options : options } }, function(err, args) {
+	self._executeHooks({ type : "beforeRemove", hooks : self._getHooksByType("beforeRemove", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self.collection.remove(args.filter, args.options.options, function(err, count) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
-			self._executeHooks({ type : "afterRemove", hooks : args.options.afterHooks, args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
+			self.collection.remove(args.filter, args.options.options, function(err, count) {
 				if (err) { return cb(err); }
 				
-				cb(err, args.count);
+				self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
+					if (err) { return cb(err); }
+					
+					cb(err, args.count);
+				});
 			});
 		});
+	});
+}
+
+Model.prototype._getHooksByType = function(type, hooks) {
+	var self = this;
+	
+	var matcher = new RegExp("^" + type + "_");
+	
+	return hooks.filter(function(val) {
+		return val.name.match(matcher)
+	}).map(function(val) {
+		val.name = val.name.replace(matcher, "");
+		
+		return val;
 	});
 }
 
@@ -666,6 +751,24 @@ Model.prototype._normalizeHooks = function(hooks, cb) {
 	
 	return newHooks;
 }
+
+// gets only hooks which apply to my namespace and de-namespaces them
+Model.prototype._getMyHooks = function(myKey, hooks) {
+	var self = this;
+	
+
+	var myHooks = [];
+	var regMatch = new RegExp("^" + myKey + "\\..*");
+	var regReplace = new RegExp("^" + myKey + "\\.");
+	hooks.forEach(function(val, i) {
+		if (val.name.match(regMatch) !== null) {
+			myHooks.push(extend(true, {}, val, { name : val.name.replace(regReplace, "") }));
+		}
+	});
+	
+	return myHooks;
+}
+
 
 Model.prototype._executeHooks = function(args, cb) {
 	var self = this;
@@ -722,7 +825,7 @@ Model.prototype._castDocs = function(docs) {
 	
 	var castedDocs = [];
 	docs.forEach(function(val, i) {
-		castedDocs.push(new self.Document(val));
+		castedDocs.push(new self.Document(val, { fillDefaults : false }));
 	});
 	
 	return castedDocs;
@@ -876,17 +979,6 @@ Model.prototype._fillDocDefaults = function(data) {
 			}
 		}
 	});
-}
-
-Model.prototype.addHook = function(args, cb) {
-	var self = this;
-	
-	// args.type
-	// args.name
-	// args.handler
-	// args.required
-	
-	self._hooks[args.type][args.name] = args;
 }
 
 module.exports = Model;

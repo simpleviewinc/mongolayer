@@ -1,14 +1,20 @@
 var mongolayer = require("./index.js");
 var extend = require("extend");
 
-var Document = function(model, args) {
+var Document = function(model, data, options) {
 	var self = this;
 	
-	args = args || {};
+	data = data || {};
+	options = options || {};
 	
-	extend(true, self, args);
+	options.fillDefaults = options.fillDefaults === undefined ? true : false;
 	
-	model._fillDocDefaults(self);
+	extend(true, self, data);
+	
+	if (options.fillDefaults) {
+		model._fillDocDefaults(self);
+	}
+	
 	model._onInit.call(self);
 }
 

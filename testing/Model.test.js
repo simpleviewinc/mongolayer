@@ -147,14 +147,14 @@ describe(__filename, function() {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			defaultHooks : {
-				beforeFind : ["foo"]
+				find : ["foo"]
 			}
 		});
 		
 		// hook registered exists
-		assert.equal(model.defaultHooks.beforeFind[0], "foo");
+		assert.equal(model.defaultHooks.find[0], "foo");
 		// non-declared hooks still have default empty array
-		assert.equal(model.defaultHooks.afterFind.length, 0);
+		assert.equal(model.defaultHooks.insert.length, 0);
 		
 		done();
 	});
@@ -429,6 +429,24 @@ describe(__filename, function() {
 		done();
 	});
 	
+	it("should have Document which does not fill defaults", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "foo", validation : { type : "string" } },
+				{ name : "bar", default : "awesome!", validation : { type : "string" } }
+			]
+		});
+		var doc = new model.Document({ foo : "fooValue" }, { fillDefaults : false });
+		
+		assert.equal(doc._id, undefined);
+		assert.equal(doc.id, undefined);
+		assert.equal(doc.foo, "fooValue");
+		assert.equal(doc.bar, undefined);
+		
+		done();
+	});
+	
 	it("should call onInit on document", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
@@ -523,6 +541,15 @@ describe(__filename, function() {
 			assert.equal(test.length, 2);
 			assert.equal(test[0].name, "bar");
 			assert.equal(test[1].name, "bar.baz");
+			
+			done();
+		});
+		
+		it("should _getHooksByType", function(done) {
+			var test = model._getHooksByType("beforeFind", [{ name : "beforeFind_foo" }, { name : "afterFind_bar" }, { name : "beforeFilter_baz" }]);
+			
+			assert.equal(test.length, 1);
+			assert.equal(test[0].name, "foo");
 			
 			done();
 		});
@@ -800,6 +827,8 @@ describe(__filename, function() {
 			it("should run hooks properly", function(done) {
 				var beforeCalled;
 				var afterCalled;
+				var beforePutCalled;
+				var afterPutCalled;
 				var data = [{ foo : "fooValue1", bar : "barValue1"}];
 				
 				model.addHook({
@@ -833,17 +862,47 @@ describe(__filename, function() {
 					required : false
 				});
 				
+				model.addHook({
+					name : "beforePut",
+					type : "beforePut",
+					handler : function(args, cb) {
+						assert.equal(args.doc, data[0]);
+						
+						beforePutCalled = true;
+						
+						cb(null, args);
+					},
+					required : false
+				});
+				
+				model.addHook({
+					name : "afterPut",
+					type : "afterPut",
+					handler : function(args, cb) {
+						assert.ok(args.doc instanceof model.Document);
+						
+						afterPutCalled = true;
+						
+						cb(null, args);
+					},
+					required : false
+				});
+				
 				async.series([
 					function(cb) {
 						// no hooks specified, no hooks ran
 						beforeCalled = false;
 						afterCalled = false;
+						beforePutCalled = false;
+						afterPutCalled = false;
 						
 						model.insert(data, function(err, docs) {
 							assert.ifError(err);
 							
 							assert.equal(beforeCalled, false);
 							assert.equal(afterCalled, false);
+							assert.equal(beforePutCalled, false);
+							assert.equal(afterPutCalled, false);
 							
 							model.remove({}, function(err) {
 								cb(null);
@@ -854,12 +913,16 @@ describe(__filename, function() {
 						// hooks specified, hooks ran
 						beforeCalled = false;
 						afterCalled = false;
+						beforePutCalled = false;
+						afterPutCalled = false;
 						
-						model.insert(data, { beforeHooks : ["process"], afterHooks : ["process"] }, function(err, docs) {
+						model.insert(data, { hooks : ["beforeInsert_process", "afterInsert_process", "beforePut_beforePut", "afterPut_afterPut"] }, function(err, docs) {
 							assert.ifError(err);
 							
 							assert.equal(beforeCalled, true);
 							assert.equal(afterCalled, true);
+							assert.equal(beforePutCalled, true);
+							assert.equal(afterPutCalled, true);
 							
 							model.remove({}, function(err) {
 								cb(null);
@@ -870,15 +933,18 @@ describe(__filename, function() {
 						// using default hooks
 						beforeCalled = false;
 						afterCalled = false;
+						beforePutCalled = false;
+						afterPutCalled = false;
 						
-						model.defaultHooks.beforeInsert = ["process"];
-						model.defaultHooks.afterInsert = ["process"];
+						model.defaultHooks.insert = ["beforeInsert_process", "afterInsert_process", "beforePut_beforePut", "afterPut_afterPut"];
 						
 						model.insert(data, function(err, docs) {
 							assert.ifError(err);
 							
 							assert.equal(beforeCalled, true);
 							assert.equal(afterCalled, true);
+							assert.equal(beforePutCalled, true);
+							assert.equal(afterPutCalled, true);
 							
 							model.remove({}, function(err) {
 								cb(null);
@@ -905,6 +971,7 @@ describe(__filename, function() {
 			it("should run hooks properly", function(done) {
 				var beforeCalled;
 				var afterCalled;
+				var beforeFilterCalled;
 				
 				model.addHook({
 					name : "process",
@@ -935,17 +1002,32 @@ describe(__filename, function() {
 					required : false
 				});
 				
+				model.addHook({
+					name : "beforeFilter",
+					type : "beforeFilter",
+					handler : function(args, cb) {
+						assert.notEqual(args.filter, undefined);
+						assert.notEqual(args.options, undefined);
+						
+						beforeFilterCalled = true;
+						
+						cb(null, args);
+					}
+				});
+				
 				async.series([
 					function(cb) {
 						// no hooks specified, no hooks ran
 						beforeCalled = false;
 						afterCalled = false;
+						beforeFilterCalled = false;
 						
 						model.remove({}, function(err, docs) {
 							assert.ifError(err);
 							
 							assert.equal(beforeCalled, false);
 							assert.equal(afterCalled, false);
+							assert.equal(beforeFilterCalled, false);
 							
 							cb(null);
 						});
@@ -954,12 +1036,14 @@ describe(__filename, function() {
 						// hooks specified, hooks ran
 						beforeCalled = false;
 						afterCalled = false;
+						beforeFilterCalled = false;
 						
-						model.remove({}, { beforeHooks : ["process"], afterHooks : ["process"] }, function(err, docs) {
+						model.remove({}, { hooks : ["beforeRemove_process", "afterRemove_process", "beforeFilter_beforeFilter"] }, function(err, docs) {
 							assert.ifError(err);
 							
 							assert.equal(beforeCalled, true);
 							assert.equal(afterCalled, true);
+							assert.equal(beforeFilterCalled, true);
 							
 							cb(null);
 						});
@@ -968,15 +1052,16 @@ describe(__filename, function() {
 						// using default hooks
 						beforeCalled = false;
 						afterCalled = false;
+						beforeFilterCalled = false;
 						
-						model.defaultHooks.beforeRemove = ["process"];
-						model.defaultHooks.afterRemove = ["process"];
+						model.defaultHooks.remove = ["beforeRemove_process", "afterRemove_process", "beforeFilter_beforeFilter"];
 						
 						model.remove({}, function(err, docs) {
 							assert.ifError(err);
 							
 							assert.equal(beforeCalled, true);
 							assert.equal(afterCalled, true);
+							assert.equal(beforeFilterCalled, true);
 							
 							cb(null);
 						});
@@ -1031,6 +1116,8 @@ describe(__filename, function() {
 			it("should run hooks properly", function(done) {
 				var beforeCalled;
 				var afterCalled;
+				var beforePutCalled;
+				var afterPutCalled;
 				var data = { foo : "fooValue1", bar : "barValue1"};
 				
 				model.addHook({
@@ -1062,17 +1149,47 @@ describe(__filename, function() {
 					required : false
 				});
 				
+				model.addHook({
+					name : "beforePut",
+					type : "beforePut",
+					handler : function(args, cb) {
+						assert.equal(args.doc, data);
+						
+						beforePutCalled = true;
+						
+						cb(null, args);
+					},
+					required : false
+				});
+				
+				model.addHook({
+					name : "afterPut",
+					type : "afterPut",
+					handler : function(args, cb) {
+						assert.ok(args.doc instanceof model.Document);
+						
+						afterPutCalled = true;
+						
+						cb(null, args);
+					},
+					required : false
+				});
+				
 				async.series([
 					function(cb) {
 						// no hooks specified, no hooks ran
 						beforeCalled = false;
 						afterCalled = false;
+						beforePutCalled = false;
+						afterPutCalled = false;
 						
 						model.save(data, function(err, docs) {
 							assert.ifError(err);
 							
 							assert.equal(beforeCalled, false);
 							assert.equal(afterCalled, false);
+							assert.equal(beforePutCalled, false);
+							assert.equal(afterPutCalled, false);
 							
 							model.remove({}, function(err) {
 								cb(null);
@@ -1083,12 +1200,16 @@ describe(__filename, function() {
 						// hooks specified, hooks ran
 						beforeCalled = false;
 						afterCalled = false;
+						beforePutCalled = false;
+						afterPutCalled = false;
 						
-						model.save(data, { beforeHooks : ["process"], afterHooks : ["process"] }, function(err, docs) {
+						model.save(data, { hooks : ["beforeSave_process", "afterSave_process", "beforePut_beforePut", "afterPut_afterPut"] }, function(err, docs) {
 							assert.ifError(err);
 							
 							assert.equal(beforeCalled, true);
 							assert.equal(afterCalled, true);
+							assert.equal(beforePutCalled, true);
+							assert.equal(afterPutCalled, true);
 							
 							model.remove({}, function(err) {
 								cb(null);
@@ -1099,15 +1220,18 @@ describe(__filename, function() {
 						// using default hooks
 						beforeCalled = false;
 						afterCalled = false;
+						beforePutCalled = false;
+						afterPutCalled = false;
 						
-						model.defaultHooks.beforeSave = ["process"];
-						model.defaultHooks.afterSave = ["process"];
+						model.defaultHooks.save = ["beforeSave_process", "afterSave_process", "beforePut_beforePut", "afterPut_afterPut"];
 						
 						model.save(data, function(err, docs) {
 							assert.ifError(err);
 							
 							assert.equal(beforeCalled, true);
 							assert.equal(afterCalled, true);
+							assert.equal(beforePutCalled, true);
+							assert.equal(afterPutCalled, true);
 							
 							model.remove({}, function(err) {
 								cb(null);
@@ -1159,7 +1283,7 @@ describe(__filename, function() {
 				});
 			});
 			
-			it("should update whole", function(done) {
+			it("should update whole and set defaults", function(done) {
 				model.update({ _id : id1 }, { foo : "1_updated" }, function(err, count, result) {
 					assert.ifError(err);
 					
@@ -1171,7 +1295,13 @@ describe(__filename, function() {
 					assert.equal(result.updatedExisting, true);
 					assert.equal(result.ok, true);
 					
-					done();
+					model.find({ foo : "1_updated" }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.equal(docs[0].baz, false);
+						
+						done();
+					});
 				});
 			});
 			
@@ -1411,6 +1541,18 @@ describe(__filename, function() {
 						});
 					});
 				});
+				
+				it("should find and restrict by fields", function(done) {
+					model.find({ foo : "1" }, { fields : { foo : 1 } }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.equal(docs[0].foo, "1");
+						assert.equal(docs[0].bar, undefined);
+						assert.equal(docs[0].baz, undefined);
+						
+						done();
+					});
+				});
 			});
 			
 			describe("relationships", function(done) {
@@ -1456,7 +1598,7 @@ describe(__filename, function() {
 								{
 									_id : related1_1,
 									title : "title1_1",
-									singleRequired_id : related2_1
+									singleRequired_id : related2_2
 								},
 								{
 									_id : related1_2,
@@ -1495,7 +1637,7 @@ describe(__filename, function() {
 				});
 				
 				it("should populate single", function(done) {
-					model.find({}, { afterHooks : ["single"] }, function(err, docs) {
+					model.find({}, { hooks : ["afterFind_single"] }, function(err, docs) {
 						assert.ifError(err);
 						
 						assert.equal(docs[0].foo, "foo1");
@@ -1508,7 +1650,7 @@ describe(__filename, function() {
 				});
 				
 				it("should populate multiple", function(done) {
-					model.find({}, { afterHooks : ["multiple"] }, function(err, docs) {
+					model.find({}, { hooks : ["afterFind_multiple"] }, function(err, docs) {
 						assert.ifError(err);
 						
 						assert.equal(docs[0].foo, "foo1");
@@ -1521,12 +1663,25 @@ describe(__filename, function() {
 					});
 				});
 				
-				it("should populate with recursive hooks", function(done) {
-					model.find({ _id : root4 }, { afterHooks : ["single", "single.singleSecond"] }, function(err, docs) {
+				it("should populate with recursive hooks on single", function(done) {
+					model.find({ _id : root4 }, { hooks : ["afterFind_single", "single.afterFind_singleSecond"] }, function(err, docs) {
 						assert.ifError(err);
 						
 						assert.equal(docs.length, 1);
 						assert.equal(docs[0].single.singleSecond.title, "title2_1");
+						
+						done();
+					});
+				});
+				
+				it("should populate with recursive hooks on multiple", function(done) {
+					model.find({ _id : root3 }, { hooks : ["afterFind_multiple", "multiple.afterFind_singleRequired"] }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.equal(docs.length, 1);
+						assert.equal(docs[0].multiple.length, 2);
+						assert.equal(docs[0].multiple[0].singleRequired.title, "title2_1");
+						assert.equal(docs[0].multiple[1].singleRequired.title, "title2_2");
 						
 						done();
 					});
