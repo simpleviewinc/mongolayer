@@ -17,7 +17,7 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 	* [Setting Data](#setting_data)
 	* [Populating Relationships](#populating_relationships)
 * [API Documentation](#api_documentation)
-	* [mongolayer](#mongolayer)
+	* [mongolayer](#api_documentation)
 	* [Connection](#connection)
 	* [Model](#model)
 		* [Querying](#querying)
@@ -26,12 +26,12 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 # Features
 0. Supports the basic queries: `find`, `findById`, `save`, `update`, `count`, and `remove`.
 0. Infinitely recursive field validation on `insert`, `save`, and `update`. Allowing you to validate arrays, objects, and any recursive combination of them.
-0. Set required fields and field defaults enforced on `insert`, `save` and `update`.
+0. Enforce required fields and field defaults on `insert`, `save` and `update`.
 0. Robust hook system to run async code before and after any query. You can set default hooks, required hooks, and specify which hooks run at query time.
 0. Declare relationships between models allowing infinite recursive population of related records. Related records will be pulled with virtuals and methods.
-0. Supports getter and setter virtuals on the document level.
-0. Supports methods on the document level.
-0. Supports methods on the model level.
+0. Getter and setter virtuals on the document level.
+0. Methods on the document level.
+0. Methods on the model level.
 
 # Why not just use Mongoose?
 
@@ -44,8 +44,8 @@ Here are some examples of frustrations I personally came across using `mongoose`
 0. When records are populated, they are plain objects, lacking virtuals and methods that they would have if acquired with a normal query.
 0. Unable to run post-query hooks with async code that gets flow control.
 0. Too many differences from the way that node-mongodb-native and mongodb function out of the box. In example, `mongoose` wraps `update` with `$set` causing queries that 'look' correct in mongodb shell and node-mongodb-native to perform entirelly different. Mongoose calls it `create` while node-mongodb-native and mongodb shell call it `insert`.
-0. Update method doesn't run hooks, validation.
-0. `save` method not implemented with mongoose unless using the new doc() syntax. So `find`, `create`, all use one syntax, but `save` uses an entirely different syntax.
+0. Update method doesn't run hooks, or validation.
+0. `save` method not implemented with unless using the new doc() syntax. So `find`, `create`, all use one syntax, but `save` uses an entirely different syntax.
 0. Each document in mongoose is an instance of the Schema. That just doesn't make sense to me. The fields on my Document should only be the fields I add, nothing more, nothing less.
 
 # Getting Started
@@ -54,7 +54,7 @@ Mongolayer has three basic constructs, **Models**, **Connections** and **Documen
 * `mongolayer.Connection` - Manage the connection pool and the raw connection to MongoDB. The connection is aware of all of the Models that are attached to it.
 * `mongolayer.Model` - The bread-and-butter of mongolayer, your queries are executed on Models and they have fields, methods, and a ton of other features. These are attached to Connections.
 * `mongolayer.Document` - Base document class for all documents. 
-* `model.Document` - After running a query, each row from the database is converted into the `model.Document` class specific to the model.
+* `model.Document` - After running a query, each row from the database is returned as an `instanceof` the `model.Document` class specific to the model.
 
 Basic application boot-up
 
@@ -103,11 +103,11 @@ Hooks are the powerful underpining that makes relationship management possible, 
 
 Here are some common uses for hooks:
 
-* Specify a beforeFilter hook which will run prior to `count`, `remove`, `find` allowing you to transform the filter, such as casting a string to a `mongolayer.ObjectId`.
-* Specify an afterFind hook which would log some information to a log file based on the number of records returned.
-* Specify a afterRemove hook to remove related orphan records.
-* Specify an afterFind hook to pull in other data which is not stored in mongoDB and can't be managed through relationships such as Facebook posts, SQL data, file system data, or memcache data.
-* Specify a beforePut hook which will do some async data management such as encrypting a password prior to storing in the DB.
+* Specify a `beforeFilter` hook which will run prior to `count`, `remove`, `find` allowing you to transform the filter, such as casting a string to a `mongolayer.ObjectId`.
+* Specify an `afterFind` hook which would log some information to a log file based on the number of records returned.
+* Specify a `afterRemove` hook to remove related orphan records.
+* Specify an `afterFind` hook to pull in other data which is not stored in mongoDB and can't be managed through relationships such as Facebook posts, SQL data, file system data, or memcache data.
+* Specify a `beforePut` hook which will do some async data management such as encrypting a password prior to storing in the DB.
 
 Query functions which support hooks: `find`, `findById` (runs same hooks as `find`), `count`, `remove`, `insert`, `save`, `update`.
 
@@ -279,13 +279,13 @@ Hook sets are specified by passing an `array` of `string` or an `array` of `obje
 **Note**: Default hooks are never run when specifying a `hooks` array at run-time.
 
 ```js
-// this will execute the `beforeFilter` hook named 'idCast' in addition to any other hooks which are required
+// this will execute the 'beforeFilter' hook named 'idCast' in addition to any other hooks which are required
 // default hooks are never run when specifying hooks are run-time
 model.find({ foo : "bar" }, { hooks : ["beforeFilter_idCast"] }, function(err, docs) {
 	
 });
 
-// this will execute the `beforeFilter` hook named 'idCast' and the `afterFind` hook named 'getExtraData'
+// this will execute the 'beforeFilter' hook named 'idCast' and the 'afterFind' hook named 'getExtraData'
 model.find({ foo : "bar" }, { hooks : ["beforeFilter_idCast", "afterFind_getExtraData"] }, function(err, docs) {
 	
 });
@@ -296,8 +296,8 @@ When using relationships, you can also specify hooks to run on related models.  
 In the event no hooks are passed to a related model, that model will still execute it's default hooks.
 
 ```js
-// this will execute the `beforeFilter` hook named 'idCast' and the `afterFind` hook named 'authors' on our primary model
-// it will also execute the `afterFind` hook named 'getImage' on our authors model
+// this will execute the 'beforeFilter' hook named 'idCast' and the 'afterFind' hook named 'authors' on our primary model
+// it will also execute the 'afterFind' hook named 'getImage' on our authors model
 model.find({ foo : "bar" }, { hooks : ["beforeFilter_idCast", "afterFind_authors", "authors.afterFind_getImage"] }, function(err, docs) {
 	
 });
@@ -316,8 +316,8 @@ model.addHook({
 	}
 });
 
-// The `afterFind` hook named 'getExtraData' will receive 'hookArgs' key containing the args passed here
-// using the hook declare above you can see how it receives the args
+// The 'afterFind' hook named 'getExtraData' will receive 'hookArgs' key containing the args passed here
+// using the hook declared above you can see how it receives the args
 model.find({ foo : "bar" }, { hooks : [{ name : "afterFind_getExtraData", args : { foo : "bar" } }] }, function(err, docs) {
 
 });
@@ -334,7 +334,7 @@ The syntax for the hook `array` is identical to what you would pass at query tim
 
 ```js
 // the syntax of the array is identical to declaring them at runtime
-// the name of the defaultHook key is the same as query operation so `find`, `update`, `count`, `remove`, `insert`, and `save`
+// the name of the defaultHook key is the same as query operation so 'find', 'update', 'count', 'remove', 'insert', and 'save'
 var model = new mongolayer.Model({
 	defaultHooks : {
 		find : ["afterFind_getExtraData"]
@@ -353,13 +353,13 @@ var model = new mongolayer.Model({
 <a name="relationships"/>
 # Relationships
 
-Managing relationships is a key functionality of mongolayer. Relationships are primarily used to connect records together. Like mongoose, it provides a way to pull in related records. Unlinke mongoose, it provides that capability recursively.
+Managing relationships is a key functionality of mongolayer. Relationships are primarily used to connect records together. Like mongoose, it provides a way to pull in related records. Unlike mongoose, it provides that capability recursively.
 
 In example, a blog post may have an author which is managed in another table. When you query for blog posts, you may want that author record pulled in as well. That author may also have relationships of their own which you want pulled down as well.
 
 Key Points:
 
-* All relationships should always be unidirectional. If a blogPost has an author, then one side of that relationships stores the state (in example a author_id field in the blogPost model).
+* All relationships should always be unidirectional. If a blogPost has an author, then one side of that relationships stores the state (for example an author_id field in the blogPost model).
 	* Cross-table based relationships are not possible to maintain atomically in native MongoDB and thus should be avoided.
 * Related records that are pulled in will be of type `model.Document` specific to that model. Meaning they will have all virtuals and methods attached. In our blogPost example, the pulled in author will be a functioning `authorModel.Document`.
 * You can specify hooks at query time which will cascade down into relationships. Using our blog example, when querying the blog, you may want specific hooks to run on authors, you can specify these at query time.
@@ -434,13 +434,13 @@ postModel.insert({
 <a name="populating_relationships"/>
 ## Populating Relationships
 
-Each declared relationship creates an afterFind hook of the same name which can be passed in order to populate that data. These hooks can be nested down into inner relationships as well.
+Each declared relationship creates an `afterFind` hook of the same name which can be passed in order to populate that data. These hooks can be nested down into inner relationships as well.
 
 When querying a model you can also pass hooks to execute on related models as well. This is the technique you would use to pull in nested relationships.
 
-In our example, if I pass the hook "author" it will fill in the authors and if I pass in "author.image" it will run the "image" hook on the relationship managed at the "author" key.
+In our example, if I pass the hook 'author' it will fill in the authors and if I pass in 'author.image' it will run the 'image' hook on the relationship managed at the 'author' key.
 
-The merged in data will be accessed at the key for the relationship "name". So because I named my author relationship "author", then I will access the author at "doc.author". If I need to access it's id, I can access "doc.author_id".
+The merged in data will be accessed at the key for the relationship 'name'. So because I named my author relationship 'author', then I will access the author at 'doc.author'. If I need to get/set it's id, I can use 'doc.author_id'.
 
 ```js
 // query blog posts and fold in authors and their images, tags not folded in
@@ -448,10 +448,10 @@ postModel.find({}, { afterHooks : ["author", "author.image"] }, function(err, do
 	if (err) { return cb(err); }
 	
 	// docs returned will have authors populated and author images populated
-	docs[0].author instanceof mongolayer.Document
-	docs[0].author_id instanceof mongolayer.ObjectId
-	docs[0].author.image instanceof mongolayer.Document
-	docs[0].author.image_id instanceof mongolayer.ObjectId
+	// docs[0].author instanceof mongolayer.Document
+	// docs[0].author_id instanceof mongolayer.ObjectId
+	// docs[0].author.image instanceof mongolayer.Document
+	// docs[0].author.image_id instanceof mongolayer.ObjectId
 	
 	cb(null);
 });
@@ -463,8 +463,6 @@ Here is another example which folds in all data
 // query blog posts and fold in everything
 postModel.find({}, { afterHooks : ["author", "author.image", "tags", "images"] }, function(err, docs) {
 	if (err) { return cb(err); }
-	
-	console.log(docs);
 	
 	cb(null);
 });
@@ -497,7 +495,6 @@ postModel.find({}, function(err, docs) {
 
 // this will fold fold in nothing because we are passing a value for afterHooks, causing the defaultHooks to not execute
 postModel.find({}, { afterHooks : [] }, function(err, docs) {
-
 
 });
 ```
@@ -914,6 +911,8 @@ Runs a find query on a mongoDB collection and returns an array of `mongolayer.Do
 
 Hooks: `beforeFind` -> `beforeFilter` -> `afterFind`
 
+Arguments
+
 * `filter` - `object` - `required` - Standard mongoDB filter syntax.
 * `options` - `object` - `optional`
 	* `fields` - `object` - `optional` - Which fields to include in the query. Uses [MongoDB native syntax](http://docs.mongodb.org/manual/tutorial/project-fields-from-query-results/).
@@ -946,6 +945,8 @@ A shortcut for pulling down a specific document from the database.
 
 Hooks: `beforeFind` -> `beforeFilter` -> `afterFind`
 
+Arguments
+
 * `id` - `string` or `mongolayer.ObjectId` - `required` - The _id for a record in string or `mongolayer.ObjectId` form.
 * `options` - The same options available to `model.find` please see the docs there.
 * `cb` - `function` - `required`
@@ -975,6 +976,8 @@ Runs an insert query on a mongoDB collection and returns an array of `mongolayer
 Hooks: `beforeInsert` -> `beforePut` (for each doc) -> `afterPut` (for each doc) -> `afterInsert`
 
 **Note**: When running bulk inserts, in the event a `WriteError` occurs in the middle, such as on a key conflict, the records up to that point will still be inserted. In this state, your `afterPut` and `afterInsert` hooks will not run.
+
+Arguments
 
 * `docs` - `object` or `array` - `required` - Can be a single plain javascript object or array of plain javascript objects, or a single `model.Document` or an array of `model.Document`.
 * `options` - `object` - `optional`
@@ -1022,6 +1025,8 @@ Runs an save query which inserts a new object if the doc doesn't contain an `_id
 
 Hooks: `beforeSave` -> `beforePut` -> `afterPut` -> `afterSave`
 
+Arguments
+
 * `doc` - `object` or `model.Document` - `required` - Can be a single plain javascript object or a single `model.Document`.
 * `options` - `object` - `optional`
 	* `options` - `object` - `optional` - An options object which is passed on to `node-mongodb-native` which performs the query. If you need to pass options at that level, pass them here.
@@ -1035,6 +1040,8 @@ Hooks: `beforeSave` -> `beforePut` -> `afterPut` -> `afterSave`
 Removes records from a collection.
 
 Hooks: `beforeRemove` -> `beforeFilter` -> `afterRemove`
+
+Arguments
 
 * `filter` - `object` - `required` - Standard mongoDB filter syntax.
 * `options` - `object` - `optional`
@@ -1058,6 +1065,8 @@ Key Points about using `update`
 * Mongolayer will handle default values, required fields, and validation when doing whole document update syntax `model.update(filter, { foo : "bar" }, cb)`
 * Do not use `update` with `upsert` semantics if you want to leverage the `beforePut` and `afterPut` hooks. Instead use `save` it provides the same functionality. This is due to eccentricities of the MongoDB atomic model.
 
+Arguments
+
 * `filter` - `object` - `required` - Standard mongoDB filter syntax.
 * `delta` - `object` - `required` - Standard mongoDB change object containing either whole document syntax of update operators such as `$set`.
 * `options` - `object` - `optional`
@@ -1073,6 +1082,8 @@ Key Points about using `update`
 Returns the count of documents that match a filter.
 
 Hooks: `beforeCount` -> `beforeFilter` -> `afterCount`
+
+Arguments
 
 * `filter` - `object` - `required` - Standard mongoDB filter syntax.
 * `options` - `object` - `optional`
