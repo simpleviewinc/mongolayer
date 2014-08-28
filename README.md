@@ -792,6 +792,7 @@ model.addHook({
 		});
 	}
 });
+```
 
 ### model.addDocumentMethod(args)
 
