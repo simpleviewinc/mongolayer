@@ -253,7 +253,7 @@ You can choose to execute these hooks always, by default, or at run-time.
 
 ### Required Hooks
 
-Here is an example of a required hook which will convert a id string to a mongolayer objectid. This hook will run always because it is required and any query that invokes the `beforeFilter` hook.
+Here is an example of a required hook which will convert a id string to a mongolayer objectid. Any query which executes the beforeFilter hooks will execute this hook because it has `required : true` in it's definition.
 
 ```js
 model.addHook({
@@ -444,7 +444,7 @@ The merged in data will be accessed at the key for the relationship 'name'. So b
 
 ```js
 // query blog posts and fold in authors and their images, tags not folded in
-postModel.find({}, { afterHooks : ["author", "author.image"] }, function(err, docs) {
+postModel.find({}, { hooks : ["afterFind_author", "author.afterFind_image"] }, function(err, docs) {
 	if (err) { return cb(err); }
 	
 	// docs returned will have authors populated and author images populated
@@ -461,7 +461,7 @@ Here is another example which folds in all data
 
 ```js
 // query blog posts and fold in everything
-postModel.find({}, { afterHooks : ["author", "author.image", "tags", "images"] }, function(err, docs) {
+postModel.find({}, { hooks : ["afterFind_author", "author.afterFind_image", "afterFind_tags", "afterFind_images"] }, function(err, docs) {
 	if (err) { return cb(err); }
 	
 	cb(null);
@@ -471,7 +471,7 @@ postModel.find({}, { afterHooks : ["author", "author.image", "tags", "images"] }
 As you can read in the hook documentation you can specify defaultHooks at the model level this way if no hooks are specified it will run a default set of hooks.
 
 ```js
-// If we declared our postModel with afterFind defaultHooks it will automatically fold in all related records on a `find({})` unless we were to pass afterHooks
+// If we declared our postModel with afterFind defaultHooks it will automatically fold in all related records on a `find({})` unless we were to pass hooks at runtime.
 var postModel = new mongolayer.Model({
 	collection : "posts",
 	fields : [
@@ -484,7 +484,7 @@ var postModel = new mongolayer.Model({
 		{ name : "images", type : "multiple", modelName : "images" }
 	],
 	defaultHooks : {
-		afterFind : ["author", "author.image", "tags", "images"]
+		find : ["afterFind_author", "author.afterFind_image", "afterFind_tags", "afterFind_images"]
 	}
 });
 
@@ -493,13 +493,13 @@ postModel.find({}, function(err, docs) {
 
 });
 
-// this will fold fold in nothing because we are passing a value for afterHooks, causing the defaultHooks to not execute
-postModel.find({}, { afterHooks : [] }, function(err, docs) {
+// this will fold fold in nothing because we are passing a value for hooks, causing the defaultHooks to not execute
+postModel.find({}, { hooks : [] }, function(err, docs) {
 
 });
 ```
 
-Lastly you could use `hookRequired : true` when specifying the hook to make sure it is always ran regardless of what afterHooks are specified at run time.
+Lastly you could use `hookRequired : true` when specifying the relationship to make sure it is always ran regardless of what hooks are specified at run time.
 
 **Note:** Be careful when doing this due to performance implications. Nearly always, somewhere down the line you will want to query without pulling in the related records. Be certain you really want this hook to run **always** and not just **most of the time**.
 
@@ -635,6 +635,7 @@ Creates an instance of a `mongolayer.Model`.
 	* `fields` - `array` - `optional` - Array of fields to add to the Model. See model.addField for syntax.
 	* `virtuals` - `array` - `optional` - Array of virtuals to be added to Documents returned from queries. See model.addVirtual for syntax.
 	* `relationships` - `array` - `optional` - Array of relationships. See model.addRelationship for syntax.
+	* `indexes` - `array` - `optional` - Array of indexes. See model.addIndex for syntax.
 	* `name` - `string` - `optional` - The name of the model. If not passed it will use the name of the collection. This option allows you to have two models using the same underlying MongoDB collection.
 
 ### model.addField(args)
