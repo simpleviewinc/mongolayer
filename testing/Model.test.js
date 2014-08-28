@@ -546,10 +546,18 @@ describe(__filename, function() {
 		});
 		
 		it("should _getHooksByType", function(done) {
-			var test = model._getHooksByType("beforeFind", [{ name : "beforeFind_foo" }, { name : "afterFind_bar" }, { name : "beforeFilter_baz" }]);
+			var hooks = [{ name : "beforeFind_foo" }, { name : "afterFind_bar" }, { name : "beforeFilter_baz" }];
 			
+			var test = model._getHooksByType("beforeFind", hooks);
+			
+			// should have the proper hooks
 			assert.equal(test.length, 1);
 			assert.equal(test[0].name, "foo");
+			
+			// should not alter original hooks
+			assert.equal(hooks[0].name, "beforeFind_foo");
+			assert.equal(hooks[1].name, "afterFind_bar");
+			assert.equal(hooks[2].name, "beforeFilter_baz");
 			
 			done();
 		});

@@ -733,9 +733,15 @@ Model.prototype._getHooksByType = function(type, hooks) {
 	return hooks.filter(function(val) {
 		return val.name.match(matcher)
 	}).map(function(val) {
-		val.name = val.name.replace(matcher, "");
+		var temp = {
+			name : val.name.replace(matcher, "")
+		}
 		
-		return val;
+		if (val.args !== undefined) {
+			temp.args = val.args;
+		}
+		
+		return temp;
 	});
 }
 
