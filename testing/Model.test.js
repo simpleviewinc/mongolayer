@@ -465,6 +465,248 @@ describe(__filename, function() {
 		done();
 	});
 	
+	describe("conversion", function() {
+		var model;
+		
+		beforeEach(function(done) {
+			model = new mongolayer.Model({
+				collection : "foo",
+				fields : [
+					// test a ton of permutations with walking arrays and objects
+					{ name : "walk1", validation : { type : "number" } },
+					{ name : "walk2", validation : { type : "array", schema : { type : "number" } } },
+					{ name : "walk3", validation : { type : "array", schema : { type : "object", schema : [{ name : "foo", type : "number" }] } } },
+					{ name : "walk4", validation : { type : "object", schema : [{ name : "foo", type : "number" }] } },
+					{ name : "walk5", validation : { type : "object", schema : [{ name : "foo", type : "array", schema : { type : "number" } }] } },
+					{ name : "walk6", validation : { type : "object", schema : [{ name : "foo", type : "array", schema : { type : "object", schema : [{ name : "foo", type : "number" }] } }] } },
+					{ name : "walk7", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "number" }] }] } },
+					{ name : "walk8", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "array", schema : { type : "number" } }] }] } },
+					{ name : "walk9", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "array", schema : { type : "object", schema : [{ name : "foo", type : "number" }] } }] }] } },
+					// test the various primitive types
+					{ name : "boolean", validation : { type : "boolean" } },
+					{ name : "date", validation : { type : "date" } },
+					{ name : "objectid", validation : { type : "class", class : mongolayer.ObjectId } },
+					{ name : "number", validation : { type : "number" } },
+					{ name : "string", validation : { type : "string" } },
+					{ name : "multiKey", validation : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }] } }
+				]
+			});
+			
+			done();
+		});
+		
+		it("should _getConvertSchema", function(done) {
+			var test = model._getConvertSchema();
+			
+			assert.equal(test["walk1"], "number");
+			assert.equal(test["walk2"], "number");
+			assert.equal(test["walk3.foo"], "number");
+			assert.equal(test["walk4.foo"], "number");
+			assert.equal(test["walk5.foo"], "number");
+			assert.equal(test["walk6.foo.foo"], "number");
+			assert.equal(test["walk7.foo.foo"], "number");
+			assert.equal(test["walk8.foo.foo"], "number");
+			assert.equal(test["walk9.foo.foo.foo"], "number");
+			assert.equal(test["multiKey.foo"], "number");
+			assert.equal(test["multiKey.bar"], "boolean");
+			assert.equal(test.boolean, "boolean");
+			assert.equal(test.date, "date");
+			assert.equal(test.objectid, "objectid");
+			assert.equal(test.number, "number");
+			assert.equal(test.string, "string");
+			
+			done();
+		});
+		
+		it("should _convertValue", function(done) {
+			var temp = model._convertValue("true", "boolean");
+			assert.equal(temp, true);
+			
+			var temp = model._convertValue("false", "boolean");
+			assert.equal(temp, false);
+			
+			var temp = model._convertValue("10", "number");
+			assert.equal(temp, 10);
+			
+			var temp = model._convertValue("10.5", "number");
+			assert.equal(temp, 10.5);
+			
+			var temp = model._convertValue("-100", "number");
+			assert.equal(temp, -100);
+			
+			var date = new Date();
+			var temp = model._convertValue(date.getTime(), "date");
+			assert.equal(temp.getTime(), date.getTime());
+			
+			var id = model.ObjectId();
+			
+			var temp = model._convertValue(id.toString(), "objectid");
+			assert.equal(temp.toString(), id.toString());
+			
+			var temp = model._convertValue("foo", "string");
+			assert.equal(temp, "foo");
+			
+			assert.throws(function() {
+				var temp = model._convertValue("foo", "fakeType");
+			}, Error);
+			
+			done();
+		});
+		
+		it("should stringConvert data", function(done) {
+			var id = model.ObjectId();
+			var date1 = new Date();
+			
+			var data = {
+				walk1 : "3",
+				walk2 : ["3", "4"],
+				walk3 : [{ foo : "3" }, { foo : "5" }],
+				walk4 : { foo : "5" },
+				walk5 : { foo : ["3", "4"] },
+				walk6 : { foo : [{ foo : "3" }, { foo : "4" }] },
+				walk7 : { foo : { foo : "3" } },
+				walk8 : { foo : { foo : ["3", "4"] } },
+				walk9 : { foo : { foo : [{ foo : "3" }, { foo : "4" }] } },
+				multiKey : { foo : "5", bar : "true" },
+				boolean : "false",
+				date : date1.getTime(),
+				objectid : id.toString(),
+				number : "3",
+				string : "foo",
+				undeclared : "10"
+			}
+			
+			var temp = model.stringConvert(data);
+			
+			// ensure conversion of the deeply nested walk data works
+			assert.equal(temp.walk1, 3);
+			assert.equal(temp.walk2[0], 3);
+			assert.equal(temp.walk2[1], 4);
+			assert.equal(temp.walk3[0].foo, 3);
+			assert.equal(temp.walk3[1].foo, 5);
+			assert.equal(temp.walk4.foo, 5);
+			assert.equal(temp.walk5.foo[0], 3);
+			assert.equal(temp.walk5.foo[1], 4);
+			assert.equal(temp.walk6.foo[0].foo, 3);
+			assert.equal(temp.walk6.foo[1].foo, 4);
+			assert.equal(temp.walk7.foo.foo, 3);
+			assert.equal(temp.walk8.foo.foo[0], 3);
+			assert.equal(temp.walk8.foo.foo[1], 4);
+			assert.equal(temp.walk9.foo.foo[0].foo, 3);
+			assert.equal(temp.walk9.foo.foo[1].foo, 4);
+			assert.equal(temp.undeclared, "10");
+			
+			// check primitive types
+			assert.equal(temp.boolean, false);
+			assert.equal(temp.date.getTime(), date1.getTime());
+			assert.equal(temp.objectid.toString(), id.toString());
+			assert.equal(temp.number, 3);
+			assert.equal(temp.string, "foo");
+			assert.equal(temp.multiKey.foo, 5);
+			assert.equal(temp.multiKey.bar, true);
+			
+			// ensure original data was not changed
+			assert.equal(data.walk1, "3");
+			assert.equal(data.walk2[0], "3");
+			assert.equal(data.walk2[1], "4");
+			assert.equal(data.walk3[0].foo, "3");
+			assert.equal(data.walk3[1].foo, "5");
+			assert.equal(data.walk4.foo, "5");
+			assert.equal(data.walk5.foo[0], "3");
+			assert.equal(data.walk5.foo[1], "4");
+			assert.equal(data.walk6.foo[0].foo, "3");
+			assert.equal(data.walk6.foo[1].foo, "4");
+			assert.equal(data.walk7.foo.foo, "3");
+			assert.equal(data.walk8.foo.foo[0], "3");
+			assert.equal(data.walk8.foo.foo[1], "4");
+			assert.equal(data.walk9.foo.foo[0].foo, "3");
+			assert.equal(data.walk9.foo.foo[1].foo, "4");
+			
+			done();
+		});
+		
+		it("should stringConvert filter", function(done) {
+			// test simple conversion
+			var temp = model.stringConvert({ walk1 : "1" });
+			assert.equal(temp.walk1, 1);
+			
+			// test all the supported query operators
+			var temp = model.stringConvert({
+				walk1 : {
+					$in : ["1"],
+					$nin : ["3", "4"],
+					$exists : "true",
+					$ne : "12",
+					$gt : "5",
+					$lt : "3",
+					$gte : "10",
+					$lte : "11"
+				}
+			});
+			
+			assert.equal(temp.walk1.$in[0], 1);
+			assert.equal(temp.walk1.$nin[0], 3);
+			assert.equal(temp.walk1.$nin[1], 4);
+			assert.equal(temp.walk1.$exists, true);
+			assert.equal(temp.walk1.$ne, 12);
+			assert.equal(temp.walk1.$gt, 5);
+			assert.equal(temp.walk1.$lt, 3);
+			assert.equal(temp.walk1.$gte, 10);
+			assert.equal(temp.walk1.$lte, 11);
+			
+			// test a nested dot key syntax
+			var temp = model.stringConvert({ "walk9.foo.foo.foo" : "4" });
+			assert.equal(temp["walk9.foo.foo.foo"], 4);
+			
+			// test a nested obj key syntax
+			var temp = model.stringConvert({ walk9 : { foo : { foo : { foo : "4" } } } });
+			assert.equal(temp.walk9.foo.foo.foo, 4);
+			
+			// test $and, $or, $nor
+			var temp = model.stringConvert({
+				$and : [{ walk1 : "3" }, { walk1 : { $ne : "5" } }, { $and : [{ walk1 : "10" }] }],
+				$or : [{ walk1 : { $in : ["3", "4"] } }],
+				$nor : [{ "walk9.foo.foo.foo" : { $gt : "12" } }]
+			});
+			assert.equal(temp.$and[0].walk1, 3);
+			assert.equal(temp.$and[1].walk1.$ne, 5);
+			assert.equal(temp.$and[2].$and[0].walk1, 10);
+			assert.equal(temp.$or[0].walk1.$in[0], 3);
+			assert.equal(temp.$or[0].walk1.$in[1], 4);
+			assert.equal(temp.$nor[0]["walk9.foo.foo.foo"].$gt, 12);
+			
+			// test $elemMatch with sub-document and array of simple
+			var temp = model.stringConvert({
+				$and : [
+					{ walk2 : { $elemMatch : { $gt : "5", $lt : "10" } } },
+					{ walk3 : { $elemMatch : { foo : "10" } } },
+					{ walk3 : { $elemMatch : { foo : { $lt : "5" } } } }
+				]
+			});
+			assert.equal(temp.$and[0].walk2.$elemMatch.$gt, 5);
+			assert.equal(temp.$and[0].walk2.$elemMatch.$lt, 10);
+			assert.equal(temp.$and[1].walk3.$elemMatch.foo, 10);
+			assert.equal(temp.$and[2].walk3.$elemMatch.foo.$lt, 5);
+			
+			// test $all
+			var temp = model.stringConvert({
+				$and : [
+					{ walk2 : { $all : ["3", "5"] } },
+					{ walk3 : { $all : [{ foo : "10" }, { foo : "5" }] } },
+					{ walk3 : { $all : [{ $elemMatch : { foo : "10" } }, { $elemMatch : { foo : { $gt : "2" } } }] } }
+				]
+			});
+			assert.equal(temp.$and[0].walk2.$all[0], 3);
+			assert.equal(temp.$and[0].walk2.$all[1], 5);
+			assert.equal(temp.$and[1].walk3.$all[0].foo, 10);
+			assert.equal(temp.$and[1].walk3.$all[1].foo, 5);
+			assert.equal(temp.$and[2].walk3.$all[0].$elemMatch.foo, 10);
+			assert.equal(temp.$and[2].walk3.$all[1].$elemMatch.foo.$gt, 2);
+			
+			done();
+		});
+	});
+	
 	describe("hooks", function(done) {
 		var model;
 		
