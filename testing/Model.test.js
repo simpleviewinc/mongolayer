@@ -495,8 +495,8 @@ describe(__filename, function() {
 			done();
 		});
 		
-		it("should _getConvertSchema", function(done) {
-			var test = model._getConvertSchema();
+		it("should getConvertSchema", function(done) {
+			var test = model.getConvertSchema();
 			
 			assert.equal(test["walk1"], "number");
 			assert.equal(test["walk2"], "number");

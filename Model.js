@@ -731,7 +731,7 @@ Model.prototype.remove = function(filter, options, cb) {
 Model.prototype.stringConvert = function(data) {
 	var self = this;
 	
-	var schema = self._getConvertSchema();
+	var schema = self.getConvertSchema();
 	
 	var hasOps = function(data) {
 		var hasOps = false;
@@ -866,7 +866,7 @@ Model.prototype._convertValue = function(data, type) {
 	}
 }
 
-Model.prototype._getConvertSchema = function() {
+Model.prototype.getConvertSchema = function() {
 	var self = this;
 	
 	var schema = {};
