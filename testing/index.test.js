@@ -155,6 +155,18 @@ describe(__filename, function() {
 			var temp = mongolayer.convertValue("foo", "string");
 			assert.equal(temp, "foo");
 			
+			// ensure items which are already converted work
+			var temp = mongolayer.convertValue(5, "number");
+			assert.equal(temp, 5);
+			
+			var tempVal = new Date();
+			var temp = mongolayer.convertValue(tempVal, "date");
+			assert.equal(temp, tempVal);
+			
+			var tempVal = new mongolayer.ObjectId();
+			var temp = mongolayer.convertValue(tempVal, "objectid");
+			assert.equal(temp, tempVal);
+			
 			// ensure various conditions throw errors
 			assert.throws(function() {
 				var temp = mongolayer.convertValue("foo", "fakeType");

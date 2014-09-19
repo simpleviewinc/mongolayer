@@ -188,6 +188,10 @@ var convertValue = function(data, type) {
 	var val;
 	
 	if (type === "boolean") {
+		if (typeof data === "boolean") {
+			return data;
+		}
+		
 		if (["true", "false"].indexOf(data) === -1) {
 			// ensure boolean is "true" or "false"
 			throw new Error(util.format("Cannot convert '%s' to boolean, it must be 'true' or 'false'", data));
@@ -195,6 +199,10 @@ var convertValue = function(data, type) {
 		
 		return data === "true";
 	} else if (type === "date") {
+		if (data instanceof Date) {
+			return data;
+		}
+		
 		var temp = new Date(data);
 		if (isNaN(temp)) {
 			throw new Error(util.format("Cannot convert '%s' to date, it's value is not valid in a JS new Date() constructor", data));
@@ -202,6 +210,10 @@ var convertValue = function(data, type) {
 		
 		return temp;
 	} else if (type === "number") {
+		if (typeof data === "number") {
+			return data;
+		}
+		
 		var temp = Number(data);
 		if (isNaN(temp)) {
 			throw new Error(util.format("Cannot convert '%s' to number, it's value is not a valid number", data));
@@ -211,6 +223,10 @@ var convertValue = function(data, type) {
 	} else if (type === "string") {
 		return data;
 	} else if (type === "objectid") {
+		if (data instanceof mongodb.ObjectID) {
+			return data;
+		}
+		
 		try {
 			var temp = new mongodb.ObjectID(data);
 		} catch (e) {
