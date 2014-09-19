@@ -125,4 +125,58 @@ describe(__filename, function() {
 			done();
 		});
 	});
+	
+	describe("conversion", function() {
+		it("should convertValue", function(done) {
+			var temp = mongolayer.convertValue("true", "boolean");
+			assert.equal(temp, true);
+			
+			var temp = mongolayer.convertValue("false", "boolean");
+			assert.equal(temp, false);
+			
+			var temp = mongolayer.convertValue("10", "number");
+			assert.equal(temp, 10);
+			
+			var temp = mongolayer.convertValue("10.5", "number");
+			assert.equal(temp, 10.5);
+			
+			var temp = mongolayer.convertValue("-100", "number");
+			assert.equal(temp, -100);
+			
+			var date = new Date();
+			var temp = mongolayer.convertValue(date.getTime(), "date");
+			assert.equal(temp.getTime(), date.getTime());
+			
+			var id = mongolayer.ObjectId();
+			
+			var temp = mongolayer.convertValue(id.toString(), "objectid");
+			assert.equal(temp.toString(), id.toString());
+			
+			var temp = mongolayer.convertValue("foo", "string");
+			assert.equal(temp, "foo");
+			
+			// ensure various conditions throw errors
+			assert.throws(function() {
+				var temp = mongolayer.convertValue("foo", "fakeType");
+			}, Error);
+			
+			assert.throws(function() {
+				var temp = mongolayer.convertValue("foo", "number");
+			}, Error);
+			
+			assert.throws(function() {
+				var temp = mongolayer.convertValue("foo", "date");
+			}, Error);
+			
+			assert.throws(function() {
+				var temp = mongolayer.convertValue("0", "boolean");
+			}, Error);
+			
+			assert.throws(function() {
+				var temp = mongolayer.convertValue("foo", "objectid");
+			}, Error);
+			
+			done();
+		});
+	});
 });

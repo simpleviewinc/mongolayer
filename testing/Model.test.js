@@ -518,41 +518,6 @@ describe(__filename, function() {
 			done();
 		});
 		
-		it("should _convertValue", function(done) {
-			var temp = model._convertValue("true", "boolean");
-			assert.equal(temp, true);
-			
-			var temp = model._convertValue("false", "boolean");
-			assert.equal(temp, false);
-			
-			var temp = model._convertValue("10", "number");
-			assert.equal(temp, 10);
-			
-			var temp = model._convertValue("10.5", "number");
-			assert.equal(temp, 10.5);
-			
-			var temp = model._convertValue("-100", "number");
-			assert.equal(temp, -100);
-			
-			var date = new Date();
-			var temp = model._convertValue(date.getTime(), "date");
-			assert.equal(temp.getTime(), date.getTime());
-			
-			var id = model.ObjectId();
-			
-			var temp = model._convertValue(id.toString(), "objectid");
-			assert.equal(temp.toString(), id.toString());
-			
-			var temp = model._convertValue("foo", "string");
-			assert.equal(temp, "foo");
-			
-			assert.throws(function() {
-				var temp = model._convertValue("foo", "fakeType");
-			}, Error);
-			
-			done();
-		});
-		
 		it("should stringConvert data", function(done) {
 			var id = model.ObjectId();
 			var date1 = new Date();
