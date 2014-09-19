@@ -2,6 +2,8 @@
 
 # mongolayer
 
+`npm install mongolayer`
+
 Mongolayer is a rich document system similar to Mongoose, but thinner, more type-strict, and with more developer flexibility.
 
 This module is an attempt at providing the vision of `mongoose` (validation, hooks, relationships) but with less eccentricities, less magic under the hood providing developers with more consistent behaviors.
@@ -51,6 +53,9 @@ Here are some examples of frustrations I personally came across using `mongoose`
 0. Each document in mongoose is an instance of the Schema. That just doesn't make sense to me. The fields on my Document should only be the fields I add, nothing more, nothing less.
 
 # Getting Started
+
+`npm install mongolayer`
+
 Mongolayer has three basic constructs, **Models**, **Connections** and **Documents**.
 
 * `mongolayer.Connection` - Manage the connection pool and the raw connection to MongoDB. The connection is aware of all of the Models that are attached to it.
