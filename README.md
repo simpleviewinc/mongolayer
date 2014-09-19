@@ -289,7 +289,7 @@ Let's simplify this, using the hook system we can create a beforeFilter hook whi
 
 ```js
 model.addHook({
-	name : "foo",
+	name : "activeFilter",
 	type : "beforeFilter",
 	required : true,
 	handler : function(args, cb) {
