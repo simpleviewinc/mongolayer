@@ -10,6 +10,8 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 
 * [Hooks](#hooks)
 	* [Hook Arguments](#hook_arguments)
+	* [Hook Examples](#hook_examples)
+		* [blogPost beforeFilter](#blogPost_beforeFilter)
 	* [Calling Hooks](#calling_hooks)
 	* [Runtime Hooks](#runtime_hooks)
 	* [Default Hooks](#default_hooks)
@@ -137,14 +139,16 @@ model.addHook({
 var model = new mongolayer.Model({
 	collection : "foo",
 	hooks : [
-		name : "foo",
-		type : "afterFind",
-		handler : function(args, cb) {
-			// if you want the hook to "fail" and prevent any further hooks or actions from running, callback an error
-			return cb(new Error("something something"));
-			
-			// if you want the hook to succeed and continue, callback with args
-			return cb(null, args);
+		{
+			name : "foo",
+			type : "afterFind",
+			handler : function(args, cb) {
+				// if you want the hook to "fail" and prevent any further hooks or actions from running, callback an error
+				return cb(new Error("something something"));
+				
+				// if you want the hook to succeed and continue, callback with args
+				return cb(null, args);
+			}
 		}
 	]
 });
@@ -245,6 +249,84 @@ Due to technical eccentricities `beforePut` cannot be called on `update`, even w
 Due to technical eccentricities `afterPut` cannot be called on `update`, even when using `upsert : true` in your options. If you want to fully replace a record with upsert semantics use `save`.
 
 * `args.doc` - `model.Document` - The document that was placed into the database.
+
+<a name="hook_examples"/>
+## Hook Examples
+
+<a name="blogPost_beforeFilter"/>
+### blogPost beforeFilter
+
+Imagine you have the following Model for a blog post.
+
+```js
+var model = new mongolayer.Model({
+	collection : "posts",
+	fields : [
+		{ name : "title", validation : { type : "string" }, required : true },
+		{ name : "description", validation : { type : "string" }, required : true },
+		{ name : "published", validation : { type : "boolean" }, default : true },
+		{ name : "startdate", validation : { type : "date" }, required : true, default : function() { return new Date() } },
+		{ name : "enddate", validation : { type : "date" } } // note: enddate is not required
+	]
+});
+```
+
+In this model we have a published boolean as well as a startdate and enddate. The intent of this is that the user can publish a post, but can specify an optional enddate where the post will no longer appear on the site. If no enddate is supplied it will always be on the site.
+
+Now, if a developer wants to get all posts which are "active", meaning that they are published and today's date is between their startdate and enddates (if the post has them), the developer would perform the following query.
+
+```js
+model.find({
+	published : true,
+	startdate : { $lte : new Date() },
+	$or : [{ enddate : { $gt : new Date() } }, { enddate : { $exists : false } }]
+}, function(err, docs) {
+	// do stuff
+});
+```
+
+The advantage of the hook system is that we can create a beforeFilter hook which will make that getting "active" posts much, much simpler.
+
+```js
+model.addHook({
+	name : "foo",
+	type : "beforeFilter",
+	required : true,
+	handler : function(args, cb) {
+		if (args.filter.active === true) {
+			// take users passed filter and $and it with our "active" composite filter
+			var currentFilter = args.filter;
+			delete args.filter.active;
+			args.filter = {
+				$and : [
+					{
+						published : true,
+						startdate : { $lte : new Date() },
+						$or : [{ enddate : { $gt : new Date() } }, { enddate : { $exists : false } }]
+					},
+					currentFilter
+				]
+			}
+		}
+		
+		return cb(null, args);
+	}
+});
+```
+
+Now if I want to get all active posts I simply can run.
+
+```js
+model.find({
+	active : true
+}, function(err, docs) {
+	// do stuff
+});
+```
+
+In addition, this same "active" concept applies to all queries which run the beforeFilter hook such as update(), remove(), and count().
+
+Using this we've abstracted the concept of "active" so that other developers don't have to deal with the complexity behind it. This reduces code repetition and the possibility of error downstream.
 
 <a name="calling_hooks"/>
 ## Calling Hooks
@@ -645,7 +727,7 @@ Adds a field to a model. This is the basic schema that each document in the coll
 These can also be specified by passing a `fields` array to a `mongolayer.Model` constructor.
 
 * `name` - `string` - `required` - Name of the field.
-* `validation` - `object` - `required` - Validation schema for the key, using `jsvalidator` syntax.
+* `validation` - `object` - `required` - Validation schema for the key, using [jsvalidator](https://github.com/simpleviewinc/jsvalidator) syntax.
 * `default` - `any` - `optional` - Default value for the field. Can be a function who's return will be the value.
 * `required` - `boolean` - `optional` - Whether the field is required before putting into the database.
 * `persist` - `boolean` - `optional` - `default true`. If false, then the value of the field is not persisted into the database.
