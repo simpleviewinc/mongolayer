@@ -335,7 +335,15 @@ model.find({
 })
 ```
 
-It is important to note, this same "active" concept applies to all queries which run the beforeFilter hook such as update(), remove(), and count().
+It is important to note that this same "active" concept applies to all queries which run the beforeFilter hook such as update(), remove(), and count().
+
+```js
+model.count({
+	active : true
+}, function(err, docs) {
+	// do stuff
+});
+```
 
 Using this, we've abstracted the concept of "active" so that other developers don't have to deal with the complexity behind it. This reduces code repetition and the possibility for developer errors downstream.
 
