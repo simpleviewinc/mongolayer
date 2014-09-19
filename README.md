@@ -340,7 +340,7 @@ It is important to note that this same "active" concept applies to all queries w
 ```js
 model.count({
 	active : true
-}, function(err, docs) {
+}, function(err, count) {
 	// do stuff
 });
 ```
