@@ -271,7 +271,7 @@ var model = new mongolayer.Model({
 });
 ```
 
-In this model we have a published boolean as well as a startdate and enddate. The intent of this is that the user can publish a post, but can specify an optional enddate where the post will no longer appear on the site. If no enddate is supplied it will always be on the site.
+In this model we have a published boolean as well as startdate and enddate. This allows the user to publish a post, but also specify the date it will show up on the site (defaulting to now), and they can specify an optional enddate where the post will no longer appear on the site. If no enddate is supplied it will always be on the site.
 
 Now, if a developer wants to get all posts which are "active", meaning that they are published and today's date is between their startdate and enddates (if the post has them), the developer would perform the following query.
 
@@ -285,7 +285,7 @@ model.find({
 });
 ```
 
-The advantage of the hook system is that we can create a beforeFilter hook which will make that getting "active" posts much, much simpler.
+Let's simplify this, using the hook system we can create a beforeFilter hook which will make getting "active" posts much, much simpler.
 
 ```js
 model.addHook({
@@ -294,7 +294,7 @@ model.addHook({
 	required : true,
 	handler : function(args, cb) {
 		if (args.filter.active === true) {
-			// take users passed filter and $and it with our "active" composite filter
+			// take developers passed filter and $and it with our "active" abstract filter
 			var currentFilter = args.filter;
 			delete args.filter.active;
 			args.filter = {
@@ -324,9 +324,20 @@ model.find({
 });
 ```
 
-In addition, this same "active" concept applies to all queries which run the beforeFilter hook such as update(), remove(), and count().
+Also, I could query for everything which is "active" and has a description containing the word 'mongolayer'.
 
-Using this we've abstracted the concept of "active" so that other developers don't have to deal with the complexity behind it. This reduces code repetition and the possibility of error downstream.
+```js
+model.find({
+	active : true,
+	description : { $regex : ".*mongolayer.*" }
+}, function(err, docs) {
+	// do stuff
+})
+```
+
+It is important to note, this same "active" concept applies to all queries which run the beforeFilter hook such as update(), remove(), and count().
+
+Using this, we've abstracted the concept of "active" so that other developers don't have to deal with the complexity behind it. This reduces code repetition and the possibility for developer errors downstream.
 
 <a name="calling_hooks"/>
 ## Calling Hooks
