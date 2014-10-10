@@ -134,6 +134,24 @@ describe(__filename, function() {
 			var temp = mongolayer.convertValue("false", "boolean");
 			assert.equal(temp, false);
 			
+			var temp = mongolayer.convertValue("1", "boolean");
+			assert.equal(temp, true);
+			
+			var temp = mongolayer.convertValue(1, "boolean");
+			assert.equal(temp, true);
+			
+			var temp = mongolayer.convertValue("0", "boolean");
+			assert.equal(temp, false);
+			
+			var temp = mongolayer.convertValue(0, "boolean");
+			assert.equal(temp, false);
+			
+			var temp = mongolayer.convertValue("yes", "boolean");
+			assert.equal(temp, true);
+			
+			var temp = mongolayer.convertValue("no", "boolean");
+			assert.equal(temp, false);
+			
 			var temp = mongolayer.convertValue("10", "number");
 			assert.equal(temp, 10);
 			
@@ -181,7 +199,7 @@ describe(__filename, function() {
 			}, Error);
 			
 			assert.throws(function() {
-				var temp = mongolayer.convertValue("0", "boolean");
+				var temp = mongolayer.convertValue("notBool", "boolean");
 			}, Error);
 			
 			assert.throws(function() {

@@ -192,12 +192,12 @@ var convertValue = function(data, type) {
 			return data;
 		}
 		
-		if (["true", "false"].indexOf(data) === -1) {
+		if (["1", 1, "0", 0, "yes", "no", "true", "false"].indexOf(data) === -1) {
 			// ensure boolean is "true" or "false"
 			throw new Error(util.format("Cannot convert '%s' to boolean, it must be 'true' or 'false'", data));
 		}
 		
-		return data === "true";
+		return data === "true" || data === "1" || data === 1 || data === "yes";
 	} else if (type === "date") {
 		if (data instanceof Date) {
 			return data;
