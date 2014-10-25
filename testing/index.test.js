@@ -67,6 +67,130 @@ describe(__filename, function() {
 		});
 	});
 	
+	it("should _newErrorType", function(done) {
+		var NewErrorType = mongolayer._newErrorType("MyName");
+		
+		var err = new NewErrorType();
+		assert.ok(err instanceof Error);
+		assert.ok(err instanceof NewErrorType);
+		assert.equal(err.name, "MyName");
+		assert.equal(err.toString(), "MyName");
+		
+		// ensure custom message are propagating
+		var err = new NewErrorType("CustomMessage");
+		assert.equal(err.message, "CustomMessage");
+		assert.equal(err.toString(), "MyName: CustomMessage");
+		
+		done();
+	});
+	
+	it("should have errors.ValidationError", function(done) {
+		var err = new mongolayer.errors.ValidationError();
+		assert.ok(err instanceof Error);
+		assert.ok(err instanceof mongolayer.errors.ValidationError);
+		done();
+	});
+	
+	describe("_prepareInsert", function() {
+		it("should pass through simple", function() {
+			assert.strictEqual(mongolayer._prepareInsert("foo"), "foo");
+			assert.strictEqual(mongolayer._prepareInsert(5), 5);
+			assert.strictEqual(mongolayer._prepareInsert(null), null);
+			assert.strictEqual(mongolayer._prepareInsert(true), true);
+			assert.strictEqual(mongolayer._prepareInsert(new Date(2001, 9, 11)).getTime(), (new Date(2001, 9, 11)).getTime());
+			var id = new mongolayer.ObjectId();
+			assert.strictEqual(mongolayer._prepareInsert(id).toString(), id.toString());
+			
+			// ensure that arrays stay as arrays and objects as objects, deepEqual cannot be relied on for this check
+			var temp = mongolayer._prepareInsert({ foo : { something : "yes" }, baz : [1,2,3] });
+			assert.equal(temp.baz instanceof Array, true);
+			assert.equal(temp.foo.constructor === ({}).constructor, true);
+		});
+		
+		it("should walk objects", function() {
+			assert.deepEqual(mongolayer._prepareInsert({ foo : "something", bar : "another" }), { foo : "something", bar : "another" })
+			assert.deepEqual(mongolayer._prepareInsert({ foo : "something", bar : { inner : true } }), { foo : "something", bar : { inner : true } });
+		});
+		
+		it("should clone objects", function() {
+			var temp = {};
+			assert.notEqual(mongolayer._prepareInsert(temp), temp);
+			
+			var full = { foo : { more : true } };
+			var temp = mongolayer._prepareInsert(full);
+			assert.notEqual(temp, full);
+			assert.notEqual(temp.foo, full.foo);
+			// proof of concept
+			assert.equal(full.foo, full.foo);
+		});
+		
+		it("should clone arrays", function() {
+			var temp = [];
+			assert.notEqual(mongolayer._prepareInsert(temp), temp);
+			
+			var full = [1,2,3];
+			var temp = mongolayer._prepareInsert(full);
+			assert.notEqual(temp, full);
+		});
+		
+		it("should 'empty' data such as empty array/object/string", function() {
+			assert.equal(mongolayer._prepareInsert({}), undefined);
+			assert.equal(mongolayer._prepareInsert(""), undefined);
+			assert.equal(mongolayer._prepareInsert([]), undefined);
+			assert.equal(mongolayer._prepareInsert({ foo : "" }), undefined);
+			// test a deeply nested structure which should be entirely trimmed
+			assert.equal(mongolayer._prepareInsert({ foo : { bar : [{ baz : [undefined] }] }, undef : undefined }), undefined);
+			// test removal of array elements based on same "non-existent" idea
+			assert.deepEqual(mongolayer._prepareInsert({ foo : [1,""] }), { foo : [1] });
+		});
+		
+		it("should not run getters or functions", function() {
+			var temp = {
+				valid : true,
+				func : function() { return "fail" }
+			};
+			Object.defineProperty(temp, "foo", {
+				get : function() {
+					return "fail";
+				},
+				enumerable : true
+			});
+			
+			var result = mongolayer._prepareInsert(temp);
+			assert.equal(result.valid, true);
+			assert.equal(result.foo, undefined);
+			assert.equal(result.func, undefined);
+		});
+		
+		it("should simplify Function", function() {
+			var Test = function() {
+				this.foo = "something";
+			};
+			
+			Object.defineProperty(Test, "fail", {
+				get : function() {
+					return "getFail"
+				},
+				enumerable : true
+			});
+			
+			Object.defineProperty(Test.prototype, "failProto", {
+				get : function() {
+					return "protoFail"
+				},
+				enumerable : true
+			});
+			
+			var test = new Test();
+			var result = mongolayer._prepareInsert(test);
+			assert.equal(result.foo, "something");
+			assert.equal(result instanceof Test, false);
+			assert.equal(result instanceof Object, true);
+			assert.equal(result.fail, undefined);
+			assert.equal(result.failProto, undefined);
+		});
+	});
+	
 	describe("toPlain", function() {
 		var model;
 		

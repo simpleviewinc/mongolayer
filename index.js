@@ -63,6 +63,52 @@ var toPlain = function(data) {
 	return extend(true, {}, data);
 }
 
+// converts incoming data to simple object literals
+// strips out {}, [], "" and undefined
+var _prepareInsert = function(data) {
+	var returnData = data;
+	
+	if (data instanceof Date || data instanceof mongodb.ObjectID) {
+		// certain types are passed straight in without being unfolded
+	} else if (data instanceof Function) {
+		// Function instanceof Object so have to catch it prior to checking for Object
+		returnData = undefined;
+	} else if (data instanceof Array) {
+		returnData = data.map(function(val, i) {
+			return _prepareInsert(val);
+		}).filter(function(val, i) {
+			return val !== undefined;
+		});
+		
+		if (returnData.length === 0) {
+			// remove empty arrays
+			returnData = undefined;
+		}
+	} else if (data instanceof Object && data !== null) {
+		// at this point we know it's not a Date, Function, Array, ObjectId, so lets walk it
+		returnData = {};
+		Object.keys(data).forEach(function(i) {
+			// only run keys which do not have a "getter" declared
+			if (Object.getOwnPropertyDescriptor(data, i).get === undefined) {
+				var temp = _prepareInsert(data[i]);
+				if (temp !== undefined) {
+					returnData[i] = temp;
+				}
+			}
+		});
+		
+		if (Object.keys(returnData).length === 0) {
+			// remove empty objects
+			returnData = undefined;
+		}
+	} else if (typeof data === "string" && data === "") {
+		// remove empty strings
+		returnData = undefined;
+	}
+	
+	return returnData;
+}
+
 // Converts structured data of arrays, objects of strings into meaningful primitives
 // This is required because HTTP transmits as strings, while server-side code needs primitives such as boolean, number, date and mongoid.
 // EXPERIMENTAL!
@@ -239,14 +285,43 @@ var convertValue = function(data, type) {
 	}
 }
 
+var _newErrorType = function(name) {
+	var CustomErrorType = function(message) {
+		if (Object.defineProperty) {
+			Object.defineProperty(this, "message", {
+				value : message || "",
+				enumerable : false
+			});
+		} else {
+			this.message = message;
+		}
+		
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, CustomErrorType);
+		}
+	}
+
+	CustomErrorType.prototype = new Error();
+	CustomErrorType.prototype.name = name;
+	
+	return CustomErrorType;
+}
+
+var errors = {
+	ValidationError : _newErrorType("ValidationError")
+}
+
 extend(module.exports, {
 	connect : connect,
 	connectCached : connectCached,
+	errors : errors,
+	_newErrorType : _newErrorType,
 	Model : Model,
 	Document : Document,
 	Connection : Connection,
 	ObjectId : mongodb.ObjectID,
 	toPlain : toPlain,
 	stringConvert : stringConvert,
-	convertValue : convertValue
+	convertValue : convertValue,
+	_prepareInsert : _prepareInsert
 });

@@ -49,7 +49,7 @@ describe(__filename, function() {
 	it("should get id and _id fields by default", function(done) {
 		var model = new mongolayer.Model({ collection : "foo" });
 		
-		assert.notEqual(model._fields["_id"], undefined);
+		assert.notEqual(model.fields["_id"], undefined);
 		assert.notEqual(model._virtuals["id"], undefined);
 		
 		done();
@@ -65,8 +65,8 @@ describe(__filename, function() {
 			]
 		});
 		
-		assert.equal(model._fields["foo"].validation.type, "string");
-		assert.equal(model._fields["bar"].validation.type, "number");
+		assert.equal(model.fields["foo"].validation.type, "string");
+		assert.equal(model.fields["bar"].validation.type, "number");
 		
 		done();
 	});
@@ -232,7 +232,7 @@ describe(__filename, function() {
 		});
 		
 		model._validateDocData({ foo : 5 }, function(err) {
-			assert.equal(err instanceof Error, true);
+			assert.equal(err instanceof mongolayer.errors.ValidationError, true);
 			
 			done();
 		});
@@ -247,7 +247,7 @@ describe(__filename, function() {
 		});
 		
 		model._validateDocData({ bar : "test" }, function(err) {
-			assert.equal(err instanceof Error, true);
+			assert.equal(err instanceof mongolayer.errors.ValidationError, true);
 			
 			done();
 		});
@@ -461,6 +461,60 @@ describe(__filename, function() {
 		
 		var doc = new model.Document({ foo : "fooValue" });
 		assert.equal(doc.bar, "barValue_fooValue");
+		
+		done();
+	});
+	
+	it("should _prepareInsert on Document", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "foo", validation : { type : "string" } }
+			],
+			virtuals : [
+				{ name : "virtual", get : function() { throw new Error("Should not get here") }, set : function(val) { this.foo = val }, enumerable : true }
+			]
+		});
+		
+		var doc = new model.Document({ virtual : "virtualValue" });
+		var temp = mongolayer._prepareInsert(doc);
+		assert.equal(temp instanceof model.Document, false);
+		// ensure the setter fired
+		assert.equal(temp.foo, "virtualValue");
+		// ensure the getter did not fire
+		assert.equal(temp.virtual, undefined);
+		
+		done();
+	});
+	
+	it("should toJSON on Document", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "foo", validation : { type : "string" } },
+				{ name : "array", validation : { type : "array", schema : { type : "object", schema : [{ name : "first", type : "boolean" }] } } }
+			],
+			virtuals : [
+				{ name : "virtualEnum", get : function() { return "virtualEnumValue" }, enumerable : true },
+				{ name : "virtual", get : function() { return "virtualValue" } }
+			]
+		});
+		
+		var doc2 = new model.Document({ foo : "subStringValue" });
+		var doc = new model.Document({ foo : "stringValue", array : [{ first : true }], obj : { subdoc : doc2 } });
+		
+		var temp = JSON.parse(JSON.stringify(doc));
+		
+		// check the state of the primary doc
+		assert.equal(temp.foo, "stringValue");
+		assert.deepEqual(temp.array, [{ first : true }]);
+		assert.equal(temp.virtualEnum, "virtualEnumValue");
+		assert.equal(temp.virtual, "virtualValue");
+		
+		// ensure the sub document serialized as well
+		assert.equal(temp.obj.subdoc.foo, "subStringValue");
+		assert.equal(temp.obj.subdoc.virtualEnum, "virtualEnumValue");
+		assert.equal(temp.obj.subdoc.virtual, "virtualValue");
 		
 		done();
 	});
@@ -919,7 +973,7 @@ describe(__filename, function() {
 				});
 			});
 			
-			it("should run virtuals on insert", function(done) {
+			it("should run virtual setters on insert", function(done) {
 				var _id = new mongolayer.ObjectId();
 				
 				model.insert({
@@ -1002,13 +1056,13 @@ describe(__filename, function() {
 				});
 			});
 			
-			it("should insert empty string", function(done) {
+			it("should not insert empty string", function(done) {
 				model.insert({
 					foo : ""
 				}, function(err, doc) {
 					assert.ifError(err);
 					
-					assert.equal(doc.foo, "");
+					assert.equal(doc.foo, undefined);
 					
 					done();
 				});
@@ -1847,6 +1901,8 @@ describe(__filename, function() {
 							], cb);
 						}
 					], function(err) {
+						assert.ifError(err);
+						
 						done();
 					});
 				});

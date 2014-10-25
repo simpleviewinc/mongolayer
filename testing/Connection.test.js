@@ -28,11 +28,11 @@ describe(__filename, function() {
 		], function(err) {
 			assert.ifError(err);
 			
-			assert.equal(conn.models.foo._collectionName, "foo");
+			assert.equal(conn.models.foo.collectionName, "foo");
 			assert.equal(conn.models.foo, model1);
 			assert.equal(conn.models.foo.connected, true);
 			assert.equal(conn._models.foo.model, model1);
-			assert.equal(conn.models.foo_bar._collectionName, "foo");
+			assert.equal(conn.models.foo_bar.collectionName, "foo");
 			assert.equal(conn.models.foo_bar, model2);
 			assert.equal(conn.models.foo_bar.connected, true);
 			assert.equal(conn._models.foo_bar.model, model2);

@@ -32,13 +32,14 @@ var Model = function(args) {
 	
 	// public
 	self.name = args.name || args.collection;
+	self.collectionName = args.collection;
 	self.connected = false;
 	self.collection = null; // stores reference to MongoClient.Db.collection()
 	self.ObjectId = mongolayer.ObjectId;
+	self.fields = {};
 	
 	// private
 	self._onInit = args.onInit;
-	self._fields = {};
 	self._virtuals = {};
 	self._relationships = {};
 	self.methods = {};
@@ -71,7 +72,6 @@ var Model = function(args) {
 		remove : []
 	}, args.defaultHooks);
 	self._connection = null; // stores Connection ref
-	self._collectionName = args.collection;
 	
 	self._Document = function(model, args) {
 		mongolayer.Document.apply(this, arguments); // call constructor of parent but pass this as context
@@ -147,7 +147,7 @@ Model.prototype._setConnection = function(args) {
 	// args.connection
 	
 	self._connection = args.connection;
-	self.collection = args.connection.db.collection(self._collectionName);
+	self.collection = args.connection.db.collection(self.collectionName);
 	
 	self.connected = true;
 }
@@ -170,7 +170,7 @@ Model.prototype.addField = function(args) {
 	// args.persist
 	// args.validation (jsvalidator syntax)
 	
-	self._fields[args.name] = args;
+	self.fields[args.name] = args;
 }
 
 Model.prototype.addVirtual = function(args) {
@@ -761,7 +761,7 @@ Model.prototype.getConvertSchema = function() {
 		}
 	}
 	
-	objectLib.forEach(self._fields, function(val, i) {
+	objectLib.forEach(self.fields, function(val, i) {
 		if (val.validation === undefined) {
 			return;
 		}
@@ -908,12 +908,14 @@ Model.prototype._processDocs = function(args, cb) {
 	
 	var newData = [];
 	args.data.forEach(function(val, i) {
-		// convert data to Document and back toPlain to ensure virtual setters are ran and we know "simple" data is being passed to the DB
+		// convert data to Document and back to plain to ensure virtual setters are ran and we know "simple" data is being passed to the DB
+		// this step also removes all "undefined"-y values such as [], {}, undefined, and ""
 		if (val instanceof self.Document) {
-			newData.push(mongolayer.toPlain(val));
+			newData.push(mongolayer._prepareInsert(val));
 		} else {
 			var temp = new self.Document(val);
-			newData.push(mongolayer.toPlain(temp));
+			
+			newData.push(mongolayer._prepareInsert(temp));
 		}
 	});
 	
@@ -978,8 +980,8 @@ Model.prototype._validateDocData = function(data, cb) {
 			return;
 		}
 		
-		if (self._fields[i] !== undefined) {
-			if (self._fields[i].persist === false) {
+		if (self.fields[i] !== undefined) {
+			if (self.fields[i].persist === false) {
 				// value is non-persistent
 				delete data[i];
 				return;
@@ -990,11 +992,11 @@ Model.prototype._validateDocData = function(data, cb) {
 				return;
 			}
 			
-			var result = validator.validate(val, self._fields[i].validation);
+			var result = validator.validate(val, self.fields[i].validation);
 			
 			if (result.success === false) {
 				var validationErrors = result.errors.map(function(val) { return val.err.message}).join(",");
-				errs.push(util.format("Column '%s' is not of valid type '%s'. Validation Error is: '%s'", i, self._fields[i].validation.type, validationErrors));
+				errs.push(util.format("Column '%s' is not of valid type '%s'. Validation Error is: '%s'", i, self.fields[i].validation.type, validationErrors));
 			}
 			
 			return;
@@ -1005,7 +1007,7 @@ Model.prototype._validateDocData = function(data, cb) {
 	});
 	
 	if (errs.length > 0) {
-		return cb(new Error("Doc failed validation. " + errs.join(" ")));
+		return cb(new mongolayer.errors.ValidationError("Doc failed validation. " + errs.join(" ")));
 	}
 	
 	cb(null);
@@ -1016,14 +1018,14 @@ Model.prototype._checkRequired = function(data, cb) {
 	
 	var errs = [];
 	
-	objectLib.forEach(self._fields, function(val, i) {
+	objectLib.forEach(self.fields, function(val, i) {
 		if (val.required === true && data[i] === undefined) {
 			errs.push(util.format("Column '%s' is required and not provided.", i));
 		}
 	});
 	
 	if (errs.length > 0) {
-		return cb(new Error("Doc failed validation. " + errs.join(" ")));
+		return cb(new mongolayer.errors.ValidationError("Doc failed validation. " + errs.join(" ")));
 	}
 	
 	cb(null);
@@ -1034,7 +1036,7 @@ Model.prototype._fillDocDefaults = function(data) {
 	
 	var calls = [];
 	
-	objectLib.forEach(self._fields, function(val, i) {
+	objectLib.forEach(self.fields, function(val, i) {
 		if (val.default !== undefined && data[i] === undefined) {
 			if (typeof val.default === "function") {
 				data[i] = val.default({ raw : data, column : i });
