@@ -1026,7 +1026,7 @@ describe(__filename, function() {
 					assert.ifError(err);
 					
 					assert.strictEqual(result.ok, 1);
-					assert.strictEqual(result.n, 2);
+					assert.strictEqual(result.nInserted, 2);
 					assert.equal(docs[0].foo, "fooValue1");
 					assert.equal(docs[0].bar, "barValue1");
 					assert.equal(docs[1].foo, "fooValue2");

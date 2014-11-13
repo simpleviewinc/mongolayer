@@ -479,7 +479,7 @@ Model.prototype.insert = function(docs, options, cb) {
 					callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs }, function(err, castedDocs) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result.result, docs : castedDocs, options : args.options } }, function(err, args) {
+						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : castedDocs, options : args.options } }, function(err, args) {
 							if (err) { return cb(err); }
 							
 							cb(null, isArray ? args.docs : args.docs[0], args.result);
@@ -509,6 +509,7 @@ Model.prototype.save = function(doc, options, cb) {
 	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.save);
 	options.options = options.options || {};
+	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
 	self._executeHooks({ type : "beforeSave", hooks : self._getHooksByType("beforeSave", options.hooks), args : { doc : doc, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
@@ -528,7 +529,7 @@ Model.prototype.save = function(doc, options, cb) {
 					self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc } }, function(err, tempArgs) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result.result, doc : tempArgs.doc, options : args.options } }, function(err, args) {
+						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : tempArgs.doc, options : args.options } }, function(err, args) {
 							if (err) { return cb(err); }
 							
 							cb(null, castedDoc, args.result);
@@ -636,6 +637,7 @@ Model.prototype.update = function(filter, delta, options, cb) {
 	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.update);
 	options.options = options.options || {};
+	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
 	self._executeHooks({ type : "beforeUpdate", hooks : self._getHooksByType("beforeUpdate", options.hooks), args : { filter : filter, delta: delta, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
@@ -681,7 +683,7 @@ Model.prototype.update = function(filter, delta, options, cb) {
 				self.collection.update(tempArgs.filter, args.delta, tempArgs.options.options, function(err, result) {
 					if (err) { return cb(err); }
 					
-					self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result.result } }, function(err, args) {
+					self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result } }, function(err, args) {
 						if (err) { return cb(err); }
 						
 						cb(null, args.result);
@@ -705,6 +707,7 @@ Model.prototype.remove = function(filter, options, cb) {
 	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.remove);
 	options.options = options.options || {};
+	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
 	self._executeHooks({ type : "beforeRemove", hooks : self._getHooksByType("beforeRemove", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
@@ -715,7 +718,7 @@ Model.prototype.remove = function(filter, options, cb) {
 			self.collection.remove(args.filter, args.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
-				self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, result : result.result } }, function(err, args) {
+				self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, result : result } }, function(err, args) {
 					if (err) { return cb(err); }
 					
 					cb(null, args.result);
