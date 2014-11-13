@@ -479,10 +479,10 @@ Model.prototype.insert = function(docs, options, cb) {
 					callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs }, function(err, castedDocs) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : castedDocs, options : args.options } }, function(err, args) {
+						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result.result, docs : castedDocs, options : args.options } }, function(err, args) {
 							if (err) { return cb(err); }
 							
-							cb(null, isArray ? args.docs : args.docs[0], result);
+							cb(null, isArray ? args.docs : args.docs[0], args.result);
 						});
 					});
 				});
@@ -520,7 +520,7 @@ Model.prototype.save = function(doc, options, cb) {
 			self._processDocs({ data : [tempArgs.doc], validate : true, checkRequired : true }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
-				self.collection.save(cleanDocs[0], args.options.options, function(err, number, result) {
+				self.collection.save(cleanDocs[0], args.options.options, function(err, result) {
 					if (err) { return cb(err); }
 					
 					var castedDoc = self._castDocs(cleanDocs)[0];
@@ -528,7 +528,7 @@ Model.prototype.save = function(doc, options, cb) {
 					self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc } }, function(err, tempArgs) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : tempArgs.doc, options : args.options } }, function(err, args) {
+						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result.result, doc : tempArgs.doc, options : args.options } }, function(err, args) {
 							if (err) { return cb(err); }
 							
 							cb(null, castedDoc, args.result);
@@ -678,13 +678,13 @@ Model.prototype.update = function(filter, delta, options, cb) {
 			async.series(calls, function(err) {
 				if (err) { return cb(err); }
 				
-				self.collection.update(tempArgs.filter, args.delta, tempArgs.options.options, function(err, count, result) {
+				self.collection.update(tempArgs.filter, args.delta, tempArgs.options.options, function(err, result) {
 					if (err) { return cb(err); }
 					
-					self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, count : count, result : result } }, function(err, args) {
+					self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result.result } }, function(err, args) {
 						if (err) { return cb(err); }
 						
-						cb(null, count, result);
+						cb(null, args.result);
 					});
 				});
 			});
@@ -709,16 +709,16 @@ Model.prototype.remove = function(filter, options, cb) {
 	self._executeHooks({ type : "beforeRemove", hooks : self._getHooksByType("beforeRemove", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
-			self.collection.remove(args.filter, args.options.options, function(err, count) {
+			self.collection.remove(args.filter, args.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
-				self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
+				self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, result : result.result } }, function(err, args) {
 					if (err) { return cb(err); }
 					
-					cb(err, args.count);
+					cb(null, args.result);
 				});
 			});
 		});

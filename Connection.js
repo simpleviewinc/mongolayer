@@ -66,7 +66,7 @@ Connection.prototype.dropCollection = function(args, cb) {
 	// args.name
 	
 	self.db.dropCollection(args.name, function(err) {
-		if (err && err.message.match(/ns not found/) === null) {
+		if (err && err.errmsg.match(/ns not found/) === null) {
 			return cb(err);
 		}
 		

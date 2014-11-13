@@ -184,6 +184,7 @@ The arguments a hook receives will differ based on the specific hook. The follow
 
 * `args.docs` - `array` - Array of `model.Document`. It will always be an array of documents even if a query is passing a single document.
 * `args.options` - `object` - The options argument of the insert statement.
+* `args.result` - `object` - The mongoDB writeResult.
 
 ### beforeSave(args, cb)
 
@@ -218,7 +219,6 @@ The arguments a hook receives will differ based on the specific hook. The follow
 * `args.filter` - `object` - The filter passed in to the query.
 * `args.delta` - `object` - The changes which will be passed to the DB.
 * `args.options` - `object` - The options object passed in to the query.
-* `args.count` - `number` - The number of records found.
 * `args.result` - `object` - The mongoDB writeResult.
 
 ### beforeRemove(args, cb)
@@ -230,7 +230,7 @@ The arguments a hook receives will differ based on the specific hook. The follow
 
 * `args.filter` - `object` - The filter passed in to the query.
 * `args.options` - `object` - The options object passed in to the query.
-* `args.count` - `number` - The number of records found.
+* `args.result` - `object` - The mongoDB writeResult.
 
 ### beforeFilter(args, cb)
 
@@ -1094,6 +1094,7 @@ Arguments
 * `cb` - `function` - `required`
 	* `Error` or null
 	* If a single document is inserted, then it will return a single `model.Document`, if an array of documents was inserted it will return an array of `model.Document`.
+	* `result` writeResult
 
 Example:
 
@@ -1142,6 +1143,7 @@ Arguments
 * `cb` - `function` - `required`
 	* `Error` or null
 	* `model.Document`
+	* `result` writeResult
 
 ### model.remove(filter, options, cb)
 
@@ -1157,7 +1159,7 @@ Arguments
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
 * `cb` - `function` - `required`
 	* `Error` or null
-	* `number` of documents removed
+	* `result` writeResult
 
 ### model.update(filter, delta, options, cb)
 
@@ -1182,7 +1184,6 @@ Arguments
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
 * `cb` - `function` - `required`
 	* `Error` or null
-	* `number` of documents updated
 	* `result` writeResult
 	
 ### model.count(filter, options, cb)

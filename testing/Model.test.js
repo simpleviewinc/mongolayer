@@ -964,9 +964,11 @@ describe(__filename, function() {
 				model.insert({
 					foo : "fooValue",
 					bar : "barValue"
-				}, function(err, doc) {
+				}, function(err, doc, result) {
 					assert.ifError(err);
 					
+					assert.strictEqual(result.ok, 1);
+					assert.strictEqual(result.n, 1);
 					assert.equal(doc.foo, "fooValue");
 					
 					done();
@@ -1020,9 +1022,11 @@ describe(__filename, function() {
 						foo : "fooValue2",
 						bar : "barValue2"
 					}
-				], function(err, docs) {
+				], function(err, docs, result) {
 					assert.ifError(err);
 					
+					assert.strictEqual(result.ok, 1);
+					assert.strictEqual(result.n, 2);
 					assert.equal(docs[0].foo, "fooValue1");
 					assert.equal(docs[0].bar, "barValue1");
 					assert.equal(docs[1].foo, "fooValue2");
@@ -1228,12 +1232,19 @@ describe(__filename, function() {
 			});
 		});
 		
-		describe("remove", function(done) {
+		describe("remove", function() {
 			it("should remove", function(done) {
-				model.remove({}, function(err, foo) {
+				model.insert([{ foo : "one" }, { foo : "two" }], function(err) {
 					assert.ifError(err);
 					
-					done();
+					model.remove({ foo : "one" }, function(err, result) {
+						assert.ifError(err);
+						
+						assert.strictEqual(result.ok, 1);
+						assert.strictEqual(result.n, 1);
+						
+						done();
+					});
 				});
 			});
 			
@@ -1262,7 +1273,7 @@ describe(__filename, function() {
 					handler : function(args, cb) {
 						assert.notEqual(args.filter, undefined);
 						assert.notEqual(args.options, undefined);
-						assert.notEqual(args.count, undefined);
+						assert.notEqual(args.result, undefined);
 						
 						afterCalled = true;
 						
@@ -1537,32 +1548,26 @@ describe(__filename, function() {
 			});
 			
 			it("should update", function(done) {
-				model.update({ _id : id1 }, { "$set" : { foo : "1_updated" } }, function(err, count, result) {
+				model.update({ _id : id1 }, { "$set" : { foo : "1_updated" } }, function(err, result) {
 					assert.ifError(err);
 					
-					// validate count
-					assert.equal(count, 1);
-					
 					// ensure parameters exist in writeResult
-					assert.equal(result.n, 1);
-					assert.equal(result.updatedExisting, true);
-					assert.equal(result.ok, true);
+					assert.strictEqual(result.n, 1);
+					assert.strictEqual(result.nModified, 1);
+					assert.strictEqual(result.ok, 1);
 					
 					done();
 				});
 			});
 			
 			it("should update whole and set defaults", function(done) {
-				model.update({ _id : id1 }, { foo : "1_updated" }, function(err, count, result) {
+				model.update({ _id : id1 }, { foo : "1_updated" }, function(err, result) {
 					assert.ifError(err);
 					
-					// validate count
-					assert.equal(count, 1);
-					
 					// ensure parameters exist in writeResult
-					assert.equal(result.n, 1);
-					assert.equal(result.updatedExisting, true);
-					assert.equal(result.ok, true);
+					assert.strictEqual(result.n, 1);
+					assert.strictEqual(result.nModified, 1);
+					assert.strictEqual(result.ok, 1);
 					
 					model.find({ foo : "1_updated" }, function(err, docs) {
 						assert.ifError(err);
@@ -1624,7 +1629,6 @@ describe(__filename, function() {
 						assert.notEqual(args.filter, undefined);
 						assert.notEqual(args.delta, undefined);
 						assert.notEqual(args.options, undefined);
-						assert.notEqual(args.count, undefined);
 						assert.notEqual(args.result, undefined);
 						
 						afterCalled = true;
