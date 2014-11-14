@@ -234,20 +234,34 @@ Model.prototype.addRelationship = function(args) {
 	// args.modelName
 	// args.required
 	// args.hookRequired
+	// args.rightKey
+	
+	validator.validate(args, {
+		type : "object",
+		schema : [
+			{ name : "name", type : "string" },
+			{ name : "type", type : "string" },
+			{ name : "modelName", type : "string" },
+			{ name : "required", type : "boolean" },
+			{ name : "rightKey", type : "string", default : "_id" },
+			{ name : "rightKeyValidation", type : "object", default : { type : "class", class : mongolayer.ObjectId } }
+		],
+		throwOnInvalid : true,
+		allowExtraKeys : false
+	});
 	
 	var idKey;
 	var objectKey = args.name;
 	var modelName = args.modelName;
+	var rightKey = args.rightKey;
+	var rightKeyValidation = args.rightKeyValidation;
 	
 	if (args.type === "single") {
 		idKey = args.name + "_id";
 		
 		self.addField({
 			name : idKey,
-			validation : {
-				type : "class",
-				class : mongolayer.ObjectId
-			},
+			validation : rightKeyValidation,
 			required : args.required === true
 		});
 		
@@ -267,7 +281,7 @@ Model.prototype.addRelationship = function(args) {
 				var ids = [];
 				
 				args.docs.forEach(function(val, i) {
-					if (val[idKey] instanceof mongolayer.ObjectId) {
+					if (val[idKey] !== undefined) {
 						ids.push(val[idKey]);
 					}
 				});
@@ -282,14 +296,17 @@ Model.prototype.addRelationship = function(args) {
 					tempHooks = undefined;
 				}
 				
-				self._connection.models[modelName].find({ _id : { "$in" : ids } }, { hooks : tempHooks }, function(err, docs) {
+				var filter = {};
+				filter[rightKey] = { "$in" : ids };
+				
+				self._connection.models[modelName].find(filter, { hooks : tempHooks }, function(err, docs) {
 					if (err) { return cb(err); }
 					
-					var index = arrayLib.index(docs, "id");
+					var index = arrayLib.index(docs, rightKey);
 					
 					args.docs.forEach(function(val, i) {
-						if (val[idKey] instanceof mongolayer.ObjectId && index[val[idKey].toString()] !== undefined) {
-							val[objectKey] = index[val[idKey].toString()];
+						if (val[idKey] !== undefined && index[val[idKey]] !== undefined) {
+							val[objectKey] = index[val[idKey]];
 						}
 					});
 					
@@ -305,10 +322,7 @@ Model.prototype.addRelationship = function(args) {
 			name : idKey,
 			validation : {
 				type : "array",
-				schema : {
-					type : "class",
-					class : mongolayer.ObjectId
-				}
+				schema : rightKeyValidation
 			},
 			required : args.required === true
 		});
@@ -344,18 +358,20 @@ Model.prototype.addRelationship = function(args) {
 					tempHooks = undefined;
 				}
 				
-				self._connection.models[modelName].find({ _id : { "$in" : ids } }, { hooks : tempHooks }, function(err, docs) {
+				var filter = {};
+				filter[rightKey] = { "$in" : ids };
+				self._connection.models[modelName].find(filter, { hooks : tempHooks }, function(err, docs) {
 					if (err) { return cb(err); }
 					
-					var index = arrayLib.index(docs, "id");
+					var index = arrayLib.index(docs, rightKey);
 					
 					args.docs.forEach(function(val, i) {
 						if (val[idKey] instanceof Array) {
 							var newArray = [];
 							
 							val[idKey].forEach(function(val, i) {
-								if (index[val.toString()] !== undefined) {
-									newArray.push(index[val.toString()]);
+								if (index[val] !== undefined) {
+									newArray.push(index[val]);
 								}
 							});
 							

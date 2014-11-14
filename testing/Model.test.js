@@ -900,7 +900,9 @@ describe(__filename, function() {
 				],
 				relationships : [
 					{ name : "single", type : "single", modelName : "mongolayer_testRelated" },
-					{ name : "multiple", type : "multiple", modelName : "mongolayer_testRelated" }
+					{ name : "multiple", type : "multiple", modelName : "mongolayer_testRelated" },
+					{ name : "single_rightKey", type : "single", modelName : "mongolayer_testRelated", rightKey : "title", rightKeyValidation : { type : "string" } },
+					{ name : "multiple_rightKey", type : "multiple", modelName : "mongolayer_testRelated", rightKey : "title", rightKeyValidation : { type : "string" } }
 				],
 				documentMethods : [
 					{ name : "testMethod", handler : function() { return "testMethodReturn" } }
@@ -1851,12 +1853,16 @@ describe(__filename, function() {
 								{
 									_id : root2,
 									foo : "foo2",
-									single_id : related1_1
+									single_id : related1_1,
+									single_rightKey_id : "title1_1",
+									multiple_rightKey_ids : ["title1_2", "title1_1"]
 								},
 								{
 									_id : root3,
 									foo : "foo3",
-									multiple_ids : [related1_4, related1_1]
+									multiple_ids : [related1_4, related1_1],
+									single_rightKey_id : "title1_2",
+									multiple_rightKey_ids : ["title1_3", "title1_1"]
 								},
 								{
 									_id : root4,
@@ -1924,6 +1930,20 @@ describe(__filename, function() {
 					});
 				});
 				
+				it("should populate single with rightKey", function(done) {
+					model.find({}, { hooks : ["afterFind_single_rightKey"] }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.equal(docs[0].single_rightKey, undefined);
+						assert.equal(docs[1].single_rightKey.title, "title1_1");
+						assert.equal(docs[1].single_rightKey_id, docs[1].single_rightKey.title);
+						assert.equal(docs[2].single_rightKey.title, "title1_2");
+						assert.equal(docs[2].single_rightKey_id, docs[2].single_rightKey.title);
+						
+						done();
+					});
+				});
+				
 				it("should populate multiple", function(done) {
 					model.find({}, { hooks : ["afterFind_multiple"] }, function(err, docs) {
 						assert.ifError(err);
@@ -1933,6 +1953,24 @@ describe(__filename, function() {
 						assert.equal(docs[2].multiple[0].title, "title1_4");
 						assert.equal(docs[2].multiple[1].title, "title1_1");
 						assert.equal(docs[3].multiple[0].title, "title1_1");
+						
+						done();
+					});
+				});
+				
+				it("should populate multiple with rightKey", function(done) {
+					model.find({}, { hooks : ["afterFind_multiple_rightKey"] }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.equal(docs[0].multiple_rightKey, undefined);
+						assert.equal(docs[1].multiple_rightKey[0].title, "title1_2");
+						assert.equal(docs[1].multiple_rightKey_ids[0], docs[1].multiple_rightKey[0].title);
+						assert.equal(docs[1].multiple_rightKey[1].title, "title1_1");
+						assert.equal(docs[1].multiple_rightKey_ids[1], docs[1].multiple_rightKey[1].title);
+						assert.equal(docs[2].multiple_rightKey[0].title, "title1_3");
+						assert.equal(docs[2].multiple_rightKey_ids[0], docs[2].multiple_rightKey[0].title);
+						assert.equal(docs[2].multiple_rightKey[1].title, "title1_1");
+						assert.equal(docs[2].multiple_rightKey_ids[1], docs[2].multiple_rightKey[1].title);
 						
 						done();
 					});
