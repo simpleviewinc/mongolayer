@@ -289,6 +289,9 @@ describe(__filename, function() {
 			var temp = mongolayer.convertValue(date.getTime(), "date");
 			assert.equal(temp.getTime(), date.getTime());
 			
+			var temp = mongolayer.convertValue(date.getTime().toString(), "date");
+			assert.equal(temp.getTime(), date.getTime());
+			
 			var id = mongolayer.ObjectId();
 			
 			var temp = mongolayer.convertValue(id.toString(), "objectid");

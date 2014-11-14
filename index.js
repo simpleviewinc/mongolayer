@@ -249,6 +249,11 @@ var convertValue = function(data, type) {
 			return data;
 		}
 		
+		if (typeof data === "string" && data.match(/^[\d]+$/)) {
+			// handles Unix Offset passed in string
+			data = parseInt(data, 10);
+		}
+		
 		var temp = new Date(data);
 		if (isNaN(temp)) {
 			throw new Error(util.format("Cannot convert '%s' to date, it's value is not valid in a JS new Date() constructor", data));
