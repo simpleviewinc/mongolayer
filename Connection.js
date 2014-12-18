@@ -1,4 +1,5 @@
 var async = require("async");
+var validator = require("jsvalidator");
 
 var Connection = function(args) {
 	var self = this;
@@ -20,10 +21,8 @@ Connection.prototype.add = function(args, cb) {
 	
 	var calls = [];
 	
-	args.model._indexes.forEach(function(val, i) {
-		calls.push(function(cb) {
-			args.model.collection.ensureIndex(val.keys, val.options, cb);
-		});
+	calls.push(function(cb) {
+		args.model.ensureIndexes(cb);
 	});
 	
 	async.series(calls, function(err) {
@@ -64,6 +63,17 @@ Connection.prototype.dropCollection = function(args, cb) {
 	var self = this;
 	
 	// args.name
+	var result = validator.validate(args, {
+		type : "object",
+		schema : [
+			{ name : "name", type : "string", required : true }
+		],
+		allowExtraKeys : false
+	});
+	
+	if (result.err) {
+		return cb(result.err);
+	}
 	
 	self.db.dropCollection(args.name, function(err) {
 		if (err && err.errmsg.match(/ns not found/) === null) {

@@ -519,6 +519,44 @@ describe(__filename, function() {
 		done();
 	});
 	
+	it("should ensureIndexes", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "title", validation : { type : "string" } }
+			],
+			indexes : [
+				{ keys : { title : "text" } }
+			]
+		});
+		
+		async.series([
+			function(cb) {
+				conn.add({ model : model }, cb);
+			},
+			function(cb) {
+				model.collection.dropAllIndexes(cb);
+			},
+			function(cb) {
+				model.ensureIndexes(cb);
+			},
+			function(cb) {
+				model.collection.indexes(function(err, indexes) {
+					assert.ifError(err);
+					
+					assert.equal(indexes.length, 2);
+					assert.equal(indexes[1].name, "title_text");
+					
+					cb(null);
+				});
+			}
+		], function(err) {
+			assert.ifError(err);
+			
+			done();
+		});
+	});
+	
 	describe("conversion", function() {
 		var model;
 		

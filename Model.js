@@ -141,6 +141,19 @@ var Model = function(args) {
 	});
 }
 
+// re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
+Model.prototype.ensureIndexes = function(cb) {
+	var self = this;
+	
+	var calls = [];
+	
+	self._indexes.forEach(function(val, i) {
+		calls.push(self.collection.ensureIndex.bind(self.collection, val.keys, val.options));
+	});
+	
+	async.series(calls, cb);
+}
+
 Model.prototype._setConnection = function(args) {
 	var self = this;
 	

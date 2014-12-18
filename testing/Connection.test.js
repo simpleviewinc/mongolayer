@@ -121,7 +121,7 @@ describe(__filename, function() {
 	});
 	
 	it("should ensureIndexes on add", function(done) {
-		conn.dropCollection("foo", function(err) {
+		conn.dropCollection({ name : "foo" }, function(err) {
 			assert.ifError(err);
 			
 			var model1 = new mongolayer.Model({
@@ -137,7 +137,11 @@ describe(__filename, function() {
 			});
 			
 			conn.add({ model : model1 }, function(err) {
+				assert.ifError(err);
+				
 				model1.collection.indexes(function(err, indexes) {
+					assert.ifError(err);
+					
 					assert.equal(indexes[1].key.foo, 1);
 					assert.equal(indexes[1].name, "foo_1");
 					assert.equal(indexes[2].name, "bar_1");
