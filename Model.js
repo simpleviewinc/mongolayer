@@ -287,10 +287,10 @@ Model.prototype.addRelationship = function(args) {
 			name : objectKey,
 			type : "afterFind",
 			handler : function(args, cb) {
-				self.resolveRelationship({
+				mongolayer.resolveRelationship({
 					leftKey : idKey,
 					rightKey : rightKey,
-					modelName : modelName,
+					model : self._connection.models[modelName],
 					objectKey : objectKey,
 					docs : args.docs,
 					hooks : args.options.hooks
@@ -323,10 +323,10 @@ Model.prototype.addRelationship = function(args) {
 			name : objectKey,
 			type : "afterFind",
 			handler : function(args, cb) {
-				self.resolveRelationship({
+				mongolayer.resolveRelationship({
 					leftKey : idKey,
 					rightKey : rightKey,
-					modelName : modelName,
+					model : self._connection.models[modelName],
 					objectKey : objectKey,
 					docs : args.docs,
 					hooks : args.options.hooks
@@ -756,60 +756,6 @@ Model.prototype.getConvertSchema = function() {
 	return schema;
 }
 
-Model.prototype.resolveRelationship = function(args, cb) {
-	var self = this;
-	
-	// args.leftKey - The key in our Document that points to an object in the related model
-	// args.rightKey - The key in the related model that the leftKey points to
-	// args.modelName
-	// args.objectKey - The key in our Document which will be filled with the found results
-	// args.docs - The array of Documents
-	// args.hooks - Any hooks that need to be run
-	
-	if (args.docs.length === 0) {
-		return cb(null, args.docs);
-	}
-	
-	var ids = [];
-	
-	args.docs.forEach(function(val, i) {
-		if (val[args.leftKey] !== undefined) {
-			if (val[args.leftKey] instanceof Array) {
-				ids = ids.concat(val[args.leftKey]);
-			} else {
-				ids.push(val[args.leftKey]);
-			}
-		}
-	});
-	
-	if (ids.length === 0) {
-		return cb(null, args.docs);
-	}
-	
-	// ensure we only pass hooks if we have them allowing defaultHooks on related models to execute
-	var tempHooks = self._getMyHooks(args.objectKey, args.hooks);
-	if (tempHooks.length === 0) {
-		tempHooks = undefined;
-	}
-	
-	var filter = {};
-	filter[args.rightKey] = { "$in" : ids };
-	
-	self._connection.models[args.modelName].find(filter, { hooks : tempHooks }, function(err, docs) {
-		if (err) { return cb(err); }
-		
-		arrayLib.leftJoin({
-			leftKey : args.leftKey,
-			rightKey : args.rightKey,
-			mergeKey : args.objectKey,
-			leftArray : args.docs,
-			rightArray : docs
-		});
-		
-		cb(null, args.docs);
-	});
-}
-
 Model.prototype._getHooksByType = function(type, hooks) {
 	var self = this;
 	
@@ -841,22 +787,6 @@ Model.prototype._normalizeHooks = function(hooks, cb) {
 	});
 	
 	return newHooks;
-}
-
-// gets only hooks which apply to my namespace and de-namespaces them
-Model.prototype._getMyHooks = function(myKey, hooks) {
-	var self = this;
-	
-	var myHooks = [];
-	var regMatch = new RegExp("^" + myKey + "\\..*");
-	var regReplace = new RegExp("^" + myKey + "\\.");
-	hooks.forEach(function(val, i) {
-		if (val.name.match(regMatch) !== null) {
-			myHooks.push(extend(true, {}, val, { name : val.name.replace(regReplace, "") }));
-		}
-	});
-	
-	return myHooks;
 }
 
 

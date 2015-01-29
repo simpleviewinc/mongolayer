@@ -229,8 +229,6 @@ var stringConvert = function(data, schema) {
 }
 
 var convertValue = function(data, type) {
-	var self = this;
-	
 	var val;
 	
 	if (type === "boolean") {
@@ -290,6 +288,72 @@ var convertValue = function(data, type) {
 	}
 }
 
+// gets only hooks which apply to a specific model and de-namespaces them
+var _getMyHooks = function(myKey, hooks) {
+	var myHooks = [];
+	var regMatch = new RegExp("^" + myKey + "\\..*");
+	var regReplace = new RegExp("^" + myKey + "\\.");
+	hooks.forEach(function(val, i) {
+		if (val.name.match(regMatch) !== null) {
+			myHooks.push(extend(true, {}, val, { name : val.name.replace(regReplace, "") }));
+		}
+	});
+	
+	return myHooks;
+}
+
+var resolveRelationship = function(args, cb) {
+	// args.leftKey - The key in our Document that points to an object in the related model
+	// args.rightKey - The key in the related model that the leftKey points to
+	// args.model - An instance of mongolayer.Model which we are resolving against
+	// args.objectKey - The key in our Document which will be filled with the found results
+	// args.docs - The array of Documents
+	// args.hooks - Any hooks that need to be run
+	
+	if (args.docs.length === 0) {
+		return cb(null, args.docs);
+	}
+	
+	var ids = [];
+	
+	args.docs.forEach(function(val, i) {
+		if (val[args.leftKey] !== undefined) {
+			if (val[args.leftKey] instanceof Array) {
+				ids = ids.concat(val[args.leftKey]);
+			} else {
+				ids.push(val[args.leftKey]);
+			}
+		}
+	});
+	
+	if (ids.length === 0) {
+		return cb(null, args.docs);
+	}
+	
+	// ensure we only pass hooks if we have them allowing defaultHooks on related models to execute
+	var tempHooks = _getMyHooks(args.objectKey, args.hooks);
+	if (tempHooks.length === 0) {
+		tempHooks = undefined;
+	}
+	
+	var filter = {};
+	filter[args.rightKey] = { "$in" : ids };
+	
+	args.model.find(filter, { hooks : tempHooks }, function(err, docs) {
+		if (err) { return cb(err); }
+		
+		arrayLib.leftJoin({
+			leftKey : args.leftKey,
+			rightKey : args.rightKey,
+			mergeKey : args.objectKey,
+			leftArray : args.docs,
+			rightArray : docs
+		});
+		
+		cb(null, args.docs);
+	});
+}
+
 var _newErrorType = function(name) {
 	var CustomErrorType = function(message) {
 		if (Object.defineProperty) {
@@ -328,5 +392,7 @@ extend(module.exports, {
 	toPlain : toPlain,
 	stringConvert : stringConvert,
 	convertValue : convertValue,
-	_prepareInsert : _prepareInsert
+	resolveRelationship : resolveRelationship,
+	_prepareInsert : _prepareInsert,
+	_getMyHooks : _getMyHooks
 });

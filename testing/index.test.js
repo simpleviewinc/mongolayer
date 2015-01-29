@@ -336,4 +336,14 @@ describe(__filename, function() {
 			done();
 		});
 	});
+	
+	it("should _getMyHooks", function(done) {
+		var test = mongolayer._getMyHooks("foo", [{ name : "nuts" }, { name : "foo" }, { name : "foo.bar" }, { name : "foo.bar.baz" }]);
+		
+		assert.equal(test.length, 2);
+		assert.equal(test[0].name, "bar");
+		assert.equal(test[1].name, "bar.baz");
+		
+		done();
+	});
 });
