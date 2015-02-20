@@ -682,6 +682,24 @@ describe(__filename, function() {
 			done();
 		});
 		
+		it("should stringConvert data that is already casted", function(done) {
+			var id = model.ObjectId();
+			var date = new Date();
+			
+			var data = {
+				objectid : model.ObjectId(),
+				boolean : true,
+				number : 3,
+				date : date
+			}
+			
+			var temp = model.stringConvert(data);
+			
+			console.log(temp);
+			
+			done();
+		});
+		
 		it("should stringConvert filter", function(done) {
 			// test simple conversion
 			var temp = model.stringConvert({ walk1 : "1" });

@@ -6,13 +6,14 @@ var util = require("util");
 var Connection = require("./Connection.js");
 var Model = require("./Model.js");
 var Document = require("./Document.js");
+var QueryLog = require("./QueryLog.js");
 var objectLib = require("./lib/objectLib.js");
 
 var connect = function(args, cb) {
 	_getDb(args, function(err, db) {
 		if (err) { return cb(err); }
 		
-		cb(null, new Connection({ db : db }));
+		cb(null, new Connection({ db : db, logger : args.logger }));
 	});
 }
 
@@ -20,7 +21,7 @@ var connectCached = function(args, cb) {
 	_getDbCached(args, function(err, db) {
 		if (err) { return cb(err); }
 		
-		cb(null, new Connection({ db : db }));
+		cb(null, new Connection({ db : db, logger : args.logger }));
 	});
 }
 
@@ -127,7 +128,8 @@ var stringConvert = function(data, schema) {
 	var convertObject = function(data, type, chain) {
 		var returnValue;
 		
-		if (typeof data === "object") {
+		// check for plain javascript objects
+		if (typeof data === "object" && Object.getPrototypeOf(data) === Object.prototype) {
 			// filter syntax with query operators
 			returnValue = {};
 			objectLib.forEach(data, function(val, i) {
@@ -388,6 +390,7 @@ extend(module.exports, {
 	Model : Model,
 	Document : Document,
 	Connection : Connection,
+	QueryLog : QueryLog,
 	ObjectId : mongodb.ObjectID,
 	toPlain : toPlain,
 	stringConvert : stringConvert,

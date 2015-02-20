@@ -537,24 +537,41 @@ Model.prototype.find = function(filter, options, cb) {
 	options.fields = options.fields || null;
 	options.options = options.options || {};
 	
+	var queryLog = new mongolayer.QueryLog({ type : "find", collection : self.collectionName });
+	queryLog.startTimer("command");
+	
 	self._executeHooks({ type : "beforeFind", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, function(err, args) {
 			if (err) { return cb(err); }
+			
+			
+			var rawFilter = extend(true, {}, args.filter);
+			var rawOptions = extend(true, {}, args.options);
 			
 			var cursor = self.collection.find(args.filter, args.options.fields, args.options.options);
 			if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
 			if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
 			if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
 			
+			queryLog.startTimer("raw");
+			
 			cursor.toArray(function(err, docs) {
 				if (err) { return cb(err); }
+				
+				queryLog.stopTimer("raw");
 				
 				var castedDocs = self._castDocs(docs);
 				
 				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs } }, function(err, args) {
 					if (err) { return cb(err); }
+					
+					queryLog.stopTimer("command");
+					
+					queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
+					
+					self._connection.logger(queryLog.get());
 					
 					cb(null, args.docs);
 				});

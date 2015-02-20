@@ -10,6 +10,7 @@ var Connection = function(args) {
 	
 	self.models = {}; // store public facing models
 	self._models = {}; // store arguments of Connection.add()
+	self.logger = args.logger || function() {}; // stores method to be called on query execution with log information
 }
 
 Connection.prototype.add = function(args, cb) {
