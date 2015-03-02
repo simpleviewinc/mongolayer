@@ -532,6 +532,9 @@ describe(__filename, function() {
 		
 		async.series([
 			function(cb) {
+				conn.dropCollection({ name : "foo" }, cb);
+			},
+			function(cb) {
 				conn.add({ model : model }, cb);
 			},
 			function(cb) {
@@ -554,6 +557,43 @@ describe(__filename, function() {
 			assert.ifError(err);
 			
 			done();
+		});
+	});
+	
+	it("should provide model name on ensureIndexes error", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "title", validation : { type : "string" } }
+			],
+			indexes : [
+				{ keys : { title : "text" } }
+			]
+		});
+		
+		var model2 = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "title", validation : { type : "string" } }
+			],
+			indexes : [
+				{ keys : { title : "text", description : "text" } }
+			]
+		});
+		
+		conn.dropCollection({ name : "foo" }, function(err) {
+			assert.ifError(err);
+			
+			conn.add({ model : model }, function(err) {
+				assert.ifError(err);
+				
+				conn.add({ model : model2 }, function(err) {
+					assert.ok(err instanceof Error);
+					assert.ok(err.message.match(/Unable to ensureIndex on model 'foo'./));
+					
+					done();
+				});
+			});
 		});
 	});
 	
@@ -694,8 +734,6 @@ describe(__filename, function() {
 			}
 			
 			var temp = model.stringConvert(data);
-			
-			console.log(temp);
 			
 			done();
 		});

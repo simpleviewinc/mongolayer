@@ -148,7 +148,13 @@ Model.prototype.ensureIndexes = function(cb) {
 	var calls = [];
 	
 	self._indexes.forEach(function(val, i) {
-		calls.push(self.collection.ensureIndex.bind(self.collection, val.keys, val.options));
+		calls.push(function(cb) {
+			self.collection.ensureIndex(val.keys, val.options, function(err) {
+				if (err) { return cb(new Error(util.format("Unable to ensureIndex on model '%s'. Original: %s", self.name, err.message))); }
+				
+				cb(null);
+			});
+		});
 	});
 	
 	async.series(calls, cb);
