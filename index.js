@@ -8,6 +8,7 @@ var Model = require("./Model.js");
 var Document = require("./Document.js");
 var QueryLog = require("./QueryLog.js");
 var objectLib = require("./lib/objectLib.js");
+var arrayLib = require("./lib/arrayLib.js");
 
 var connect = function(args, cb) {
 	_getDb(args, function(err, db) {
