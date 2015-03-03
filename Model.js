@@ -521,6 +521,7 @@ Model.prototype.findById = function(id, options, cb) {
 	var self = this;
 	
 	cb = cb || options;
+	options = options === cb ? {} : options;
 	
 	self.find({ _id : id instanceof mongolayer.ObjectId ? id : new mongolayer.ObjectId(id) }, options, function(err, docs) {
 		if (err) { return cb(err); }
