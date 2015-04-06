@@ -306,9 +306,12 @@ var _getMyHooks = function(myKey, hooks) {
 }
 
 var resolveRelationship = function(args, cb) {
+	// args.type - single or multiple
 	// args.leftKey - The key in our Document that points to an object in the related model
 	// args.rightKey - The key in the related model that the leftKey points to
-	// args.model - An instance of mongolayer.Model which we are resolving against
+	// args.modelName - Name of the related model
+	// args.connection - An instance of mongolayer.Connection which we using to locate and query the models
+	// args.multipleTypes - Boolean whether this supports multiple types
 	// args.objectKey - The key in our Document which will be filled with the found results
 	// args.docs - The array of Documents
 	// args.hooks - Any hooks that need to be run
@@ -317,19 +320,45 @@ var resolveRelationship = function(args, cb) {
 		return cb(null, args.docs);
 	}
 	
-	var ids = [];
+	var queries = {};
+	var addToQuery = function(modelName, id) {
+		queries[modelName] = queries[modelName] || {
+			result : undefined, // result stores the result of querying this model
+			ids : [] // the ids that will be queried
+		};
+		queries[modelName].ids.push(id);
+	}
+	
+	var originalIndex = {};
 	
 	args.docs.forEach(function(val, i) {
-		if (val[args.leftKey] !== undefined) {
-			if (val[args.leftKey] instanceof Array) {
-				ids = ids.concat(val[args.leftKey]);
+		var values = val[args.leftKey];
+		
+		if (values !== undefined) {
+			var modelName;
+			var id;
+			
+			if (args.type === "single") {
+				if (args.multipleTypes === true) {
+					addToQuery(values.modelName, values.id);
+				} else {
+					addToQuery(args.modelName, values);
+				}
 			} else {
-				ids.push(val[args.leftKey]);
+				if (args.multipleTypes === true) {
+					values.forEach(function(val, i) {
+						addToQuery(val.modelName, val.id);
+					});
+				} else {
+					values.forEach(function(val, i) {
+						addToQuery(args.modelName, val);
+					});
+				}
 			}
 		}
 	});
 	
-	if (ids.length === 0) {
+	if (Object.keys(queries).length === 0) {
 		return cb(null, args.docs);
 	}
 	
@@ -339,18 +368,76 @@ var resolveRelationship = function(args, cb) {
 		tempHooks = undefined;
 	}
 	
-	var filter = {};
-	filter[args.rightKey] = { "$in" : ids };
+	var calls = [];
 	
-	args.model.find(filter, { hooks : tempHooks }, function(err, docs) {
+	objectLib.forEach(queries, function(val, i) {
+		calls.push(function(cb) {
+			var filter = {};
+			filter[args.rightKey] = { "$in" : val.ids };
+			
+			var model = args.connection.models[i];
+			
+			if (model === undefined) {
+				return cb(null);
+			}
+			
+			model.find(filter, { hooks : tempHooks }, function(err, docs) {
+				if (err) { return cb(err); }
+				
+				// stash the result to be used after all queries have finished
+				val.result = arrayLib.index(docs, args.rightKey);
+				
+				cb(null);
+			});
+		});
+	});
+	
+	async.parallel(calls, function(err) {
 		if (err) { return cb(err); }
 		
-		arrayLib.leftJoin({
-			leftKey : args.leftKey,
-			rightKey : args.rightKey,
-			mergeKey : args.objectKey,
-			leftArray : args.docs,
-			rightArray : docs
+		args.docs.forEach(function(val, i) {
+			var leftValue = val[args.leftKey];
+			
+			if (leftValue === undefined) {
+				// left value doesn't exist so this documents lacks data for this relationship
+				return;
+			}
+			
+			var tempValue;
+			
+			if (args.type === "single") {
+				var modelName = args.multipleTypes === true ? leftValue.modelName : args.modelName;
+				var leftKey = args.multipleTypes === true ? leftValue.id : leftValue;
+				
+				if (queries[modelName].result === undefined) {
+					// model query didn't return, likely because model doesn't exist on connection
+					return;
+				}
+				
+				tempValue = queries[modelName].result[leftKey];
+			} else {
+				var tempArray = [];
+				leftValue.forEach(function(val, i) {
+					var modelName = args.multipleTypes === true ? val.modelName : args.modelName;
+					var leftKey = args.multipleTypes === true ? val.id : val;
+					
+					if (queries[modelName].result === undefined) {
+						// model query didn't return, likely because model doesn't exist on connection
+						return;
+					}
+					
+					var temp = queries[modelName].result[leftKey];
+					if (temp !== undefined) {
+						tempArray.push(temp);
+					}
+				});
+				
+				if (tempArray.length > 0) {
+					tempValue = tempArray;
+				}
+			}
+			
+			val[args.objectKey] = tempValue;
 		});
 		
 		cb(null, args.docs);

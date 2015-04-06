@@ -258,9 +258,10 @@ Model.prototype.addRelationship = function(args) {
 	validator.validate(args, {
 		type : "object",
 		schema : [
-			{ name : "name", type : "string" },
-			{ name : "type", type : "string" },
+			{ name : "name", type : "string", required : true },
+			{ name : "type", type : "string", required : true },
 			{ name : "modelName", type : "string" },
+			{ name : "multipleTypes", type : "boolean", default : false },
 			{ name : "required", type : "boolean" },
 			{ name : "rightKey", type : "string", default : "_id" },
 			{ name : "rightKeyValidation", type : "object", default : { type : "class", class : mongolayer.ObjectId } }
@@ -270,12 +271,30 @@ Model.prototype.addRelationship = function(args) {
 	});
 	
 	var idKey;
+	var modelKey;
+	var type = args.type;
 	var objectKey = args.name;
 	var modelName = args.modelName;
+	var multipleTypes = args.multipleTypes;
 	var rightKey = args.rightKey;
 	var rightKeyValidation = args.rightKeyValidation;
 	
-	if (args.type === "single") {
+	self.addField({
+		name : objectKey,
+		persist : false
+	});
+	
+	if (multipleTypes === true) {
+		rightKeyValidation = {
+			type : "object",
+			schema : [
+				extend(true, {}, rightKeyValidation, { name : "id", required : true }),
+				{ name : "modelName", type : "string", required : true }
+			]
+		}
+	}
+	
+	if (type === "single") {
 		idKey = args.name + "_id";
 		
 		self.addField({
@@ -284,19 +303,17 @@ Model.prototype.addRelationship = function(args) {
 			required : args.required === true
 		});
 		
-		self.addField({
-			name : objectKey,
-			persist : false
-		});
-		
 		self.addHook({
 			name : objectKey,
 			type : "afterFind",
 			handler : function(args, cb) {
 				mongolayer.resolveRelationship({
+					type : type,
 					leftKey : idKey,
 					rightKey : rightKey,
-					model : self._connection.models[modelName],
+					multipleTypes : multipleTypes,
+					modelName : modelName,
+					connection : self._connection,
 					objectKey : objectKey,
 					docs : args.docs,
 					hooks : args.options.hooks
@@ -308,7 +325,7 @@ Model.prototype.addRelationship = function(args) {
 			},
 			required : args.hookRequired === true
 		});
-	} else if (args.type === "multiple") {
+	} else if (type === "multiple") {
 		idKey = args.name + "_ids";
 		
 		self.addField({
@@ -320,19 +337,17 @@ Model.prototype.addRelationship = function(args) {
 			required : args.required === true
 		});
 		
-		self.addField({
-			name : objectKey,
-			persist : false
-		});
-		
 		self.addHook({
 			name : objectKey,
 			type : "afterFind",
 			handler : function(args, cb) {
 				mongolayer.resolveRelationship({
+					type : type,
 					leftKey : idKey,
 					rightKey : rightKey,
-					model : self._connection.models[modelName],
+					multipleTypes : multipleTypes,
+					modelName : modelName,
+					connection : self._connection,
 					objectKey : objectKey,
 					docs : args.docs,
 					hooks : args.options.hooks

@@ -21,6 +21,13 @@ var Document = function(model, data, options) {
 		model._fillDocDefaults(self);
 	}
 	
+	// add a hidden property to make it possible to access the model that this document came from
+	Object.defineProperty(self, "_ml_model", {
+		get : function() {
+			return model;
+		}
+	});
+	
 	model._onInit.call(self);
 }
 

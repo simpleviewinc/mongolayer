@@ -984,7 +984,9 @@ describe(__filename, function() {
 				],
 				relationships : [
 					{ name : "single", type : "single", modelName : "mongolayer_testRelated" },
+					{ name : "single_multipleTypes", type : "single", multipleTypes : true },
 					{ name : "multiple", type : "multiple", modelName : "mongolayer_testRelated" },
+					{ name : "multiple_multipleTypes", type : "multiple", multipleTypes : true },
 					{ name : "single_rightKey", type : "single", modelName : "mongolayer_testRelated", rightKey : "title", rightKeyValidation : { type : "string" } },
 					{ name : "multiple_rightKey", type : "multiple", modelName : "mongolayer_testRelated", rightKey : "title", rightKeyValidation : { type : "string" } }
 				],
@@ -1919,6 +1921,10 @@ describe(__filename, function() {
 				var root2 = new mongolayer.ObjectId();
 				var root3 = new mongolayer.ObjectId();
 				var root4 = new mongolayer.ObjectId();
+				var root5 = new mongolayer.ObjectId();
+				var root6 = new mongolayer.ObjectId();
+				var root7 = new mongolayer.ObjectId();
+				var root8 = new mongolayer.ObjectId();
 				var related1_1 = new mongolayer.ObjectId();
 				var related1_2 = new mongolayer.ObjectId();
 				var related1_3 = new mongolayer.ObjectId();
@@ -1953,6 +1959,58 @@ describe(__filename, function() {
 									foo : "foo4",
 									single_id : related1_2,
 									multiple_ids : [related1_1]
+								},
+								{
+									_id : root5,
+									foo : "foo5",
+									single_multipleTypes_id : {
+										id : related1_1,
+										modelName : "mongolayer_testRelated"
+									}
+								},
+								{
+									_id : root6,
+									foo : "foo6",
+									single_multipleTypes_id : {
+										id : related2_1,
+										modelName : "mongolayer_testRelated2"
+									}
+								},
+								{
+									_id : root7,
+									foo : "foo7",
+									multiple_multipleTypes_ids : [
+										{
+											id : related1_1,
+											modelName : "mongolayer_testRelated"
+										},
+										{
+											id : related2_1,
+											modelName : "mongolayer_testRelated2"
+										},
+										{
+											id : related1_4,
+											modelName : "mongolayer_testRelated"
+										}
+									]
+								},
+								{
+									_id : root8,
+									foo : "foo8",
+									multiple_multipleTypes_ids : [
+										{
+											id : related2_1, // bogus id doesn't exist in this model
+											modelName : "mongolayer_testRelated"
+										},
+										{
+											id : related1_1, // valid id
+											modelName : "mongolayer_testRelated"
+										},
+										{
+											id : related1_1, // bogus model
+											modelName : "bogus"
+										}
+									]
 								}
 							], cb);
 						},
@@ -2014,6 +2072,18 @@ describe(__filename, function() {
 					});
 				});
 				
+				it("should populate single with multipleTypes", function(done) {
+					model.find({ _id : { $in : [root1, root5, root6] } }, { hooks : ["afterFind_single_multipleTypes"] }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.equal(docs[0].single_multipleTypes, undefined);
+						assert.equal(docs[1].single_multipleTypes.title, "title1_1");
+						assert.equal(docs[2].single_multipleTypes.title, "title2_1");
+						
+						done();
+					});
+				});
+				
 				it("should populate single with rightKey", function(done) {
 					model.find({}, { hooks : ["afterFind_single_rightKey"] }, function(err, docs) {
 						assert.ifError(err);
@@ -2037,6 +2107,20 @@ describe(__filename, function() {
 						assert.equal(docs[2].multiple[0].title, "title1_4");
 						assert.equal(docs[2].multiple[1].title, "title1_1");
 						assert.equal(docs[3].multiple[0].title, "title1_1");
+						
+						done();
+					});
+				});
+				
+				it("should populate multiple with multipleTypes", function(done) {
+					model.find({ _id : { $in : [root1, root7, root8] } }, { hooks : ["afterFind_multiple_multipleTypes"] }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.equal(docs[0].multiple_multipleTypes, undefined);
+						assert.equal(docs[1].multiple_multipleTypes[0].title, "title1_1");
+						assert.equal(docs[1].multiple_multipleTypes[1].title, "title2_1");
+						assert.equal(docs[1].multiple_multipleTypes[2].title, "title1_4");
+						assert.equal(docs[2].multiple_multipleTypes[0].title, "title1_1");
 						
 						done();
 					});
