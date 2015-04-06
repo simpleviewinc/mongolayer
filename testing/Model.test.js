@@ -1055,8 +1055,8 @@ describe(__filename, function() {
 				}, function(err, doc, result) {
 					assert.ifError(err);
 					
-					assert.strictEqual(result.ok, 1);
-					assert.strictEqual(result.n, 1);
+					assert.strictEqual(result.result.ok, 1);
+					assert.strictEqual(result.result.n, 1);
 					assert.equal(doc.foo, "fooValue");
 					
 					done();
@@ -1113,8 +1113,8 @@ describe(__filename, function() {
 				], function(err, docs, result) {
 					assert.ifError(err);
 					
-					assert.strictEqual(result.ok, 1);
-					assert.strictEqual(result.nInserted, 2);
+					assert.strictEqual(result.result.ok, 1);
+					assert.strictEqual(result.result.n, 2);
 					assert.equal(docs[0].foo, "fooValue1");
 					assert.equal(docs[0].bar, "barValue1");
 					assert.equal(docs[1].foo, "fooValue2");
@@ -1328,8 +1328,8 @@ describe(__filename, function() {
 					model.remove({ foo : "one" }, function(err, result) {
 						assert.ifError(err);
 						
-						assert.strictEqual(result.ok, 1);
-						assert.strictEqual(result.n, 1);
+						assert.strictEqual(result.result.ok, 1);
+						assert.strictEqual(result.result.n, 1);
 						
 						done();
 					});
@@ -1453,7 +1453,7 @@ describe(__filename, function() {
 					assert.equal(doc instanceof model.Document, true);
 					assert.equal(doc.foo, "fooValue1");
 					assert.equal(doc.bar, "barValue1");
-					assert.equal(result.n, 1);
+					assert.equal(result.result.n, 1);
 					
 					done();
 				});
@@ -1640,9 +1640,9 @@ describe(__filename, function() {
 					assert.ifError(err);
 					
 					// ensure parameters exist in writeResult
-					assert.strictEqual(result.n, 1);
-					assert.strictEqual(result.nModified, 1);
-					assert.strictEqual(result.ok, 1);
+					assert.strictEqual(result.result.n, 1);
+					assert.strictEqual(result.result.nModified, 1);
+					assert.strictEqual(result.result.ok, 1);
 					
 					done();
 				});
@@ -1653,9 +1653,9 @@ describe(__filename, function() {
 					assert.ifError(err);
 					
 					// ensure parameters exist in writeResult
-					assert.strictEqual(result.n, 1);
-					assert.strictEqual(result.nModified, 1);
-					assert.strictEqual(result.ok, 1);
+					assert.strictEqual(result.result.n, 1);
+					assert.strictEqual(result.result.nModified, 1);
+					assert.strictEqual(result.result.ok, 1);
 					
 					model.find({ foo : "1_updated" }, function(err, docs) {
 						assert.ifError(err);
