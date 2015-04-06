@@ -37,12 +37,12 @@ var Model = function(args) {
 	self.collection = null; // stores reference to MongoClient.Db.collection()
 	self.ObjectId = mongolayer.ObjectId;
 	self.fields = {};
+	self.relationships = {};
+	self.methods = {};
 	
 	// private
 	self._onInit = args.onInit;
 	self._virtuals = {};
-	self._relationships = {};
-	self.methods = {};
 	self._modelMethods = {};
 	self._documentMethods = {};
 	self._indexes = [];
@@ -270,8 +270,7 @@ Model.prototype.addRelationship = function(args) {
 		allowExtraKeys : false
 	});
 	
-	var idKey;
-	var modelKey;
+	var originalArgs = args;
 	var type = args.type;
 	var objectKey = args.name;
 	var modelName = args.modelName;
@@ -295,10 +294,10 @@ Model.prototype.addRelationship = function(args) {
 	}
 	
 	if (type === "single") {
-		idKey = args.name + "_id";
+		originalArgs.idKey = args.name + "_id";
 		
 		self.addField({
-			name : idKey,
+			name : originalArgs.idKey,
 			validation : rightKeyValidation,
 			required : args.required === true
 		});
@@ -309,7 +308,7 @@ Model.prototype.addRelationship = function(args) {
 			handler : function(args, cb) {
 				mongolayer.resolveRelationship({
 					type : type,
-					leftKey : idKey,
+					leftKey : originalArgs.idKey,
 					rightKey : rightKey,
 					multipleTypes : multipleTypes,
 					modelName : modelName,
@@ -326,10 +325,10 @@ Model.prototype.addRelationship = function(args) {
 			required : args.hookRequired === true
 		});
 	} else if (type === "multiple") {
-		idKey = args.name + "_ids";
+		originalArgs.idKey = args.name + "_ids";
 		
 		self.addField({
-			name : idKey,
+			name : originalArgs.idKey,
 			validation : {
 				type : "array",
 				schema : rightKeyValidation
@@ -343,7 +342,7 @@ Model.prototype.addRelationship = function(args) {
 			handler : function(args, cb) {
 				mongolayer.resolveRelationship({
 					type : type,
-					leftKey : idKey,
+					leftKey : originalArgs.idKey,
 					rightKey : rightKey,
 					multipleTypes : multipleTypes,
 					modelName : modelName,
@@ -360,6 +359,8 @@ Model.prototype.addRelationship = function(args) {
 			required : args.hookRequired === true
 		});
 	}
+	
+	self.relationships[args.name] = args;
 }
 
 Model.prototype.addIndex = function(args) {
