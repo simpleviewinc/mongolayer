@@ -34,13 +34,13 @@ describe(__filename, function() {
 		});
 		
 		assert.equal(model.connected, true);
-		assert.equal(model._connection.foo, "bar");
+		assert.equal(model.connection.foo, "bar");
 		assert.equal(model.collection, "collectionReturn");
 		
 		model._disconnect();
 		
 		assert.equal(model.connected, false);
-		assert.equal(model._connection, null);
+		assert.equal(model.connection, null);
 		assert.equal(model.collection, null);
 		
 		done();

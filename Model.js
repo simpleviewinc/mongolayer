@@ -39,6 +39,7 @@ var Model = function(args) {
 	self.fields = {};
 	self.relationships = {};
 	self.methods = {};
+	self.connection = null; // stores Connection ref
 	
 	// private
 	self._onInit = args.onInit;
@@ -71,7 +72,6 @@ var Model = function(args) {
 		save : [],
 		remove : []
 	}, args.defaultHooks);
-	self._connection = null; // stores Connection ref
 	
 	self._Document = function(model, args) {
 		mongolayer.Document.apply(this, arguments); // call constructor of parent but pass this as context
@@ -165,7 +165,7 @@ Model.prototype._setConnection = function(args) {
 	
 	// args.connection
 	
-	self._connection = args.connection;
+	self.connection = args.connection;
 	self.collection = args.connection.db.collection(self.collectionName);
 	
 	self.connected = true;
@@ -174,7 +174,7 @@ Model.prototype._setConnection = function(args) {
 Model.prototype._disconnect = function() {
 	var self = this;
 	
-	self._connection = null;
+	self.connection = null;
 	self.collection = null;
 	
 	self.connected = false;
@@ -312,7 +312,7 @@ Model.prototype.addRelationship = function(args) {
 					rightKey : rightKey,
 					multipleTypes : multipleTypes,
 					modelName : modelName,
-					connection : self._connection,
+					connection : self.connection,
 					objectKey : objectKey,
 					docs : args.docs,
 					hooks : args.options.hooks
@@ -346,7 +346,7 @@ Model.prototype.addRelationship = function(args) {
 					rightKey : rightKey,
 					multipleTypes : multipleTypes,
 					modelName : modelName,
-					connection : self._connection,
+					connection : self.connection,
 					objectKey : objectKey,
 					docs : args.docs,
 					hooks : args.options.hooks
@@ -594,7 +594,7 @@ Model.prototype.find = function(filter, options, cb) {
 					
 					queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
 					
-					self._connection.logger(queryLog.get());
+					self.connection.logger(queryLog.get());
 					
 					cb(null, args.docs);
 				});
