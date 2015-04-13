@@ -53,7 +53,7 @@ var _getDb = function(args, cb) {
 	});
 }
 
-var _getDbCached = async.memoize(_getDb);
+var _getDbCached = async.memoize(_getDb, function() { return JSON.stringify(arguments) });
 
 var toPlain = function(data) {
 	if (data instanceof Array) {
