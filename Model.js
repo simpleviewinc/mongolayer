@@ -263,6 +263,7 @@ Model.prototype.addRelationship = function(args) {
 			{ name : "modelName", type : "string" },
 			{ name : "multipleTypes", type : "boolean", default : false },
 			{ name : "required", type : "boolean" },
+			{ name : "hookRequired", type : "boolean" },
 			{ name : "rightKey", type : "string", default : "_id" },
 			{ name : "rightKeyValidation", type : "object", default : { type : "class", class : mongolayer.ObjectId } }
 		],
