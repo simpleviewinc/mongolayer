@@ -954,9 +954,13 @@ describe(__filename, function() {
 			var d = domain.create();
 			
 			d.on("error", function(err) {
-				done();
+				assert.ok(err.message.match(/Hook 'bogus' of type 'beforeFind' was requested but does not exist/));
 				
-				d.dispose();
+				d.exit();
+				
+				process.nextTick(function() {
+					done();
+				});
 			});
 			
 			d.run(function() {

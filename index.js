@@ -470,6 +470,18 @@ var errors = {
 	ValidationError : _newErrorType("ValidationError")
 }
 
+var testId = function(str) {
+	if (str.length > 12) { throw new Error("String must be 12 or less characters long") }
+	
+	var encoded = (new Buffer(str)).toString("hex");
+	
+	while(encoded.length < 24) {
+		encoded += "0";
+	}
+	
+	return new mongodb.ObjectID(encoded);
+}
+
 extend(module.exports, {
 	connect : connect,
 	connectCached : connectCached,
@@ -480,6 +492,7 @@ extend(module.exports, {
 	Connection : Connection,
 	QueryLog : QueryLog,
 	ObjectId : mongodb.ObjectID,
+	testId : testId,
 	toPlain : toPlain,
 	stringConvert : stringConvert,
 	convertValue : convertValue,

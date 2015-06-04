@@ -681,6 +681,19 @@ model.find({}, function(err, docs) {
 });
 ```
 
+### mongolayer.testId(str)
+
+Creates a ObjectId with a predictable ID specifically for use in unit-tests where you would like predictable IDs. The string will be hex encoded and appended with "0".
+
+* `str` - `string` - `required` - String that you want to use for the mongoId. Must be 12 characters or less in length.
+
+Example:
+
+```js
+var id = mongolayer.testId("foo");
+// id === "666f6f000000000000000000"
+```
+
 <a name="connection"/>
 ## Connection
 

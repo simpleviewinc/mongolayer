@@ -346,4 +346,15 @@ describe(__filename, function() {
 		
 		done();
 	});
+	
+	it("should testId", function(done) {
+		assert.equal(mongolayer.testId("test"), "746573740000000000000000");
+		assert.equal(mongolayer.testId("ZZ"), "5a5a00000000000000000000");
+		
+		assert.throws(function() {
+			mongolayer.testId("toolongstring");
+		}, /String must be 12 or less characters long/);
+		
+		done();
+	});
 });
