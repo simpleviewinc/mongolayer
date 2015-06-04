@@ -1104,6 +1104,7 @@ Arguments
 * `options` - `object` - `optional`
 	* `options` - `object` - `optional` - An options object which is passed on to `node-mongodb-native` which performs the query. If you need to pass options at that level, pass them here.
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
+	* `stripEmpty` - `boolean` - `optional` - defaults to true. Removes empty strings, objects, arrays, and undefined values inside of your document.
 * `cb` - `function` - `required`
 	* `Error` or null
 	* If a single document is inserted, then it will return a single `model.Document`, if an array of documents was inserted it will return an array of `model.Document`.
@@ -1153,6 +1154,7 @@ Arguments
 * `options` - `object` - `optional`
 	* `options` - `object` - `optional` - An options object which is passed on to `node-mongodb-native` which performs the query. If you need to pass options at that level, pass them here.
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
+	* `stripEmpty` - `boolean` - `optional` - defaults to true. Removes empty strings, objects, arrays, and undefined values inside of your document.
 * `cb` - `function` - `required`
 	* `Error` or null
 	* `model.Document`
@@ -1195,6 +1197,7 @@ Arguments
 * `options` - `object` - `optional`
 	* `options` - `object` - `optional` - An options object which is passed on to `node-mongodb-native` which performs the query. If you need to pass options at that level, pass them here.
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
+	* `stripEmpty` - `boolean` - `optional` - defaults to true. Removes empty strings, objects, arrays, and undefined values inside of your document.
 * `cb` - `function` - `required`
 	* `Error` or null
 	* `result` writeResult
