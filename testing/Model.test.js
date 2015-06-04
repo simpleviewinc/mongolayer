@@ -1495,7 +1495,7 @@ describe(__filename, function() {
 				});
 			});
 			
-			it("should not insert empty string", function(done) {
+			it("should not save empty string", function(done) {
 				model.save({
 					foo : ""
 				}, function(err, doc) {
@@ -1507,7 +1507,7 @@ describe(__filename, function() {
 				});
 			});
 			
-			it("should insert empty string", function(done) {
+			it("should save empty string", function(done) {
 				model.save({ foo : ""}, { stripEmpty : false }, function(err, doc) {
 					assert.ifError(err);
 					
@@ -1703,7 +1703,7 @@ describe(__filename, function() {
 				});
 			});
 			
-			it("should not insert empty string", function(done) {
+			it("should not update empty string", function(done) {
 				model.update({ _id : id1 }, { foo : "" }, function(err) {
 					assert.ifError(err);
 					
@@ -1716,7 +1716,7 @@ describe(__filename, function() {
 				});
 			});
 			
-			it("should insert empty string", function(done) {
+			it("should update empty string", function(done) {
 				model.update({ _id : id1 }, { foo : ""}, { stripEmpty : false }, function(err) {
 					assert.ifError(err);
 					
