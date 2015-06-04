@@ -460,7 +460,7 @@ Model.prototype.insert = function(docs, options, cb) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self._processDocs({ data : newDocs, validate : true, checkRequired : true }, function(err, cleanDocs) {
+			self._processDocs({ data : newDocs, validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
 				// insert the data into mongo
@@ -511,7 +511,7 @@ Model.prototype.save = function(doc, options, cb) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self._processDocs({ data : [tempArgs.doc], validate : true, checkRequired : true }, function(err, cleanDocs) {
+			self._processDocs({ data : [tempArgs.doc], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
 				self.collection.save(cleanDocs[0], args.options.options, function(err, result) {
@@ -661,7 +661,7 @@ Model.prototype.update = function(filter, delta, options, cb) {
 			if (Object.keys(args.delta).filter(function(val, i) { return val.match(/^\$/) !== null }).length === 0) {
 				// no $ operators at the root level, validate the whole delta
 				calls.push(function(cb) {
-					self._processDocs({ data : [args.delta], validate : true, checkRequired : true }, function(err, cleanDocs) {
+					self._processDocs({ data : [args.delta], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
 						if (err) { return cb(err); }
 						
 						args.delta = cleanDocs[0];
@@ -899,6 +899,7 @@ Model.prototype._processDocs = function(args, cb) {
 	// args.data
 	// args.validate
 	// args.checkRequired
+	// args.stripEmpty
 	
 	var calls = [];
 	var noop = function(cb) { cb(null); }
@@ -908,11 +909,11 @@ Model.prototype._processDocs = function(args, cb) {
 		// convert data to Document and back to plain to ensure virtual setters are ran and we know "simple" data is being passed to the DB
 		// this step also removes all "undefined"-y values such as [], {}, undefined, and ""
 		if (val instanceof self.Document) {
-			newData.push(mongolayer._prepareInsert(val));
+			newData.push(mongolayer._prepareInsert(val, args.stripEmpty));
 		} else {
 			var temp = new self.Document(val);
 			
-			newData.push(mongolayer._prepareInsert(temp));
+			newData.push(mongolayer._prepareInsert(temp, args.stripEmpty));
 		}
 	});
 	

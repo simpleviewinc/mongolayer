@@ -1158,7 +1158,17 @@ describe(__filename, function() {
 				}, function(err, doc) {
 					assert.ifError(err);
 					
-					assert.equal(doc.foo, undefined);
+					assert.strictEqual(doc.foo, undefined);
+					
+					done();
+				});
+			});
+			
+			it("should insert empty string", function(done) {
+				model.insert({ foo : ""}, { stripEmpty : false }, function(err, doc) {
+					assert.ifError(err);
+					
+					assert.strictEqual(doc.foo, "");
 					
 					done();
 				});
@@ -1485,6 +1495,28 @@ describe(__filename, function() {
 				});
 			});
 			
+			it("should not insert empty string", function(done) {
+				model.save({
+					foo : ""
+				}, function(err, doc) {
+					assert.ifError(err);
+					
+					assert.strictEqual(doc.foo, undefined);
+					
+					done();
+				});
+			});
+			
+			it("should insert empty string", function(done) {
+				model.save({ foo : ""}, { stripEmpty : false }, function(err, doc) {
+					assert.ifError(err);
+					
+					assert.strictEqual(doc.foo, "");
+					
+					done();
+				});
+			});
+			
 			it("should run hooks properly", function(done) {
 				var beforeCalled;
 				var afterCalled;
@@ -1666,6 +1698,32 @@ describe(__filename, function() {
 						
 						assert.equal(docs[0].baz, false);
 						
+						done();
+					});
+				});
+			});
+			
+			it("should not insert empty string", function(done) {
+				model.update({ _id : id1 }, { foo : "" }, function(err) {
+					assert.ifError(err);
+					
+					model.find({ _id : id1 }, function(err, docs){
+						assert.ifError(err);
+						assert.strictEqual(docs.length, 1);
+						assert.strictEqual(docs[0].foo, undefined);
+						done();
+					});
+				});
+			});
+			
+			it("should insert empty string", function(done) {
+				model.update({ _id : id1 }, { foo : ""}, { stripEmpty : false }, function(err) {
+					assert.ifError(err);
+					
+					model.find({ _id : id1 }, function(err, docs){
+						assert.ifError(err);
+						assert.strictEqual(docs.length, 1);
+						assert.strictEqual(docs[0].foo, "");
 						done();
 					});
 				});
