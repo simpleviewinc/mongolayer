@@ -67,8 +67,10 @@ var toPlain = function(data) {
 
 // converts incoming data to simple object literals
 // strips out {}, [], "" and undefined
-var _prepareInsert = function(data) {
+var _prepareInsert = function(data, stripEmpty) {
 	var returnData = data;
+	
+	stripEmpty = (stripEmpty === undefined) ? true : stripEmpty;
 	
 	if (data instanceof Date || data instanceof mongodb.ObjectID) {
 		// certain types are passed straight in without being unfolded
@@ -77,12 +79,12 @@ var _prepareInsert = function(data) {
 		returnData = undefined;
 	} else if (data instanceof Array) {
 		returnData = data.map(function(val, i) {
-			return _prepareInsert(val);
+			return _prepareInsert(val, stripEmpty);
 		}).filter(function(val, i) {
 			return val !== undefined;
 		});
 		
-		if (returnData.length === 0) {
+		if (stripEmpty && returnData.length === 0) {
 			// remove empty arrays
 			returnData = undefined;
 		}
@@ -92,18 +94,18 @@ var _prepareInsert = function(data) {
 		Object.keys(data).forEach(function(i) {
 			// only run keys which do not have a "getter" declared
 			if (Object.getOwnPropertyDescriptor(data, i).get === undefined) {
-				var temp = _prepareInsert(data[i]);
+				var temp = _prepareInsert(data[i], stripEmpty);
 				if (temp !== undefined) {
 					returnData[i] = temp;
 				}
 			}
 		});
 		
-		if (Object.keys(returnData).length === 0) {
+		if (stripEmpty && Object.keys(returnData).length === 0) {
 			// remove empty objects
 			returnData = undefined;
 		}
-	} else if (typeof data === "string" && data === "") {
+	} else if (typeof data === "string" && data === "" && stripEmpty) {
 		// remove empty strings
 		returnData = undefined;
 	}

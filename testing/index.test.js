@@ -134,14 +134,26 @@ describe(__filename, function() {
 		});
 		
 		it("should 'empty' data such as empty array/object/string", function() {
-			assert.equal(mongolayer._prepareInsert({}), undefined);
-			assert.equal(mongolayer._prepareInsert(""), undefined);
-			assert.equal(mongolayer._prepareInsert([]), undefined);
-			assert.equal(mongolayer._prepareInsert({ foo : "" }), undefined);
+			assert.strictEqual(mongolayer._prepareInsert({}), undefined);
+			assert.strictEqual(mongolayer._prepareInsert(""), undefined);
+			assert.strictEqual(mongolayer._prepareInsert([]), undefined);
+			assert.strictEqual(mongolayer._prepareInsert({ foo : "" }), undefined);
 			// test a deeply nested structure which should be entirely trimmed
-			assert.equal(mongolayer._prepareInsert({ foo : { bar : [{ baz : [undefined] }] }, undef : undefined }), undefined);
+			assert.strictEqual(mongolayer._prepareInsert({ foo : { bar : [{ baz : [undefined] }] }, undef : undefined }), undefined);
 			// test removal of array elements based on same "non-existent" idea
 			assert.deepEqual(mongolayer._prepareInsert({ foo : [1,""] }), { foo : [1] });
+		});
+		
+		it("should not 'empty' data such as empty array/object/string", function() {
+			assert.deepEqual(mongolayer._prepareInsert({}, false), {});
+			assert.deepEqual(mongolayer._prepareInsert([], false), []);
+			assert.strictEqual(mongolayer._prepareInsert("", false), "");
+			
+			assert.deepEqual(mongolayer._prepareInsert({ foo : "" }, false), { foo : "" });
+			// test a deeply nested structure
+			assert.deepEqual(mongolayer._prepareInsert({ foo : { bar : [{ baz : [undefined] }] }, undef : undefined }, false), { foo : { bar : [{ baz : [] }] } });
+			// test array elements
+			assert.deepEqual(mongolayer._prepareInsert({ foo : [1,""] }, false), { foo : [1,""] });
 		});
 		
 		it("should not run getters or functions", function() {
