@@ -138,7 +138,7 @@ var stringConvert = function(data, schema) {
 			objectLib.forEach(data, function(val, i) {
 				if (i === "$exists") {
 					returnValue[i] = convertValue(val, "boolean");
-				} else if (i === "$in" || i === "$nin") {
+				} else if (i === "$in" || i === "$nin" || i === "$all") {
 					returnValue[i] = [];
 					val.forEach(function(val2, i2) {
 						returnValue[i].push(convertValue(val2, type));
@@ -147,24 +147,13 @@ var stringConvert = function(data, schema) {
 					// fields to convert in-place;
 					returnValue[i] = convertValue(val, type);
 				} else if (i === "$elemMatch") {
-					if (hasOps(data)) {
+					if (hasOps(val)) {
 						// if the item has ops we stay where we are at in the context
-						returnValue[i] = convertObject(data[i], type, chain);
+						returnValue[i] = convertObject(val, type, chain.slice(0));
 					} else {
 						// no operations, then it is a sub-document style
-						returnValue[i] = walk(data, chain.slice(0));
+						returnValue[i] = walk(val, chain.slice(0));
 					}
-				} else if (i === "$all") {
-					returnValue[i] = [];
-					val.forEach(function(val2, i2) {
-						if (hasOps(val2)) {
-							returnValue[i].push(walk(val2.$elemMatch, chain.slice(0)));
-						} else if (typeof val2 === "object") {
-							returnValue[i].push(convertObject(val2, type, chain.slice(0)));
-						} else {
-							returnValue[i].push(convertValue(val2, type));
-						}
-					});
 				} else {
 					throw new Error("Unsupported query operator '" + i + "'");
 				}
@@ -191,7 +180,12 @@ var stringConvert = function(data, schema) {
 				});
 			} else {
 				var newChain = chain.slice(0);
-				newChain.push(i);
+				
+				// $elemMatch and $all both allow nested objects which won't have schema matches until the leaf is hit
+				// for these cases we don't want to push
+				if (i !== "$elemMatch" && i !== "$all") {
+					newChain.push(i);
+				}
 				
 				var key = newChain.join(".");
 				if (schema[key] !== undefined) {

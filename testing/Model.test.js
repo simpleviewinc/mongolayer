@@ -1,5 +1,6 @@
 var assert = require("assert");
 var domain = require("domain");
+var util = require("util");
 var mongolayer = require("../index.js");
 var config = require("./config.js");
 
@@ -676,48 +677,48 @@ describe(__filename, function() {
 			var temp = model.stringConvert(data);
 			
 			// ensure conversion of the deeply nested walk data works
-			assert.equal(temp.walk1, 3);
-			assert.equal(temp.walk2[0], 3);
-			assert.equal(temp.walk2[1], 4);
-			assert.equal(temp.walk3[0].foo, 3);
-			assert.equal(temp.walk3[1].foo, 5);
-			assert.equal(temp.walk4.foo, 5);
-			assert.equal(temp.walk5.foo[0], 3);
-			assert.equal(temp.walk5.foo[1], 4);
-			assert.equal(temp.walk6.foo[0].foo, 3);
-			assert.equal(temp.walk6.foo[1].foo, 4);
-			assert.equal(temp.walk7.foo.foo, 3);
-			assert.equal(temp.walk8.foo.foo[0], 3);
-			assert.equal(temp.walk8.foo.foo[1], 4);
-			assert.equal(temp.walk9.foo.foo[0].foo, 3);
-			assert.equal(temp.walk9.foo.foo[1].foo, 4);
-			assert.equal(temp.undeclared, "10");
+			assert.strictEqual(temp.walk1, 3);
+			assert.strictEqual(temp.walk2[0], 3);
+			assert.strictEqual(temp.walk2[1], 4);
+			assert.strictEqual(temp.walk3[0].foo, 3);
+			assert.strictEqual(temp.walk3[1].foo, 5);
+			assert.strictEqual(temp.walk4.foo, 5);
+			assert.strictEqual(temp.walk5.foo[0], 3);
+			assert.strictEqual(temp.walk5.foo[1], 4);
+			assert.strictEqual(temp.walk6.foo[0].foo, 3);
+			assert.strictEqual(temp.walk6.foo[1].foo, 4);
+			assert.strictEqual(temp.walk7.foo.foo, 3);
+			assert.strictEqual(temp.walk8.foo.foo[0], 3);
+			assert.strictEqual(temp.walk8.foo.foo[1], 4);
+			assert.strictEqual(temp.walk9.foo.foo[0].foo, 3);
+			assert.strictEqual(temp.walk9.foo.foo[1].foo, 4);
+			assert.strictEqual(temp.undeclared, "10");
 			
 			// check primitive types
-			assert.equal(temp.boolean, false);
-			assert.equal(temp.date.getTime(), date1.getTime());
-			assert.equal(temp.objectid.toString(), id.toString());
-			assert.equal(temp.number, 3);
-			assert.equal(temp.string, "foo");
-			assert.equal(temp.multiKey.foo, 5);
-			assert.equal(temp.multiKey.bar, true);
+			assert.strictEqual(temp.boolean, false);
+			assert.strictEqual(temp.date.getTime(), date1.getTime());
+			assert.strictEqual(temp.objectid.toString(), id.toString());
+			assert.strictEqual(temp.number, 3);
+			assert.strictEqual(temp.string, "foo");
+			assert.strictEqual(temp.multiKey.foo, 5);
+			assert.strictEqual(temp.multiKey.bar, true);
 			
 			// ensure original data was not changed
-			assert.equal(data.walk1, "3");
-			assert.equal(data.walk2[0], "3");
-			assert.equal(data.walk2[1], "4");
-			assert.equal(data.walk3[0].foo, "3");
-			assert.equal(data.walk3[1].foo, "5");
-			assert.equal(data.walk4.foo, "5");
-			assert.equal(data.walk5.foo[0], "3");
-			assert.equal(data.walk5.foo[1], "4");
-			assert.equal(data.walk6.foo[0].foo, "3");
-			assert.equal(data.walk6.foo[1].foo, "4");
-			assert.equal(data.walk7.foo.foo, "3");
-			assert.equal(data.walk8.foo.foo[0], "3");
-			assert.equal(data.walk8.foo.foo[1], "4");
-			assert.equal(data.walk9.foo.foo[0].foo, "3");
-			assert.equal(data.walk9.foo.foo[1].foo, "4");
+			assert.strictEqual(data.walk1, "3");
+			assert.strictEqual(data.walk2[0], "3");
+			assert.strictEqual(data.walk2[1], "4");
+			assert.strictEqual(data.walk3[0].foo, "3");
+			assert.strictEqual(data.walk3[1].foo, "5");
+			assert.strictEqual(data.walk4.foo, "5");
+			assert.strictEqual(data.walk5.foo[0], "3");
+			assert.strictEqual(data.walk5.foo[1], "4");
+			assert.strictEqual(data.walk6.foo[0].foo, "3");
+			assert.strictEqual(data.walk6.foo[1].foo, "4");
+			assert.strictEqual(data.walk7.foo.foo, "3");
+			assert.strictEqual(data.walk8.foo.foo[0], "3");
+			assert.strictEqual(data.walk8.foo.foo[1], "4");
+			assert.strictEqual(data.walk9.foo.foo[0].foo, "3");
+			assert.strictEqual(data.walk9.foo.foo[1].foo, "4");
 			
 			done();
 		});
@@ -741,7 +742,7 @@ describe(__filename, function() {
 		it("should stringConvert filter", function(done) {
 			// test simple conversion
 			var temp = model.stringConvert({ walk1 : "1" });
-			assert.equal(temp.walk1, 1);
+			assert.strictEqual(temp.walk1, 1);
 			
 			// test all the supported query operators
 			var temp = model.stringConvert({
@@ -757,23 +758,23 @@ describe(__filename, function() {
 				}
 			});
 			
-			assert.equal(temp.walk1.$in[0], 1);
-			assert.equal(temp.walk1.$nin[0], 3);
-			assert.equal(temp.walk1.$nin[1], 4);
-			assert.equal(temp.walk1.$exists, true);
-			assert.equal(temp.walk1.$ne, 12);
-			assert.equal(temp.walk1.$gt, 5);
-			assert.equal(temp.walk1.$lt, 3);
-			assert.equal(temp.walk1.$gte, 10);
-			assert.equal(temp.walk1.$lte, 11);
+			assert.strictEqual(temp.walk1.$in[0], 1);
+			assert.strictEqual(temp.walk1.$nin[0], 3);
+			assert.strictEqual(temp.walk1.$nin[1], 4);
+			assert.strictEqual(temp.walk1.$exists, true);
+			assert.strictEqual(temp.walk1.$ne, 12);
+			assert.strictEqual(temp.walk1.$gt, 5);
+			assert.strictEqual(temp.walk1.$lt, 3);
+			assert.strictEqual(temp.walk1.$gte, 10);
+			assert.strictEqual(temp.walk1.$lte, 11);
 			
 			// test a nested dot key syntax
 			var temp = model.stringConvert({ "walk9.foo.foo.foo" : "4" });
-			assert.equal(temp["walk9.foo.foo.foo"], 4);
+			assert.strictEqual(temp["walk9.foo.foo.foo"], 4);
 			
 			// test a nested obj key syntax
 			var temp = model.stringConvert({ walk9 : { foo : { foo : { foo : "4" } } } });
-			assert.equal(temp.walk9.foo.foo.foo, 4);
+			assert.strictEqual(temp.walk9.foo.foo.foo, 4);
 			
 			// test $and, $or, $nor
 			var temp = model.stringConvert({
@@ -781,12 +782,12 @@ describe(__filename, function() {
 				$or : [{ walk1 : { $in : ["3", "4"] } }],
 				$nor : [{ "walk9.foo.foo.foo" : { $gt : "12" } }]
 			});
-			assert.equal(temp.$and[0].walk1, 3);
-			assert.equal(temp.$and[1].walk1.$ne, 5);
-			assert.equal(temp.$and[2].$and[0].walk1, 10);
-			assert.equal(temp.$or[0].walk1.$in[0], 3);
-			assert.equal(temp.$or[0].walk1.$in[1], 4);
-			assert.equal(temp.$nor[0]["walk9.foo.foo.foo"].$gt, 12);
+			assert.strictEqual(temp.$and[0].walk1, 3);
+			assert.strictEqual(temp.$and[1].walk1.$ne, 5);
+			assert.strictEqual(temp.$and[2].$and[0].walk1, 10);
+			assert.strictEqual(temp.$or[0].walk1.$in[0], 3);
+			assert.strictEqual(temp.$or[0].walk1.$in[1], 4);
+			assert.strictEqual(temp.$nor[0]["walk9.foo.foo.foo"].$gt, 12);
 			
 			// test $elemMatch with sub-document and array of simple
 			var temp = model.stringConvert({
@@ -796,10 +797,10 @@ describe(__filename, function() {
 					{ walk3 : { $elemMatch : { foo : { $lt : "5" } } } }
 				]
 			});
-			assert.equal(temp.$and[0].walk2.$elemMatch.$gt, 5);
-			assert.equal(temp.$and[0].walk2.$elemMatch.$lt, 10);
-			assert.equal(temp.$and[1].walk3.$elemMatch.foo, 10);
-			assert.equal(temp.$and[2].walk3.$elemMatch.foo.$lt, 5);
+			assert.strictEqual(temp.$and[0].walk2.$elemMatch.$gt, 5);
+			assert.strictEqual(temp.$and[0].walk2.$elemMatch.$lt, 10);
+			assert.strictEqual(temp.$and[1].walk3.$elemMatch.foo, 10);
+			assert.strictEqual(temp.$and[2].walk3.$elemMatch.foo.$lt, 5);
 			
 			// test $all
 			var temp = model.stringConvert({
@@ -809,12 +810,12 @@ describe(__filename, function() {
 					{ walk3 : { $all : [{ $elemMatch : { foo : "10" } }, { $elemMatch : { foo : { $gt : "2" } } }] } }
 				]
 			});
-			assert.equal(temp.$and[0].walk2.$all[0], 3);
-			assert.equal(temp.$and[0].walk2.$all[1], 5);
-			assert.equal(temp.$and[1].walk3.$all[0].foo, 10);
-			assert.equal(temp.$and[1].walk3.$all[1].foo, 5);
-			assert.equal(temp.$and[2].walk3.$all[0].$elemMatch.foo, 10);
-			assert.equal(temp.$and[2].walk3.$all[1].$elemMatch.foo.$gt, 2);
+			assert.strictEqual(temp.$and[0].walk2.$all[0], 3);
+			assert.strictEqual(temp.$and[0].walk2.$all[1], 5);
+			assert.strictEqual(temp.$and[1].walk3.$all[0].foo, 10);
+			assert.strictEqual(temp.$and[1].walk3.$all[1].foo, 5);
+			assert.strictEqual(temp.$and[2].walk3.$all[0].$elemMatch.foo, 10);
+			assert.strictEqual(temp.$and[2].walk3.$all[1].$elemMatch.foo.$gt, 2);
 			
 			done();
 		});
