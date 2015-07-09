@@ -621,7 +621,8 @@ describe(__filename, function() {
 					{ name : "objectid", validation : { type : "class", class : mongolayer.ObjectId } },
 					{ name : "number", validation : { type : "number" } },
 					{ name : "string", validation : { type : "string" } },
-					{ name : "multiKey", validation : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }] } }
+					{ name : "multiKey", validation : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }] } },
+					{ name : "any", validation : { type : "any" } }
 				]
 			});
 			
@@ -671,6 +672,7 @@ describe(__filename, function() {
 				objectid : id.toString(),
 				number : "3",
 				string : "foo",
+				any : "anyData",
 				undeclared : "10"
 			}
 			
@@ -692,6 +694,7 @@ describe(__filename, function() {
 			assert.strictEqual(temp.walk8.foo.foo[1], 4);
 			assert.strictEqual(temp.walk9.foo.foo[0].foo, 3);
 			assert.strictEqual(temp.walk9.foo.foo[1].foo, 4);
+			assert.strictEqual(temp.any, "anyData");
 			assert.strictEqual(temp.undeclared, "10");
 			
 			// check primitive types
@@ -985,7 +988,8 @@ describe(__filename, function() {
 				fields : [
 					{ name : "foo", validation : { type : "string" } },
 					{ name : "bar", validation : { type : "string" } },
-					{ name : "baz", default : false, validation : { type : "boolean" } }
+					{ name : "baz", default : false, validation : { type : "boolean" } },
+					{ name : "any", validation : { type : "any" } }
 				],
 				relationships : [
 					{ name : "single", type : "single", modelName : "mongolayer_testRelated" },
@@ -1109,11 +1113,13 @@ describe(__filename, function() {
 				model.insert([
 					{
 						foo : "fooValue1",
-						bar : "barValue1"
+						bar : "barValue1",
+						any : "anyValue"
 					},
 					{
 						foo : "fooValue2",
-						bar : "barValue2"
+						bar : "barValue2",
+						any : 5
 					}
 				], function(err, docs, result) {
 					assert.ifError(err);
@@ -1122,8 +1128,10 @@ describe(__filename, function() {
 					assert.strictEqual(result.result.n, 2);
 					assert.equal(docs[0].foo, "fooValue1");
 					assert.equal(docs[0].bar, "barValue1");
+					assert.strictEqual(docs[0].any, "anyValue");
 					assert.equal(docs[1].foo, "fooValue2");
 					assert.equal(docs[1].bar, "barValue2");
+					assert.strictEqual(docs[1].any, 5);
 					
 					done();
 				});

@@ -230,7 +230,9 @@ var stringConvert = function(data, schema) {
 var convertValue = function(data, type) {
 	var val;
 	
-	if (type === "boolean") {
+	if (type === "any") {
+		return data;
+	} else if (type === "boolean") {
 		if (typeof data === "boolean") {
 			return data;
 		}

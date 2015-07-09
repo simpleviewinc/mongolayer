@@ -312,6 +312,12 @@ describe(__filename, function() {
 			var temp = mongolayer.convertValue("foo", "string");
 			assert.equal(temp, "foo");
 			
+			var temp = mongolayer.convertValue("foo", "any");
+			assert.strictEqual(temp, "foo");
+			
+			var temp = mongolayer.convertValue(5, "any");
+			assert.strictEqual(temp, 5);
+			
 			// ensure items which are already converted work
 			var temp = mongolayer.convertValue(5, "number");
 			assert.equal(temp, 5);
