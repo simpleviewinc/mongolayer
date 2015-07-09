@@ -460,7 +460,7 @@ Model.prototype.insert = function(docs, options, cb) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self._processDocs({ data : newDocs, validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
+			self.processDocs({ data : newDocs, validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
 				// insert the data into mongo
@@ -511,7 +511,7 @@ Model.prototype.save = function(doc, options, cb) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self._processDocs({ data : [tempArgs.doc], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
+			self.processDocs({ data : [tempArgs.doc], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
 				self.collection.save(cleanDocs[0], args.options.options, function(err, result) {
@@ -661,7 +661,7 @@ Model.prototype.update = function(filter, delta, options, cb) {
 			if (Object.keys(args.delta).filter(function(val, i) { return val.match(/^\$/) !== null }).length === 0) {
 				// no $ operators at the root level, validate the whole delta
 				calls.push(function(cb) {
-					self._processDocs({ data : [args.delta], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
+					self.processDocs({ data : [args.delta], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
 						if (err) { return cb(err); }
 						
 						args.delta = cleanDocs[0];
@@ -893,13 +893,20 @@ Model.prototype._castDocs = function(docs) {
 }
 
 // Validate and fill defaults into an array of documents. If one document fails it will cb an error
-Model.prototype._processDocs = function(args, cb) {
+Model.prototype.processDocs = function(args, cb) {
 	var self = this;
 	
-	// args.data
-	// args.validate
-	// args.checkRequired
-	// args.stripEmpty
+	validator.validate(args, {
+		type : "object",
+		schema : [
+			{ name : "data", type : "array", required : true },
+			{ name : "validate", type : "boolean" },
+			{ name : "checkRequired", type : "boolean" },
+			{ name : "stripEmpty", type : "boolean" }
+		],
+		allowExtraKeys : false,
+		throwOnInvalid : true
+	});
 	
 	var calls = [];
 	var noop = function(cb) { cb(null); }

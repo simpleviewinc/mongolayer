@@ -316,7 +316,7 @@ describe(__filename, function() {
 		});
 	});
 	
-	it("should _processDocs and run validation and defaults and required", function(done) {
+	it("should processDocs and run validation and defaults and required", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -326,14 +326,14 @@ describe(__filename, function() {
 			]
 		});
 		
-		var args = { validate : true, defaults : true, checkRequired : true };
+		var args = { validate : true, checkRequired : true };
 		
 		async.series([
 			function(cb) {
 				// should fail required
 				args.data = [{ foo : "something" }];
 				
-				model._processDocs(args, function(err, cleanDocs) {
+				model.processDocs(args, function(err, cleanDocs) {
 					assert.equal(err instanceof Error, true);
 					assert.equal(cleanDocs, undefined);
 					
@@ -344,7 +344,7 @@ describe(__filename, function() {
 				// should have default rolled in
 				args.data = [{ foo : "something", bar : true }];
 				
-				model._processDocs(args, function(err, cleanDocs) {
+				model.processDocs(args, function(err, cleanDocs) {
 					assert.ifError(err);
 					
 					assert.equal(cleanDocs[0].baz, 5);
@@ -356,7 +356,7 @@ describe(__filename, function() {
 				// should fail validation
 				args.data = [{ foo : "something", bar : "false" }];
 				
-				model._processDocs(args, function(err, cleanDocs) {
+				model.processDocs(args, function(err, cleanDocs) {
 					assert.equal(err instanceof Error, true);
 					assert.equal(cleanDocs, undefined);
 					
@@ -370,7 +370,7 @@ describe(__filename, function() {
 		});
 	});
 	
-	it("should _processDocs and fail if document errors", function(done) {
+	it("should processDocs and fail if document errors", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -382,7 +382,7 @@ describe(__filename, function() {
 		var test = { foo : 5 };
 		var test2 = { foo : "something" };
 		
-		model._processDocs({ data : [test, test2], validate : true, defaults : true }, function(err, cleanDocs) {
+		model.processDocs({ data : [test, test2], validate : true }, function(err, cleanDocs) {
 			assert.equal(err instanceof Error, true);
 			assert.equal(cleanDocs, undefined);
 			
