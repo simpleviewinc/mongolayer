@@ -15,7 +15,9 @@ var Model = function(args) {
 	validator.validate(args, {
 		type : "object",
 		schema : [
-			{ name : "collection", type : "string", required : true }
+			{ name : "collection", type : "string", required : true },
+			{ name : "allowExtraKeys", type : "boolean", default : false },
+			{ name : "deleteExtraKeys", type : "boolean", default : false }
 		],
 		throwOnInvalid : true
 	});
@@ -43,6 +45,8 @@ var Model = function(args) {
 	
 	// private
 	self._onInit = args.onInit;
+	self._allowExtraKeys = args.allowExtraKeys;
+	self._deleteExtraKeys = args.deleteExtraKeys;
 	self._virtuals = {};
 	self._modelMethods = {};
 	self._documentMethods = {};
@@ -1007,8 +1011,18 @@ Model.prototype._validateDocData = function(data, cb) {
 			return;
 		}
 		
-		// not a virtual, not a field
-		errs.push(util.format("Cannot save invalid column '%s'. It is not declared in the Model as a field or a virtual.", i));
+		if (self._deleteExtraKeys === true) {
+			delete data[i];
+			return;
+		}
+		
+		if (self._allowExtraKeys === false) {
+			// not a virtual, not a field, not allowing extra keys
+			errs.push(util.format("Cannot save invalid column '%s'. It is not declared in the Model as a field or a virtual.", i));
+			return;
+		}
+		
+		// field is not declared, but the value is still saved because deleteExtrakeys === false && allowExtraKeys === true
 	});
 	
 	if (errs.length > 0) {

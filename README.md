@@ -751,6 +751,8 @@ Creates an instance of a `mongolayer.Model`.
 
 * `args`
 	* `collection` - `string` - `required` - The name of the collection
+	* `allowExtraKeys` - `boolean` - `optional` - `false` - Whether the model allows fields which aren't declared to be saved to the DB.
+	* `deleteExtraKeys` - `boolean` - `optional` - `false` - Whether the model will delete extra keys that are attempted to be saved to the DB.
 	* `fields` - `array` - `optional` - Array of fields to add to the Model. See model.addField for syntax.
 	* `virtuals` - `array` - `optional` - Array of virtuals to be added to Documents returned from queries. See model.addVirtual for syntax.
 	* `relationships` - `array` - `optional` - Array of relationships. See model.addRelationship for syntax.

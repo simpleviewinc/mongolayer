@@ -269,6 +269,42 @@ describe(__filename, function() {
 		});
 	});
 	
+	it("should _validateDocData and allowExtraKeys", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			allowExtraKeys : true
+		});
+		
+		var data = { fake : "something" };
+		model._validateDocData({ fake : "something" }, function(err) {
+			assert.ifError(err);
+			
+			assert.strictEqual(data.fake, "something");
+			
+			done();
+		});
+	});
+	
+	it("should _validateDocData and deleteExtraKeys", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "foo", validation : { type : "string" } }
+			],
+			deleteExtraKeys : true
+		});
+		
+		var data = { foo : "something", fake : "somethingElse" };
+		model._validateDocData(data, function(err) {
+			assert.ifError(err);
+			
+			assert.strictEqual(data.foo, "something");
+			assert.strictEqual(data.fake, undefined);
+			
+			done();
+		});
+	});
+	
 	it("should _fillDocDefaults", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
