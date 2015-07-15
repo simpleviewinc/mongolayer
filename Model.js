@@ -743,6 +743,16 @@ Model.prototype.remove = function(filter, options, cb) {
 	});
 }
 
+Model.prototype.removeAll = function(cb) {
+	var self = this;
+	
+	self.collection.drop(function(err) {
+		if (err) { return cb(err); }
+		
+		self.ensureIndexes(cb);
+	});
+}
+
 Model.prototype.stringConvert = function(data) {
 	var self = this;
 	

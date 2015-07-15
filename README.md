@@ -1177,6 +1177,10 @@ Arguments
 * `cb` - `function` - `required`
 	* `Error` or null
 	* `result` writeResult
+	
+### model.removeAll(cb)
+
+Removes all records from a collection. This is much faster method of doing `model.remove({}, cb)`.
 
 ### model.update(filter, delta, options, cb)
 

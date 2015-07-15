@@ -1037,6 +1037,9 @@ describe(__filename, function() {
 				],
 				documentMethods : [
 					{ name : "testMethod", handler : function() { return "testMethodReturn" } }
+				],
+				indexes : [
+					{ keys : { foo : 1 } }
 				]
 			});
 			
@@ -1489,6 +1492,40 @@ describe(__filename, function() {
 							assert.equal(beforeCalled, true);
 							assert.equal(afterCalled, true);
 							assert.equal(beforeFilterCalled, true);
+							
+							cb(null);
+						});
+					}
+				], function(err) {
+					assert.ifError(err);
+					
+					done();
+				});
+			});
+		});
+		
+		describe("removeAll", function() {
+			it("should removeAll", function(done) {
+				async.series([
+					model.insert.bind(model, { foo : "one" }),
+					model.removeAll.bind(model),
+					function(cb) {
+						// ensure all items removed
+						model.count({}, function(err, count) {
+							assert.ifError(err);
+							
+							assert.strictEqual(count, 0);
+							
+							cb(null);
+						});
+					},
+					function(cb) {
+						// ensure that we still have our indexes
+						model.collection.indexes(function(err, indexes) {
+							assert.ifError(err);
+							
+							assert.equal(indexes.length, 2);
+							assert.equal(indexes[1].name, "foo_1");
 							
 							cb(null);
 						});
