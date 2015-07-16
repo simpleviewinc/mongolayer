@@ -1505,6 +1505,21 @@ describe(__filename, function() {
 		});
 		
 		describe("removeAll", function() {
+			it("should removeAll even if collection doesn't exist", function(done) {
+				async.series([
+					// model with extra indexes
+					model.removeAll.bind(model),
+					model.removeAll.bind(model),
+					// model with no extra indexes
+					modelRelated.removeAll.bind(modelRelated),
+					modelRelated.removeAll.bind(modelRelated)
+				], function(err) {
+					assert.ifError(err);
+					
+					done();
+				});
+			});
+			
 			it("should removeAll", function(done) {
 				async.series([
 					model.insert.bind(model, { foo : "one" }),

@@ -746,7 +746,7 @@ Model.prototype.remove = function(filter, options, cb) {
 Model.prototype.removeAll = function(cb) {
 	var self = this;
 	
-	self.collection.drop(function(err) {
+	self.connection.dropCollection({ name : self.collectionName }, function(err) {
 		if (err) { return cb(err); }
 		
 		self.ensureIndexes(cb);
