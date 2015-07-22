@@ -1039,7 +1039,7 @@ Model.prototype._validateDocData = function(data, cb) {
 		return cb(new mongolayer.errors.ValidationError("Doc failed validation. " + errs.join(" ")));
 	}
 	
-	cb(null);
+	setImmediate(cb);
 }
 
 Model.prototype._checkRequired = function(data, cb) {
@@ -1057,7 +1057,7 @@ Model.prototype._checkRequired = function(data, cb) {
 		return cb(new mongolayer.errors.ValidationError("Doc failed validation. " + errs.join(" ")));
 	}
 	
-	cb(null);
+	setImmediate(cb);
 }
 
 Model.prototype._fillDocDefaults = function(data) {
