@@ -117,6 +117,16 @@ var _prepareInsert = function(data, stripEmpty) {
 // This is required because HTTP transmits as strings, while server-side code needs primitives such as boolean, number, date and mongoid.
 // EXPERIMENTAL!
 var stringConvert = function(data, schema) {
+	// find all of the indexObjects and stash them away based on the chain length, use the regex to check them when evaluating keys of the same chain length
+	var indexObjectIndex = {};
+	objectLib.forEach(schema, function(val, i) {
+		if (i.indexOf("~") > -1) {
+			var count = i.split(".").length;
+			indexObjectIndex[count] = indexObjectIndex[count] || [];
+			indexObjectIndex[count].push({ key : i, regex : new RegExp(i.replace(/~/, "[^.]*?")) });
+		}
+	});
+	
 	var hasOps = function(data) {
 		var hasOps = false;
 		objectLib.forEach(data, function(val, i) {
@@ -188,6 +198,18 @@ var stringConvert = function(data, schema) {
 				}
 				
 				var key = newChain.join(".");
+				
+				// if there is no match at this key, check for indexObjects of the same chain length "foo.bar.baz" === chain length 3
+				// this way we aren't checking for indexObjects at levels they aren't possible at
+				if (schema[key] === undefined && indexObjectIndex[newChain.length] !== undefined) {
+					indexObjectIndex[newChain.length].some(function(val, i) {
+						if (key.match(val.regex) !== null) {
+							key = val.key;
+							return true;
+						}
+					});
+				}
+				
 				if (schema[key] !== undefined) {
 					if (val instanceof Array) {
 						returnValue = [];

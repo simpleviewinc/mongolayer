@@ -651,6 +651,7 @@ describe(__filename, function() {
 					{ name : "walk7", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "number" }] }] } },
 					{ name : "walk8", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "array", schema : { type : "number" } }] }] } },
 					{ name : "walk9", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "array", schema : { type : "object", schema : [{ name : "foo", type : "number" }] } }] }] } },
+					{ name : "walk10", validation : { type : "indexObject", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }] } },
 					// test the various primitive types
 					{ name : "boolean", validation : { type : "boolean" } },
 					{ name : "date", validation : { type : "date" } },
@@ -677,6 +678,7 @@ describe(__filename, function() {
 			assert.equal(test["walk7.foo.foo"], "number");
 			assert.equal(test["walk8.foo.foo"], "number");
 			assert.equal(test["walk9.foo.foo.foo"], "number");
+			assert.equal(test["walk10.~.foo"], "number");
 			assert.equal(test["multiKey.foo"], "number");
 			assert.equal(test["multiKey.bar"], "boolean");
 			assert.equal(test.boolean, "boolean");
@@ -702,6 +704,7 @@ describe(__filename, function() {
 				walk7 : { foo : { foo : "3" } },
 				walk8 : { foo : { foo : ["3", "4"] } },
 				walk9 : { foo : { foo : [{ foo : "3" }, { foo : "4" }] } },
+				walk10 : { "key" : { foo : "5", bar : "true" }, "foo" : { foo : "7", bar : "false" }, "5" : { foo : "9", bar : true } },
 				multiKey : { foo : "5", bar : "true" },
 				boolean : "false",
 				date : date1.getTime(),
@@ -730,6 +733,12 @@ describe(__filename, function() {
 			assert.strictEqual(temp.walk8.foo.foo[1], 4);
 			assert.strictEqual(temp.walk9.foo.foo[0].foo, 3);
 			assert.strictEqual(temp.walk9.foo.foo[1].foo, 4);
+			assert.strictEqual(temp.walk10.key.foo, 5);
+			assert.strictEqual(temp.walk10.key.bar, true);
+			assert.strictEqual(temp.walk10["5"].foo, 9);
+			assert.strictEqual(temp.walk10["5"].bar, true);
+			assert.strictEqual(temp.walk10.foo.foo, 7);
+			assert.strictEqual(temp.walk10.foo.bar, false);
 			assert.strictEqual(temp.any, "anyData");
 			assert.strictEqual(temp.undeclared, "10");
 			

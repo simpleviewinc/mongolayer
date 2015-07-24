@@ -769,9 +769,13 @@ Model.prototype.getConvertSchema = function() {
 	var walkField = function(field, chain) {
 		if (field.type === "array") {
 			walkField(field.schema, chain);
-		} else if (field.type === "object") {
+		} else if (field.type === "object" || field.type === "indexObject") {
 			if (field.schema === undefined) {
 				return;
+			}
+			
+			if (field.type === "indexObject") {
+				chain.push("~");
 			}
 			
 			field.schema.forEach(function(val, i) {
