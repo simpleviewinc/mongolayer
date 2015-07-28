@@ -788,6 +788,8 @@ Model.prototype.getConvertSchema = function() {
 				// only class we support is ObjectId
 				schema[chain.join(".")] = "objectid";
 			}
+		} else if (field.type === "any") {
+			return;
 		} else {
 			schema[chain.join(".")] = field.type;
 		}

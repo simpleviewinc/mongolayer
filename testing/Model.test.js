@@ -658,7 +658,7 @@ describe(__filename, function() {
 					{ name : "objectid", validation : { type : "class", class : mongolayer.ObjectId } },
 					{ name : "number", validation : { type : "number" } },
 					{ name : "string", validation : { type : "string" } },
-					{ name : "multiKey", validation : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }] } },
+					{ name : "multiKey", validation : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }, { name : "baz", type : "any" }] } },
 					{ name : "any", validation : { type : "any" } }
 				]
 			});
@@ -679,13 +679,15 @@ describe(__filename, function() {
 			assert.equal(test["walk8.foo.foo"], "number");
 			assert.equal(test["walk9.foo.foo.foo"], "number");
 			assert.equal(test["walk10.~.foo"], "number");
-			assert.equal(test["multiKey.foo"], "number");
-			assert.equal(test["multiKey.bar"], "boolean");
 			assert.equal(test.boolean, "boolean");
 			assert.equal(test.date, "date");
 			assert.equal(test.objectid, "objectid");
 			assert.equal(test.number, "number");
 			assert.equal(test.string, "string");
+			assert.equal(test["multiKey.foo"], "number");
+			assert.equal(test["multiKey.bar"], "boolean");
+			assert.equal(test["multiKey.baz"], undefined);
+			assert.equal(test.any, undefined);
 			
 			done();
 		});
@@ -705,7 +707,7 @@ describe(__filename, function() {
 				walk8 : { foo : { foo : ["3", "4"] } },
 				walk9 : { foo : { foo : [{ foo : "3" }, { foo : "4" }] } },
 				walk10 : { "key" : { foo : "5", bar : "true" }, "foo" : { foo : "7", bar : "false" }, "5" : { foo : "9", bar : true } },
-				multiKey : { foo : "5", bar : "true" },
+				multiKey : { foo : "5", bar : "true", any : { nested : "something" } },
 				boolean : "false",
 				date : date1.getTime(),
 				objectid : id.toString(),
@@ -750,6 +752,7 @@ describe(__filename, function() {
 			assert.strictEqual(temp.string, "foo");
 			assert.strictEqual(temp.multiKey.foo, 5);
 			assert.strictEqual(temp.multiKey.bar, true);
+			assert.strictEqual(temp.multiKey.any.nested, "something");
 			
 			// ensure original data was not changed
 			assert.strictEqual(data.walk1, "3");
@@ -779,7 +782,8 @@ describe(__filename, function() {
 				objectid : model.ObjectId(),
 				boolean : true,
 				number : 3,
-				date : date
+				date : date,
+				walk10 : { "key" : { foo : 5, bar : true }, "foo" : { foo : 7, bar : false }, "5" : { foo : 9, bar : true } }
 			}
 			
 			var temp = model.stringConvert(data);
