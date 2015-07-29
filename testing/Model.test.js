@@ -659,7 +659,10 @@ describe(__filename, function() {
 					{ name : "number", validation : { type : "number" } },
 					{ name : "string", validation : { type : "string" } },
 					{ name : "multiKey", validation : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }, { name : "baz", type : "any" }] } },
-					{ name : "any", validation : { type : "any" } }
+					{ name : "any", validation : { type : "any" } },
+					{ name : "any_objectid", validation : { type : "any" } },
+					{ name : "any_date", validation : { type : "any" } },
+					{ name : "any_nested", validation : { type : "object", schema : [{ name : "any_date", type : "any" }] } }
 				]
 			});
 			
@@ -688,6 +691,9 @@ describe(__filename, function() {
 			assert.equal(test["multiKey.bar"], "boolean");
 			assert.equal(test["multiKey.baz"], undefined);
 			assert.equal(test.any, undefined);
+			assert.equal(test.any_objectid, undefined);
+			assert.equal(test.any_date, undefined);
+			assert.equal(test.any_nested, undefined);
 			
 			done();
 		});
@@ -776,17 +782,31 @@ describe(__filename, function() {
 		
 		it("should stringConvert data that is already casted", function(done) {
 			var id = model.ObjectId();
-			var date = new Date();
+			var date = new Date(2013, 0, 1);
 			
 			var data = {
-				objectid : model.ObjectId(),
+				objectid : id,
 				boolean : true,
 				number : 3,
 				date : date,
+				any_objectid : id,
+				any_date : new Date(2012, 1, 1),
+				any_nested : { any_date : new Date(2011, 1, 1) },
 				walk10 : { "key" : { foo : 5, bar : true }, "foo" : { foo : 7, bar : false }, "5" : { foo : 9, bar : true } }
 			}
 			
 			var temp = model.stringConvert(data);
+			
+			assert.strictEqual(temp.objectid instanceof mongolayer.ObjectId, true);
+			assert.strictEqual(temp.objectid.toString(), id.toString());
+			assert.strictEqual(temp.boolean, true);
+			assert.strictEqual(temp.number, 3);
+			assert.strictEqual(temp.date.getTime(), 1356998400000);
+			assert.strictEqual(temp.any_objectid instanceof mongolayer.ObjectId, true);
+			assert.strictEqual(temp.any_objectid.toString(), id.toString());
+			assert.strictEqual(temp.any_date.getTime(), 1328054400000);
+			assert.strictEqual(temp.any_nested.any_date.getTime(), 1296518400000);
+			assert.strictEqual(temp.walk10.key.foo, 5);
 			
 			done();
 		});
