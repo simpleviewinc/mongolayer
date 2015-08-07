@@ -123,7 +123,7 @@ var stringConvert = function(data, schema) {
 		if (i.indexOf("~") > -1) {
 			var count = i.split(".").length;
 			indexObjectIndex[count] = indexObjectIndex[count] || [];
-			indexObjectIndex[count].push({ key : i, regex : new RegExp(i.replace(/~/, "[^.]*?")) });
+			indexObjectIndex[count].push({ key : i, regex : new RegExp(i.replace(/\./g, "\\.").replace(/~/, "[^.]+?")) });
 		}
 	});
 	

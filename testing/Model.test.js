@@ -712,7 +712,9 @@ describe(__filename, function() {
 				walk7 : { foo : { foo : "3" } },
 				walk8 : { foo : { foo : ["3", "4"] } },
 				walk9 : { foo : { foo : [{ foo : "3" }, { foo : "4" }] } },
-				walk10 : { "key" : { foo : "5", bar : "true" }, "foo" : { foo : "7", bar : "false" }, "5" : { foo : "9", bar : true } },
+				// the barefoo test is required for an edge situation that was caught due to poorly written regex
+				walk10 : { "key" : { foo : "5", bar : "true" }, "foo" : { foo : "7", bar : "false" }, "5" : { foo : "9", bar : true }, "barefoo" : { foo : "7", bar : "true" } },
+				walk10akeybfoo : "5", // edge case that shouldn't be converted by the walk10 indexObject
 				multiKey : { foo : "5", bar : "true", any : { nested : "something" } },
 				boolean : "false",
 				date : date1.getTime(),
@@ -747,6 +749,9 @@ describe(__filename, function() {
 			assert.strictEqual(temp.walk10["5"].bar, true);
 			assert.strictEqual(temp.walk10.foo.foo, 7);
 			assert.strictEqual(temp.walk10.foo.bar, false);
+			assert.strictEqual(temp.walk10akeybfoo, "5");
+			assert.strictEqual(temp.walk10.barefoo.foo, 7);
+			assert.strictEqual(temp.walk10.barefoo.bar, true);
 			assert.strictEqual(temp.any, "anyData");
 			assert.strictEqual(temp.undeclared, "10");
 			
