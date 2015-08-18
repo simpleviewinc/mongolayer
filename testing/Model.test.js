@@ -662,7 +662,8 @@ describe(__filename, function() {
 					{ name : "any", validation : { type : "any" } },
 					{ name : "any_objectid", validation : { type : "any" } },
 					{ name : "any_date", validation : { type : "any" } },
-					{ name : "any_nested", validation : { type : "object", schema : [{ name : "any_date", type : "any" }] } }
+					{ name : "any_nested", validation : { type : "object", schema : [{ name : "any_date", type : "any" }] } },
+					{ name : "object_noschema", validation : { type : "object" } }
 				]
 			});
 			
@@ -672,28 +673,29 @@ describe(__filename, function() {
 		it("should getConvertSchema", function(done) {
 			var test = model.getConvertSchema();
 			
-			assert.equal(test["walk1"], "number");
-			assert.equal(test["walk2"], "number");
-			assert.equal(test["walk3.foo"], "number");
-			assert.equal(test["walk4.foo"], "number");
-			assert.equal(test["walk5.foo"], "number");
-			assert.equal(test["walk6.foo.foo"], "number");
-			assert.equal(test["walk7.foo.foo"], "number");
-			assert.equal(test["walk8.foo.foo"], "number");
-			assert.equal(test["walk9.foo.foo.foo"], "number");
-			assert.equal(test["walk10.~.foo"], "number");
-			assert.equal(test.boolean, "boolean");
-			assert.equal(test.date, "date");
-			assert.equal(test.objectid, "objectid");
-			assert.equal(test.number, "number");
-			assert.equal(test.string, "string");
-			assert.equal(test["multiKey.foo"], "number");
-			assert.equal(test["multiKey.bar"], "boolean");
-			assert.equal(test["multiKey.baz"], undefined);
-			assert.equal(test.any, undefined);
-			assert.equal(test.any_objectid, undefined);
-			assert.equal(test.any_date, undefined);
-			assert.equal(test.any_nested, undefined);
+			assert.strictEqual(test["walk1"], "number");
+			assert.strictEqual(test["walk2"], "number");
+			assert.strictEqual(test["walk3.foo"], "number");
+			assert.strictEqual(test["walk4.foo"], "number");
+			assert.strictEqual(test["walk5.foo"], "number");
+			assert.strictEqual(test["walk6.foo.foo"], "number");
+			assert.strictEqual(test["walk7.foo.foo"], "number");
+			assert.strictEqual(test["walk8.foo.foo"], "number");
+			assert.strictEqual(test["walk9.foo.foo.foo"], "number");
+			assert.strictEqual(test["walk10.~.foo"], "number");
+			assert.strictEqual(test.boolean, "boolean");
+			assert.strictEqual(test.date, "date");
+			assert.strictEqual(test.objectid, "objectid");
+			assert.strictEqual(test.number, "number");
+			assert.strictEqual(test.string, "string");
+			assert.strictEqual(test["multiKey.foo"], "number");
+			assert.strictEqual(test["multiKey.bar"], "boolean");
+			assert.strictEqual(test["multiKey.baz"], undefined);
+			assert.strictEqual(test.any, undefined);
+			assert.strictEqual(test.any_objectid, undefined);
+			assert.strictEqual(test.any_date, undefined);
+			assert.strictEqual(test.any_nested, undefined);
+			assert.strictEqual(test.object_noschema, undefined);
 			
 			done();
 		});
@@ -722,7 +724,8 @@ describe(__filename, function() {
 				number : "3",
 				string : "foo",
 				any : "anyData",
-				undeclared : "10"
+				undeclared : "10",
+				object_noschema : { string : "stringValue", nullValue : null }
 			}
 			
 			var temp = model.stringConvert(data);
@@ -764,6 +767,8 @@ describe(__filename, function() {
 			assert.strictEqual(temp.multiKey.foo, 5);
 			assert.strictEqual(temp.multiKey.bar, true);
 			assert.strictEqual(temp.multiKey.any.nested, "something");
+			assert.strictEqual(temp.object_noschema.string, "stringValue");
+			assert.strictEqual(temp.object_noschema.nullValue, null);
 			
 			// ensure original data was not changed
 			assert.strictEqual(data.walk1, "3");

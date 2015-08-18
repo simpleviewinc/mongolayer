@@ -229,7 +229,7 @@ var stringConvert = function(data, schema) {
 								returnValue.push(val);
 							}
 						});
-					} else if (typeof val === "object" && Object.getPrototypeOf(val) === Object.prototype) {
+					} else if (val !== null && typeof val === "object" && Object.getPrototypeOf(val) === Object.prototype) {
 						returnValue = walk(val, newChain);
 					} else {
 						// not in schema, and not walkable, just return the value
