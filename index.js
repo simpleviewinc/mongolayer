@@ -325,6 +325,19 @@ var _getMyHooks = function(myKey, hooks) {
 	return myHooks;
 }
 
+var _getMyFields = function(myKey, fields) {
+	var myFields = {};
+	var regMatch = new RegExp("^" + myKey + "\\..*");
+	var regReplace = new RegExp("^" + myKey + "\\.");
+	objectLib.forEach(fields, function(val, i) {
+		if (i.match(regMatch) !== null) {
+			myFields[i.replace(regReplace, "")] = val;
+		}
+	});
+	
+	return myFields;
+}
+
 var resolveRelationship = function(args, cb) {
 	// args.type - single or multiple
 	// args.leftKey - The key in our Document that points to an object in the related model
@@ -335,6 +348,10 @@ var resolveRelationship = function(args, cb) {
 	// args.objectKey - The key in our Document which will be filled with the found results
 	// args.docs - The array of Documents
 	// args.hooks - Any hooks that need to be run
+	// args.fields - Field restriction on the related item
+	
+	args.hooks = args.hooks || [];
+	args.fields = args.fields || [];
 	
 	if (args.docs.length === 0) {
 		return cb(null, args.docs);
@@ -388,6 +405,11 @@ var resolveRelationship = function(args, cb) {
 		tempHooks = undefined;
 	}
 	
+	var tempFields = _getMyFields(args.objectKey, args.fields);
+	if (tempFields.length === 0) {
+		tempFields = undefined;
+	}
+	
 	var calls = [];
 	
 	objectLib.forEach(queries, function(val, i) {
@@ -401,7 +423,7 @@ var resolveRelationship = function(args, cb) {
 				return cb(null);
 			}
 			
-			model.find(filter, { hooks : tempHooks }, function(err, docs) {
+			model.find(filter, { hooks : tempHooks, fields : tempFields }, function(err, docs) {
 				if (err) { return cb(err); }
 				
 				// stash the result to be used after all queries have finished

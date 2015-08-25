@@ -574,6 +574,16 @@ postModel.find({}, { hooks : ["afterFind_author", "author.afterFind_image", "aft
 });
 ```
 
+If you pass fields to your primary query it will pass that on to the related content. In the following query, we will exclude the description field from the related author when merging the data in.
+
+```js
+postModel.find({}, { hooks : ["afterFind_author"], fields : { "author.description" : false } }, function(err, docs) {
+	if (err) { return cb(err); }
+	
+	cb(null);
+});
+```
+
 As you can read in the hook documentation you can specify defaultHooks at the model level this way if no hooks are specified it will run a default set of hooks.
 
 ```js

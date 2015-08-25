@@ -1089,7 +1089,8 @@ describe(__filename, function() {
 			modelRelated = new mongolayer.Model({
 				collection : "mongolayer_testRelated",
 				fields : [
-					{ name : "title", validation : { type : "string" } }
+					{ name : "title", validation : { type : "string" } },
+					{ name : "extra", validation : { type : "string" } }
 				],
 				relationships : [
 					{ name : "singleSecond", type : "single", modelName : "mongolayer_testRelated2" },
@@ -1100,7 +1101,8 @@ describe(__filename, function() {
 			modelRelated2 = new mongolayer.Model({
 				collection : "mongolayer_testRelated2",
 				fields : [
-					{ name : "title", validation : { type : "string" } }
+					{ name : "title", validation : { type : "string" } },
+					{ name : "extra", validation : { type : "string" } }
 				]
 			});
 			
@@ -1136,6 +1138,21 @@ describe(__filename, function() {
 				
 				done();
 			});
+		});
+		
+		it("should _getMyFindFields", function(done) {
+			var tests = [
+				[null, null],
+				[{ "single.foo" : 1 }, null],
+				[{ "single.foo" : 1, "bar" : 0 }, { "bar" : 0 }],
+				[{ "single.foo" : 1, "single.bogus.foo" : 1, "bar" : true }, { "bar" : true }]
+			];
+			
+			tests.forEach(function(val, i) {
+				assert.deepEqual(model._getMyFindFields(val[0]), val[1]);
+			});
+			
+			done();
 		});
 		
 		describe("insert", function(done) {
@@ -2159,6 +2176,7 @@ describe(__filename, function() {
 								{
 									_id : root4,
 									foo : "foo4",
+									bar : "bar4",
 									single_id : related1_2,
 									multiple_ids : [related1_1]
 								},
@@ -2226,6 +2244,7 @@ describe(__filename, function() {
 								{
 									_id : related1_2,
 									title : "title1_2",
+									extra : "extra1_2",
 									singleSecond_id : related2_1,
 									singleRequired_id : related2_1
 								},
@@ -2246,7 +2265,8 @@ describe(__filename, function() {
 							modelRelated2.insert([
 								{
 									_id : related2_1,
-									title : "title2_1"
+									title : "title2_1",
+									extra : "extra2_1"
 								},
 								{
 									_id : related2_2,
@@ -2352,6 +2372,48 @@ describe(__filename, function() {
 						
 						assert.equal(docs.length, 1);
 						assert.equal(docs[0].single.singleSecond.title, "title2_1");
+						
+						done();
+					});
+				});
+				
+				it("should populate with fields recursively on single", function(done) {
+					async.parallel([
+						function(cb) {
+							model.findById(root4, {
+								hooks : ["afterFind_single", "single.afterFind_singleSecond"]
+							}, function(err, doc) {
+								assert.ifError(err);
+								
+								assert.strictEqual(doc.foo, "foo4");
+								assert.strictEqual(doc.bar, "bar4");
+								assert.strictEqual(doc.single.title, "title1_2");
+								assert.strictEqual(doc.single.extra, "extra1_2");
+								assert.strictEqual(doc.single.singleSecond.title, "title2_1");
+								assert.strictEqual(doc.single.singleSecond.extra, "extra2_1");
+								
+								cb(null);
+							});
+						},
+						function(cb) {
+							model.findById(root4, {
+								hooks : ["afterFind_single", "single.afterFind_singleSecond"],
+								fields : { bar : 0, "single.extra" : 0, "single.singleSecond.title" : 0 }
+							}, function(err, doc) {
+								assert.ifError(err);
+								
+								assert.strictEqual(doc.foo, "foo4");
+								assert.strictEqual(doc.bar, undefined);
+								assert.strictEqual(doc.single.title, "title1_2");
+								assert.strictEqual(doc.single.extra, undefined);
+								assert.strictEqual(doc.single.singleSecond.title, undefined);
+								assert.strictEqual(doc.single.singleSecond.extra, "extra2_1");
+								
+								cb(null);
+							});
+						}
+					], function(err) {
+						assert.ifError(err);
 						
 						done();
 					});

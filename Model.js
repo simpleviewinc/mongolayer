@@ -320,7 +320,8 @@ Model.prototype.addRelationship = function(args) {
 					connection : self.connection,
 					objectKey : objectKey,
 					docs : args.docs,
-					hooks : args.options.hooks
+					hooks : args.options.hooks,
+					fields : args.options.fields
 				}, function(err, docs) {
 					if (err) { return cb(err); }
 					
@@ -354,7 +355,8 @@ Model.prototype.addRelationship = function(args) {
 					connection : self.connection,
 					objectKey : objectKey,
 					docs : args.docs,
-					hooks : args.options.hooks
+					hooks : args.options.hooks,
+					fields : args.options.fields
 				}, function(err, docs) {
 					if (err) { return cb(err); }
 					
@@ -578,7 +580,9 @@ Model.prototype.find = function(filter, options, cb) {
 			var rawFilter = extend(true, {}, args.filter);
 			var rawOptions = extend(true, {}, args.options);
 			
-			var cursor = self.collection.find(args.filter, args.options.fields, args.options.options);
+			var findFields = self._getMyFindFields(args.options.fields);
+			
+			var cursor = self.collection.find(args.filter, findFields, args.options.options);
 			if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
 			if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
 			if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
@@ -899,6 +903,28 @@ Model.prototype._executeHooks = function(args, cb) {
 	async.series(calls, function(err) {
 		cb(err, state);
 	});
+}
+
+Model.prototype._getMyFindFields = function(fields) {
+	var self = this;
+	
+	if (fields === null) { return fields };
+	
+	var newFields = {};
+	
+	Object.keys(fields).forEach(function(val, i) {
+		var temp = val.match(/^(\w+?)\./);
+		if (temp === null || self.relationships[temp[1]] === undefined) {
+			// if the key either has no root, or it's root is not a known relationship, then include it
+			newFields[val] = fields[val];
+		}
+	});
+	
+	if (Object.keys(newFields).length === 0) {
+		return null;
+	}
+	
+	return newFields;
 }
 
 Model.prototype._castDocs = function(docs) {
