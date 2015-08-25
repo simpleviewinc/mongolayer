@@ -268,6 +268,7 @@ Model.prototype.addRelationship = function(args) {
 			{ name : "multipleTypes", type : "boolean", default : false },
 			{ name : "required", type : "boolean" },
 			{ name : "hookRequired", type : "boolean" },
+			{ name : "leftKey", type : "string", default : function(args) { return args.current.name + "_" + (args.current.type === "single" ? "id" : "ids") } },
 			{ name : "rightKey", type : "string", default : "_id" },
 			{ name : "rightKeyValidation", type : "object", default : { type : "class", class : mongolayer.ObjectId } }
 		],
@@ -280,6 +281,7 @@ Model.prototype.addRelationship = function(args) {
 	var objectKey = args.name;
 	var modelName = args.modelName;
 	var multipleTypes = args.multipleTypes;
+	var leftKey = args.leftKey;
 	var rightKey = args.rightKey;
 	var rightKeyValidation = args.rightKeyValidation;
 	
@@ -299,10 +301,8 @@ Model.prototype.addRelationship = function(args) {
 	}
 	
 	if (type === "single") {
-		originalArgs.idKey = args.name + "_id";
-		
 		self.addField({
-			name : originalArgs.idKey,
+			name : leftKey,
 			validation : rightKeyValidation,
 			required : args.required === true
 		});
@@ -313,7 +313,7 @@ Model.prototype.addRelationship = function(args) {
 			handler : function(args, cb) {
 				mongolayer.resolveRelationship({
 					type : type,
-					leftKey : originalArgs.idKey,
+					leftKey : leftKey,
 					rightKey : rightKey,
 					multipleTypes : multipleTypes,
 					modelName : modelName,
@@ -331,10 +331,8 @@ Model.prototype.addRelationship = function(args) {
 			required : args.hookRequired === true
 		});
 	} else if (type === "multiple") {
-		originalArgs.idKey = args.name + "_ids";
-		
 		self.addField({
-			name : originalArgs.idKey,
+			name : leftKey,
 			validation : {
 				type : "array",
 				schema : rightKeyValidation
@@ -348,7 +346,7 @@ Model.prototype.addRelationship = function(args) {
 			handler : function(args, cb) {
 				mongolayer.resolveRelationship({
 					type : type,
-					leftKey : originalArgs.idKey,
+					leftKey : leftKey,
 					rightKey : rightKey,
 					multipleTypes : multipleTypes,
 					modelName : modelName,
