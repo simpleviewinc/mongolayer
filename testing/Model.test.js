@@ -2022,8 +2022,8 @@ describe(__filename, function() {
 					});
 				});
 				
-				it("should enforce lean", function(done) {
-					model.find({}, { lean : true, limit : 1 }, function(err, docs) {
+				it("should enforce castDocs", function(done) {
+					model.find({}, { castDocs : false, limit : 1 }, function(err, docs) {
 						assert.ifError(err);
 						
 						assert.strictEqual(docs[0] instanceof model.Document, false);

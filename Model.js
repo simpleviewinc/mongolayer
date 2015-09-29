@@ -562,6 +562,7 @@ Model.prototype.find = function(filter, options, cb) {
 	
 	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.find);
+	options.castDocs = options.castDocs !== undefined ? options.castDocs : true;
 	options.fields = options.fields || null;
 	options.options = options.options || {};
 	
@@ -599,7 +600,7 @@ Model.prototype.find = function(filter, options, cb) {
 					}
 				}
 				
-				var castedDocs = args.options.lean !== true ? self._castDocs(docs) : docs;
+				var castedDocs = args.options.castDocs === true ? self._castDocs(docs) : docs;
 				
 				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs } }, function(err, args) {
 					if (err) { return cb(err); }
