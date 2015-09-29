@@ -1968,6 +1968,45 @@ describe(__filename, function() {
 			});
 		});
 		
+		describe("aggregate", function(done) {
+			beforeEach(function(done) {
+				model.insert([
+					{
+						foo : "1"
+					},
+					{
+						foo : "2"
+					},
+					{
+						foo : "3"
+					}
+				], function(err) {
+					assert.ifError(err);
+					
+					done();
+				});
+			});
+			
+			it("should aggregate", function(done) {
+				model.aggregate([{ $match : { foo : "1" } }], function(err, docs) {
+					assert.ifError(err);
+					
+					assert.strictEqual(docs.length, 1);
+					assert.strictEqual(docs[0].foo, "1");
+					
+					done();
+				});
+			});
+			
+			it("should enforce maxSize", function(done) {
+				model.aggregate([{ $match : { foo : "1" } }], { maxSize : 10 }, function(err, docs) {
+					assert.strictEqual(err.message, "Max size of result set '58' exceeds options.maxSize of '10'");
+					
+					done();
+				});
+			});
+		});
+		
 		describe("find", function() {
 			describe("basic", function(done) {
 				beforeEach(function(done) {

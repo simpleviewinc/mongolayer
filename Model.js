@@ -538,6 +538,27 @@ Model.prototype.save = function(doc, options, cb) {
 	});
 }
 
+Model.prototype.aggregate = function(pipeline, options, cb) {
+	var self = this;
+	
+	cb = cb || options;
+	options = options === cb ? {} : options;
+	options.options = options.options || {};
+	
+	self.collection.aggregate(pipeline, options, function(err, docs) {
+		if (err) { return cb(err); }
+		
+		if (options.maxSize) {
+			var size = JSON.stringify(docs).length;
+			if (size > options.maxSize) {
+				return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + options.maxSize + "'"));
+			}
+		}
+		
+		cb(null, docs);
+	});
+}
+
 Model.prototype.findById = function(id, options, cb) {
 	var self = this;
 	
