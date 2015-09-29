@@ -592,7 +592,14 @@ Model.prototype.find = function(filter, options, cb) {
 				
 				queryLog.stopTimer("raw");
 				
-				var castedDocs = self._castDocs(docs);
+				if (args.options.maxSize) {
+					var size = JSON.stringify(docs).length;
+					if (size > args.options.maxSize) {
+						return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
+					}
+				}
+				
+				var castedDocs = args.options.lean !== true ? self._castDocs(docs) : docs;
 				
 				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs } }, function(err, args) {
 					if (err) { return cb(err); }

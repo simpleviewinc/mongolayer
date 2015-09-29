@@ -1053,6 +1053,8 @@ Arguments
 	* `sort` - `object` - `optional` - Sort criteria. Uses [MongoDB native syntax](http://docs.mongodb.org/manual/reference/method/cursor.sort/)
 	* `limit` - `number` - `optional` - Number of records to retrieve.
 	* `skip` - `number` - `optional` - Number of records to skip before retrieving records.
+	* `maxSize` - `number` - `optional` - Enforce a maxSize at query time to prevent large data sets from being inadvertently returned, returns an Error if violated.
+	* `lean` - `boolean` - `default false` - If true it will not process the returned docs into instanceof model.Document, meaning virtuals won't be created. Usable for performance or simplicity purposes when returning incomplete models.
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
 * `cb` - `function` - `required`
 	* `Error` or null

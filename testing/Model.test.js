@@ -2014,6 +2014,26 @@ describe(__filename, function() {
 					});
 				});
 				
+				it("should enforce maxSize", function(done) {
+					model.find({}, { maxSize : 10 }, function(err, docs) {
+						assert.strictEqual(err.message, "Max size of result set '172' exceeds options.maxSize of '10'");
+						
+						done();
+					});
+				});
+				
+				it("should enforce lean", function(done) {
+					model.find({}, { lean : true, limit : 1 }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.strictEqual(docs[0] instanceof model.Document, false);
+						assert.strictEqual(docs[0].id, undefined);
+						assert.strictEqual(docs[0].foo, "1");
+						
+						done();
+					});
+				});
+				
 				it("should run beforeFind and afterFind hooks on find", function(done) {
 					model.addHook({
 						name : "before",
