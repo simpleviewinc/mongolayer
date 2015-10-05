@@ -607,12 +607,30 @@ Model.prototype.find = function(filter, options, cb) {
 			if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
 			if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
 			
-			queryLog.startTimer("raw");
+			var calls = {};
 			
-			cursor.toArray(function(err, docs) {
+			if (args.options.count === true) {
+				calls.count = function(cb) {
+					cursor.count(false, cb);
+				}
+			}
+			
+			calls.docs = function(cb) {
+				queryLog.startTimer("raw");
+				cursor.toArray(function(err, docs) {
+					if (err) { return cb(err); }
+					
+					queryLog.stopTimer("raw");
+					
+					cb(null, docs);
+				});
+			}
+			
+			async.parallel(calls, function(err, results) {
 				if (err) { return cb(err); }
 				
-				queryLog.stopTimer("raw");
+				var docs = results.docs;
+				var count = results.count;
 				
 				if (args.options.maxSize) {
 					var size = JSON.stringify(docs).length;
@@ -632,7 +650,11 @@ Model.prototype.find = function(filter, options, cb) {
 					
 					self.connection.logger(queryLog.get());
 					
-					cb(null, args.docs);
+					if (count !== undefined) {
+						cb(null, { count : count, docs : args.docs });
+					} else {
+						cb(null, args.docs);
+					}
 				});
 			});
 		});

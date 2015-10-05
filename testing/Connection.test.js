@@ -8,6 +8,8 @@ describe(__filename, function() {
 	
 	beforeEach(function(done) {
 		mongolayer.connectCached(config, function(err, temp) {
+			assert.ifError(err);
+			
 			conn = temp;
 			
 			done();

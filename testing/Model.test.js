@@ -2073,6 +2073,18 @@ describe(__filename, function() {
 					});
 				});
 				
+				it("should find with count", function(done) {
+					model.find({}, { count : true, limit : 1, skip : 1 }, function(err, result) {
+						assert.ifError(err);
+						
+						assert.strictEqual(result.count, 3);
+						assert.strictEqual(result.docs.length, 1);
+						assert.strictEqual(result.docs[0].foo, "2");
+						
+						done();
+					});
+				});
+				
 				it("should run beforeFind and afterFind hooks on find", function(done) {
 					model.addHook({
 						name : "before",

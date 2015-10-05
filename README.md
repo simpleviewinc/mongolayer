@@ -1056,6 +1056,7 @@ Arguments
 	* `maxSize` - `number` - `optional` - Enforce a maxSize at query time to prevent large data sets from being inadvertently returned, returns an Error if violated.
 	* `castDocs` - `boolean` - `default false` - If true it will not process the cast returned docs into instanceof model.Document, meaning virtuals won't be created. Usable for performance or simplicity purposes when returning incomplete models.
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
+	* `count` - `boolean` - `default false` - If true it will return an object with `{ count : count, docs : docs }` including the full count that matches the query (not just count of returned docs).
 * `cb` - `function` - `required`
 	* `Error` or null
 	* `array` of `model.Document`.
