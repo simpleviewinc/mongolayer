@@ -324,10 +324,8 @@ var _stringConvertV2_walk = function(dataObj, schemaObj) {
 		var val = schemaObj[key];
 		
 		if (key === "~") {
-			console.log("here??", key);
 			var tempKeys = Object.keys(dataObj);
 			for(var j = 0; j < tempKeys.length; j++) {
-				console.log(tempKeys[j], dataObj, val);
 				_stringConvertV2_walk(dataObj[tempKeys[j]], val);
 			}
 			
