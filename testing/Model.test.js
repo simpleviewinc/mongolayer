@@ -652,6 +652,7 @@ describe(__filename, function() {
 					{ name : "walk8", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "array", schema : { type : "number" } }] }] } },
 					{ name : "walk9", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "array", schema : { type : "object", schema : [{ name : "foo", type : "number" }] } }] }] } },
 					{ name : "walk10", validation : { type : "indexObject", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }] } },
+					{ name : "walk11", validation : { type : "array", schema : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "obj", type : "object", schema : [{ name : "foo", type : "number" }] }] } } },
 					// test the various primitive types
 					{ name : "boolean", validation : { type : "boolean" } },
 					{ name : "date", validation : { type : "date" } },
@@ -683,6 +684,8 @@ describe(__filename, function() {
 			assert.strictEqual(test["walk8.foo.foo"], "number");
 			assert.strictEqual(test["walk9.foo.foo.foo"], "number");
 			assert.strictEqual(test["walk10.~.foo"], "number");
+			assert.strictEqual(test["walk11.foo"], "number");
+			assert.strictEqual(test["walk11.obj.foo"], "number");
 			assert.strictEqual(test.boolean, "boolean");
 			assert.strictEqual(test.date, "date");
 			assert.strictEqual(test.objectid, "objectid");
@@ -700,92 +703,149 @@ describe(__filename, function() {
 			done();
 		});
 		
+		it("should getConvertSchemaV2", function(done) {
+			var test = model.getConvertSchemaV2();
+			
+			assert.strictEqual(JSON.stringify(test), JSON.stringify({
+				_id : "objectid",
+				walk1 : "number",
+				walk2 : "number",
+				walk3 : {
+					foo : "number"
+				},
+				walk4 : {
+					foo : "number"
+				},
+				walk5 : {
+					foo : "number"
+				},
+				walk6 : {
+					foo : {
+						foo : "number"
+					}
+				},
+				walk7 : {
+					foo : {
+						foo : "number"
+					}
+				},
+				walk8 : {
+					foo : {
+						foo : "number"
+					}
+				},
+				walk9 : { foo : { foo : { foo : "number" } } },
+				walk10 : { "~" : { foo : "number", bar : "boolean" } },
+				walk11 : { foo : "number", obj : { foo : "number" } },
+				boolean : "boolean",
+				date : "date",
+				objectid : "objectid",
+				number : "number",
+				string : "string",
+				multiKey : { foo : "number", bar : "boolean" }
+			}));
+			
+			done();
+		});
+		
 		it("should stringConvert data", function(done) {
-			var id = model.ObjectId();
-			var date1 = new Date();
-			
-			var data = {
-				walk1 : "3",
-				walk2 : ["3", "4"],
-				walk3 : [{ foo : "3" }, { foo : "5" }],
-				walk4 : { foo : "5" },
-				walk5 : { foo : ["3", "4"] },
-				walk6 : { foo : [{ foo : "3" }, { foo : "4" }] },
-				walk7 : { foo : { foo : "3" } },
-				walk8 : { foo : { foo : ["3", "4"] } },
-				walk9 : { foo : { foo : [{ foo : "3" }, { foo : "4" }] } },
-				// the barefoo test is required for an edge situation that was caught due to poorly written regex
-				walk10 : { "key" : { foo : "5", bar : "true" }, "foo" : { foo : "7", bar : "false" }, "5" : { foo : "9", bar : true }, "barefoo" : { foo : "7", bar : "true" } },
-				walk10akeybfoo : "5", // edge case that shouldn't be converted by the walk10 indexObject
-				multiKey : { foo : "5", bar : "true", any : { nested : "something" } },
-				boolean : "false",
-				date : date1.getTime(),
-				objectid : id.toString(),
-				number : "3",
-				string : "foo",
-				any : "anyData",
-				undeclared : "10",
-				object_noschema : { string : "stringValue", nullValue : null }
-			}
-			
-			var temp = model.stringConvert(data);
-			
-			// ensure conversion of the deeply nested walk data works
-			assert.strictEqual(temp.walk1, 3);
-			assert.strictEqual(temp.walk2[0], 3);
-			assert.strictEqual(temp.walk2[1], 4);
-			assert.strictEqual(temp.walk3[0].foo, 3);
-			assert.strictEqual(temp.walk3[1].foo, 5);
-			assert.strictEqual(temp.walk4.foo, 5);
-			assert.strictEqual(temp.walk5.foo[0], 3);
-			assert.strictEqual(temp.walk5.foo[1], 4);
-			assert.strictEqual(temp.walk6.foo[0].foo, 3);
-			assert.strictEqual(temp.walk6.foo[1].foo, 4);
-			assert.strictEqual(temp.walk7.foo.foo, 3);
-			assert.strictEqual(temp.walk8.foo.foo[0], 3);
-			assert.strictEqual(temp.walk8.foo.foo[1], 4);
-			assert.strictEqual(temp.walk9.foo.foo[0].foo, 3);
-			assert.strictEqual(temp.walk9.foo.foo[1].foo, 4);
-			assert.strictEqual(temp.walk10.key.foo, 5);
-			assert.strictEqual(temp.walk10.key.bar, true);
-			assert.strictEqual(temp.walk10["5"].foo, 9);
-			assert.strictEqual(temp.walk10["5"].bar, true);
-			assert.strictEqual(temp.walk10.foo.foo, 7);
-			assert.strictEqual(temp.walk10.foo.bar, false);
-			assert.strictEqual(temp.walk10akeybfoo, "5");
-			assert.strictEqual(temp.walk10.barefoo.foo, 7);
-			assert.strictEqual(temp.walk10.barefoo.bar, true);
-			assert.strictEqual(temp.any, "anyData");
-			assert.strictEqual(temp.undeclared, "10");
-			
-			// check primitive types
-			assert.strictEqual(temp.boolean, false);
-			assert.strictEqual(temp.date.getTime(), date1.getTime());
-			assert.strictEqual(temp.objectid.toString(), id.toString());
-			assert.strictEqual(temp.number, 3);
-			assert.strictEqual(temp.string, "foo");
-			assert.strictEqual(temp.multiKey.foo, 5);
-			assert.strictEqual(temp.multiKey.bar, true);
-			assert.strictEqual(temp.multiKey.any.nested, "something");
-			assert.strictEqual(temp.object_noschema.string, "stringValue");
-			assert.strictEqual(temp.object_noschema.nullValue, null);
-			
-			// ensure original data was not changed
-			assert.strictEqual(data.walk1, "3");
-			assert.strictEqual(data.walk2[0], "3");
-			assert.strictEqual(data.walk2[1], "4");
-			assert.strictEqual(data.walk3[0].foo, "3");
-			assert.strictEqual(data.walk3[1].foo, "5");
-			assert.strictEqual(data.walk4.foo, "5");
-			assert.strictEqual(data.walk5.foo[0], "3");
-			assert.strictEqual(data.walk5.foo[1], "4");
-			assert.strictEqual(data.walk6.foo[0].foo, "3");
-			assert.strictEqual(data.walk6.foo[1].foo, "4");
-			assert.strictEqual(data.walk7.foo.foo, "3");
-			assert.strictEqual(data.walk8.foo.foo[0], "3");
-			assert.strictEqual(data.walk8.foo.foo[1], "4");
-			assert.strictEqual(data.walk9.foo.foo[0].foo, "3");
-			assert.strictEqual(data.walk9.foo.foo[1].foo, "4");
+			["stringConvert", "stringConvertV2"].forEach(function(val, i) {
+				var id = model.ObjectId();
+				var date1 = new Date();
+				
+				var data = {
+					walk1 : "3",
+					walk2 : ["3", "4"],
+					walk3 : [{ foo : "3" }, { foo : "5" }],
+					walk4 : { foo : "5" },
+					walk5 : { foo : ["3", "4"] },
+					walk6 : { foo : [{ foo : "3" }, { foo : "4" }] },
+					walk7 : { foo : { foo : "3" } },
+					walk8 : { foo : { foo : ["3", "4"] } },
+					walk9 : { foo : { foo : [{ foo : "3" }, { foo : "4" }] } },
+					// the barefoo test is required for an edge situation that was caught due to poorly written regex
+					walk10 : { "key" : { foo : "5", bar : "true" }, "foo" : { foo : "7", bar : "false" }, "5" : { foo : "9", bar : true }, "barefoo" : { foo : "7", bar : "true" } },
+					walk10akeybfoo : "5", // edge case that shouldn't be converted by the walk10 indexObject
+					walk11 : [{ foo : "5" }, { foo : "6", obj : {} }, { foo : "7", obj : { foo : "10" } }],
+					multiKey : { foo : "5", bar : "true", any : { nested : "something" } },
+					boolean : "false",
+					date : date1.getTime(),
+					objectid : id.toString(),
+					number : "3",
+					string : "foo",
+					any : "anyData",
+					undeclared : "10",
+					object_noschema : { string : "stringValue", nullValue : null }
+				}
+				
+				var temp = model[val](data);
+				
+				// ensure conversion of the deeply nested walk data works
+				assert.strictEqual(temp.walk1, 3);
+				assert.strictEqual(temp.walk2[0], 3);
+				assert.strictEqual(temp.walk2[1], 4);
+				assert.strictEqual(temp.walk3[0].foo, 3);
+				assert.strictEqual(temp.walk3[1].foo, 5);
+				assert.strictEqual(temp.walk4.foo, 5);
+				assert.strictEqual(temp.walk5.foo[0], 3);
+				assert.strictEqual(temp.walk5.foo[1], 4);
+				assert.strictEqual(temp.walk6.foo[0].foo, 3);
+				assert.strictEqual(temp.walk6.foo[1].foo, 4);
+				assert.strictEqual(temp.walk7.foo.foo, 3);
+				assert.strictEqual(temp.walk8.foo.foo[0], 3);
+				assert.strictEqual(temp.walk8.foo.foo[1], 4);
+				assert.strictEqual(temp.walk9.foo.foo[0].foo, 3);
+				assert.strictEqual(temp.walk9.foo.foo[1].foo, 4);
+				assert.strictEqual(temp.walk10.key.foo, 5);
+				assert.strictEqual(temp.walk10.key.bar, true);
+				assert.strictEqual(temp.walk10["5"].foo, 9);
+				assert.strictEqual(temp.walk10["5"].bar, true);
+				assert.strictEqual(temp.walk10.foo.foo, 7);
+				assert.strictEqual(temp.walk10.foo.bar, false);
+				assert.strictEqual(temp.walk10akeybfoo, "5");
+				assert.strictEqual(temp.walk10.barefoo.foo, 7);
+				assert.strictEqual(temp.walk10.barefoo.bar, true);
+				assert.strictEqual(temp.walk11[0].foo, 5);
+				assert.strictEqual(temp.walk11[0].obj, undefined);
+				assert.strictEqual(temp.walk11[1].foo, 6);
+				assert.strictEqual(Object.keys(temp.walk11[1].obj).length, 0);
+				assert.strictEqual(temp.walk11[2].foo, 7);
+				assert.strictEqual(temp.walk11[2].obj.foo, 10);
+				assert.strictEqual(temp.any, "anyData");
+				assert.strictEqual(temp.undeclared, "10");
+				
+				// check primitive types
+				assert.strictEqual(temp.boolean, false);
+				assert.strictEqual(temp.date.getTime(), date1.getTime());
+				assert.strictEqual(temp.objectid.toString(), id.toString());
+				assert.strictEqual(temp.number, 3);
+				assert.strictEqual(temp.string, "foo");
+				assert.strictEqual(temp.multiKey.foo, 5);
+				assert.strictEqual(temp.multiKey.bar, true);
+				assert.strictEqual(temp.multiKey.any.nested, "something");
+				assert.strictEqual(temp.object_noschema.string, "stringValue");
+				assert.strictEqual(temp.object_noschema.nullValue, null);
+				
+				// ensure original data was not changed
+				if (val === "stringConvert") {
+					// stringConvertV2 alters the original data to improve performance
+					assert.strictEqual(data.walk1, "3");
+					assert.strictEqual(data.walk2[0], "3");
+					assert.strictEqual(data.walk2[1], "4");
+					assert.strictEqual(data.walk3[0].foo, "3");
+					assert.strictEqual(data.walk3[1].foo, "5");
+					assert.strictEqual(data.walk4.foo, "5");
+					assert.strictEqual(data.walk5.foo[0], "3");
+					assert.strictEqual(data.walk5.foo[1], "4");
+					assert.strictEqual(data.walk6.foo[0].foo, "3");
+					assert.strictEqual(data.walk6.foo[1].foo, "4");
+					assert.strictEqual(data.walk7.foo.foo, "3");
+					assert.strictEqual(data.walk8.foo.foo[0], "3");
+					assert.strictEqual(data.walk8.foo.foo[1], "4");
+					assert.strictEqual(data.walk9.foo.foo[0].foo, "3");
+					assert.strictEqual(data.walk9.foo.foo[1].foo, "4");
+				}
+			});
 			
 			done();
 		});

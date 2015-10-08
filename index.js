@@ -311,6 +311,49 @@ var convertValue = function(data, type) {
 	}
 }
 
+var stringConvertV2 = function(data, schema) {
+	_stringConvertV2_walk(data, schema);
+	
+	return data;
+}
+
+var _stringConvertV2_walk = function(dataObj, schemaObj) {
+	var schemaKeys = Object.keys(schemaObj);
+	for(var i = 0; i < schemaKeys.length; i++) {
+		var key = schemaKeys[i];
+		var val = schemaObj[key];
+		
+		if (key === "~") {
+			console.log("here??", key);
+			var tempKeys = Object.keys(dataObj);
+			for(var j = 0; j < tempKeys.length; j++) {
+				console.log(tempKeys[j], dataObj, val);
+				_stringConvertV2_walk(dataObj[tempKeys[j]], val);
+			}
+			
+			continue;
+		}
+		
+		if (dataObj[key] === undefined) { continue; }
+		
+		if (typeof val === "string") {
+			if (dataObj[key] instanceof Array) {
+				for(var j = 0; j < dataObj[key].length; j++) {
+					dataObj[key][j] = convertValue(dataObj[key][j], val);
+				}
+			} else {
+				dataObj[key] = convertValue(dataObj[key], val);
+			}
+		} else if (dataObj[key] instanceof Array) {
+			for(var j = 0; j < dataObj[key].length; j++) {
+				_stringConvertV2_walk(dataObj[key][j], val);
+			}
+		} else {
+			_stringConvertV2_walk(dataObj[key], val);
+		}
+	}
+}
+
 // gets only hooks which apply to a specific model and de-namespaces them
 var _getMyHooks = function(myKey, hooks) {
 	var myHooks = [];
@@ -537,6 +580,7 @@ extend(module.exports, {
 	testId : testId,
 	toPlain : toPlain,
 	stringConvert : stringConvert,
+	stringConvertV2 : stringConvertV2,
 	convertValue : convertValue,
 	resolveRelationship : resolveRelationship,
 	_prepareInsert : _prepareInsert,

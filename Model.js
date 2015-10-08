@@ -68,6 +68,9 @@ var Model = function(args) {
 		afterPut : {},
 		beforeFilter : {}
 	};
+	self._convertSchema = undefined;
+	self._convertSchemaV2 = undefined;
+	
 	self.defaultHooks = extend({
 		find : [],
 		count : [],
@@ -814,8 +817,21 @@ Model.prototype.stringConvert = function(data) {
 	return mongolayer.stringConvert(data, schema);
 }
 
+Model.prototype.stringConvertV2 = function(data) {
+	var self = this;
+
+	var schema = self.getConvertSchemaV2();
+
+	return mongolayer.stringConvertV2(data, schema);
+}
+
+
 Model.prototype.getConvertSchema = function() {
 	var self = this;
+
+	if (self._convertSchema !== undefined) {
+		return self._convertSchema;
+	}
 	
 	var schema = {};
 	
@@ -867,7 +883,48 @@ Model.prototype.getConvertSchema = function() {
 		walkField(temp, chain);
 	});
 	
-	return schema;
+	self._convertSchema = schema;
+
+	return self.getConvertSchema();
+}
+
+Model.prototype.getConvertSchemaV2 = function() {
+	var self = this;
+	
+	if (self._convertSchemaV2 !== undefined) {
+		return self._convertSchemaV2;
+	}
+	
+	var schema = self.getConvertSchema();
+	
+	var newSchema = {};
+	
+	var schemaKeys = Object.keys(schema);
+	for(var i = 0; i < schemaKeys.length; i++) {
+		var path = schemaKeys[i];
+		var type = schema[path];
+		var pathArr = path.split(".");
+		
+		var current = newSchema;
+		for (var j = 0; j < pathArr.length; j++) {
+			var currentKey = pathArr[j];
+			
+			if (j === pathArr.length - 1) {
+				current[currentKey] = type;
+				break;
+			}
+			
+			if (current[currentKey] === undefined) {
+				current[currentKey] = {};
+			}
+			
+			current = current[currentKey];
+		}
+	}
+	
+	self._convertSchemaV2 = newSchema;
+	
+	return self.getConvertSchemaV2();
 }
 
 Model.prototype._getHooksByType = function(type, hooks) {
