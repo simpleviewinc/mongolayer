@@ -2197,6 +2197,30 @@ describe(__filename, function() {
 					});
 				});
 				
+				it("should find with count and be hookable", function(done) {
+					model.addHook({
+						name : "after",
+						type : "afterFind",
+						handler : function(args, cb) {
+							assert.strictEqual(args.docs.length, 1);
+							assert.strictEqual(args.count, 3);
+							
+							args.count = 1000;
+							
+							cb(null, args);
+						}
+					});
+					
+					model.find({}, { count : true, limit : 1, skip : 1, hooks : ["afterFind_after"] }, function(err, result) {
+						assert.ifError(err);
+						
+						assert.equal(result.count, 1000);
+						assert.equal(result.docs.length, 1);
+						
+						done();
+					});
+				});
+				
 				it("should have working mongolayer.toPlain() after find on doc and array", function(done) {
 					model.find({}, function(err, docs) {
 						var temp = docs.map(function(val, i) { return mongolayer.toPlain(val) });

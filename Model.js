@@ -644,7 +644,7 @@ Model.prototype.find = function(filter, options, cb) {
 				
 				var castedDocs = args.options.castDocs === true ? self._castDocs(docs) : docs;
 				
-				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs } }, function(err, args) {
+				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs, count : count } }, function(err, args) {
 					if (err) { return cb(err); }
 					
 					queryLog.stopTimer("command");
@@ -653,8 +653,8 @@ Model.prototype.find = function(filter, options, cb) {
 					
 					self.connection.logger(queryLog.get());
 					
-					if (count !== undefined) {
-						cb(null, { count : count, docs : args.docs });
+					if (args.count !== undefined) {
+						cb(null, { count : args.count, docs : args.docs });
 					} else {
 						cb(null, args.docs);
 					}
