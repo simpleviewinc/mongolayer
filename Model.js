@@ -42,16 +42,7 @@ var Model = function(args) {
 	self.relationships = {};
 	self.methods = {};
 	self.connection = null; // stores Connection ref
-	
-	// private
-	self._onInit = args.onInit;
-	self._allowExtraKeys = args.allowExtraKeys;
-	self._deleteExtraKeys = args.deleteExtraKeys;
-	self._virtuals = {};
-	self._modelMethods = {};
-	self._documentMethods = {};
-	self._indexes = [];
-	self._hooks = {
+	self.hooks = {
 		beforeInsert : {},
 		afterInsert : {},
 		beforeSave : {},
@@ -68,6 +59,15 @@ var Model = function(args) {
 		afterPut : {},
 		beforeFilter : {}
 	};
+	
+	// private
+	self._onInit = args.onInit;
+	self._allowExtraKeys = args.allowExtraKeys;
+	self._deleteExtraKeys = args.deleteExtraKeys;
+	self._virtuals = {};
+	self._modelMethods = {};
+	self._documentMethods = {};
+	self._indexes = [];
 	self._convertSchema = undefined;
 	self._convertSchemaV2 = undefined;
 	
@@ -408,7 +408,7 @@ Model.prototype.addHook = function(args, cb) {
 	// args.handler
 	// args.required
 	
-	self._hooks[args.type][args.name] = args;
+	self.hooks[args.type][args.name] = args;
 }
 
 Model.prototype.insert = function(docs, options, cb) {
@@ -976,16 +976,16 @@ Model.prototype._executeHooks = function(args, cb) {
 			return false;
 		}
 		
-		if (self._hooks[args.type][val.name] === undefined) {
+		if (self.hooks[args.type][val.name] === undefined) {
 			throw new Error(util.format("Hook '%s' of type '%s' was requested but does not exist", val.name, args.type));
 		}
 		
-		hooks.push({ hook : self._hooks[args.type][val.name], requestedHook : val });
+		hooks.push({ hook : self.hooks[args.type][val.name], requestedHook : val });
 	});
 	
 	var hookIndex = arrayLib.index(hooks, ["hook", "name"]);
 	
-	objectLib.forEach(self._hooks[args.type], function(val, i) {
+	objectLib.forEach(self.hooks[args.type], function(val, i) {
 		if (hookIndex[i] === undefined && val.required === true) {
 			hooks.push({ hook : val, requestedHook : { name : i } });
 		}
