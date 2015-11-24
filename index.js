@@ -2,6 +2,7 @@ var mongodb = require("mongodb");
 var async = require("async");
 var extend = require("extend");
 var util = require("util");
+var typecaster = require("typecaster");
 
 var Connection = require("./Connection.js");
 var Model = require("./Model.js");
@@ -9,6 +10,26 @@ var Document = require("./Document.js");
 var QueryLog = require("./QueryLog.js");
 var objectLib = require("./lib/objectLib.js");
 var arrayLib = require("./lib/arrayLib.js");
+
+var typecasterObjectIdDef = {
+	name : "objectid",
+	handler : function(data, type) {
+		if (data instanceof mongodb.ObjectID) {
+			return data;
+		}
+		
+		try {
+			var temp = new mongodb.ObjectID(data);
+		} catch (e) {
+			throw new Error("Cannot convert '" + data + "' to mongodb.ObjectID, it's value is not a valid objectid");
+		}
+		
+		return temp;
+	}
+}
+
+var caster = new typecaster.TypeCaster();
+caster.addType(typecasterObjectIdDef);
 
 var connect = function(args, cb) {
 	_getDb(args, function(err, db) {
@@ -250,65 +271,7 @@ var stringConvert = function(data, schema) {
 }
 
 var convertValue = function(data, type) {
-	var val;
-	
-	if (type === "any") {
-		return data;
-	} else if (type === "boolean") {
-		if (typeof data === "boolean") {
-			return data;
-		}
-		
-		if (["1", 1, "0", 0, "yes", "no", "true", "false"].indexOf(data) === -1) {
-			// ensure boolean is "true" or "false"
-			throw new Error(util.format("Cannot convert '%s' to boolean, it must be 'true' or 'false'", data));
-		}
-		
-		return data === "true" || data === "1" || data === 1 || data === "yes";
-	} else if (type === "date") {
-		if (data instanceof Date) {
-			return data;
-		}
-		
-		if (typeof data === "string" && data.match(/^[\d]+$/)) {
-			// handles Unix Offset passed in string
-			data = parseInt(data, 10);
-		}
-		
-		var temp = new Date(data);
-		if (isNaN(temp)) {
-			throw new Error(util.format("Cannot convert '%s' to date, it's value is not valid in a JS new Date() constructor", data));
-		}
-		
-		return temp;
-	} else if (type === "number") {
-		if (typeof data === "number") {
-			return data;
-		}
-		
-		var temp = Number(data);
-		if (isNaN(temp)) {
-			throw new Error(util.format("Cannot convert '%s' to number, it's value is not a valid number", data));
-		}
-		
-		return temp;
-	} else if (type === "string") {
-		return data;
-	} else if (type === "objectid") {
-		if (data instanceof mongodb.ObjectID) {
-			return data;
-		}
-		
-		try {
-			var temp = new mongodb.ObjectID(data);
-		} catch (e) {
-			throw new Error(util.format("Cannot convert '%s' to mongodb, it's value is not a valid objectid", data));
-		}
-		
-		return temp;
-	} else {
-		throw new Error(util.format("Cannot convert, '%s' is not a supported conversion type", type));
-	}
+	return caster.convert(data, type);
 }
 
 var stringConvertV2 = function(data, schema) {
@@ -581,6 +544,7 @@ extend(module.exports, {
 	stringConvertV2 : stringConvertV2,
 	convertValue : convertValue,
 	resolveRelationship : resolveRelationship,
+	typecasterObjectIdDef : typecasterObjectIdDef,
 	_prepareInsert : _prepareInsert,
 	_getMyHooks : _getMyHooks
 });
