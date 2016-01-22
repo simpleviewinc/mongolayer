@@ -7,6 +7,14 @@ var extend = require("extend");
 var async = require("async");
 var util = require("util");
 
+var queryLogMock = {
+	startTimer : function() {},
+	stopTimer : function() {},
+	get : function() {},
+	set : function() {},
+	send : function() {}
+}
+
 var Model = function(args) {
 	var self = this;
 	
@@ -590,7 +598,8 @@ Model.prototype.find = function(filter, options, cb) {
 	options.fields = options.fields || null;
 	options.options = options.options || {};
 	
-	var queryLog = new mongolayer.QueryLog({ type : "find", collection : self.collectionName });
+	// utilize a mock when logger is disabled for performance reasons
+	var queryLog = self.connection.logger === undefined ? queryLogMock : new mongolayer.QueryLog({ type : "find", collection : self.collectionName, connection : self.connection });
 	queryLog.startTimer("command");
 	
 	self._executeHooks({ type : "beforeFind", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
@@ -648,10 +657,8 @@ Model.prototype.find = function(filter, options, cb) {
 					if (err) { return cb(err); }
 					
 					queryLog.stopTimer("command");
-					
 					queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
-					
-					self.connection.logger(queryLog.get());
+					queryLog.send();
 					
 					if (args.count !== undefined) {
 						cb(null, { count : args.count, docs : args.docs });
