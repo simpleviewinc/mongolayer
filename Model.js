@@ -608,9 +608,8 @@ Model.prototype.find = function(filter, options, cb) {
 		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
-			
-			var rawFilter = extend(true, {}, args.filter);
-			var rawOptions = extend(true, {}, args.options);
+			var rawFilter = self.connection.logger === undefined ? {} : extend(true, {}, args.filter);
+			var rawOptions = self.connection.logger === undefined ? {} : extend(true, {}, args.options);
 			
 			var findFields = self._getMyFindFields(args.options.fields);
 			
