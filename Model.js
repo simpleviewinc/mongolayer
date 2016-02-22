@@ -650,7 +650,7 @@ Model.prototype.find = function(filter, options, cb) {
 					}
 				}
 				
-				var castedDocs = args.options.castDocs === true ? self._castDocs(docs) : docs;
+				var castedDocs = args.options.castDocs === true ? self._castDocs(docs, { cloneData : false }) : docs;
 				
 				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs, count : count } }, function(err, args) {
 					if (err) { return cb(err); }
@@ -1039,12 +1039,14 @@ Model.prototype._getMyFindFields = function(fields) {
 	return newFields;
 }
 
-Model.prototype._castDocs = function(docs) {
+Model.prototype._castDocs = function(docs, options) {
 	var self = this;
+	
+	options = options || {};
 	
 	var castedDocs = [];
 	docs.forEach(function(val, i) {
-		castedDocs.push(new self.Document(val, { fillDefaults : false }));
+		castedDocs.push(new self.Document(val, { fillDefaults : false, cloneData : options.cloneData }));
 	});
 	
 	return castedDocs;

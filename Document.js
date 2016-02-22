@@ -7,26 +7,21 @@ var Document = function(model, data, options) {
 	data = data || {};
 	options = options || {};
 	
-	options.fillDefaults = options.fillDefaults === undefined ? true : false;
+	options.fillDefaults = options.fillDefaults === undefined ? true : options.fillDefaults;
+	options.cloneData = options.cloneData === undefined ? true : options.cloneData;
 	
 	// clone the incoming data
-	var temp = extend(true, {}, data);
+	var temp = options.cloneData === true ? extend(true, {}, data) : data;
 	
 	// fold in the top level keys, we can't just call extend on self because it will execute getters on "self" even though it should only execute setters
-	Object.keys(temp).forEach(function(i) {
-		self[i] = temp[i];
-	});
+	var keys = Object.keys(temp);
+	for(var i = 0; i < keys.length; i++) {
+		self[keys[i]] = temp[keys[i]];
+	}
 	
 	if (options.fillDefaults) {
 		model._fillDocDefaults(self);
 	}
-	
-	// add a hidden property to make it possible to access the model that this document came from
-	Object.defineProperty(self, "_ml_model", {
-		get : function() {
-			return model;
-		}
-	});
 	
 	model._onInit.call(self);
 }
