@@ -58,7 +58,6 @@ var _getDb = function(args, cb) {
 		
 		var op;
 		if (args.auth) {
-			args.auth.options = args.auth.options || { authMechanism : "MONGODB-CR" };
 			op = function(cb) {
 				db.authenticate(args.auth.username, args.auth.password, args.auth.options, cb);
 			}
