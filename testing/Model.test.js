@@ -533,6 +533,7 @@ describe(__filename, function() {
 			],
 			virtuals : [
 				{ name : "virtualEnum", get : function() { return "virtualEnumValue" }, enumerable : true },
+				{ name : "virtualNotEnum", get : function() { return "virtualNotEnumValue" }, enumerable : false },
 				{ name : "virtual", get : function() { return "virtualValue" } }
 			]
 		});
@@ -546,11 +547,13 @@ describe(__filename, function() {
 		assert.equal(temp.foo, "stringValue");
 		assert.deepEqual(temp.array, [{ first : true }]);
 		assert.equal(temp.virtualEnum, "virtualEnumValue");
+		assert.equal(temp.virtualNotEnum, undefined);
 		assert.equal(temp.virtual, "virtualValue");
 		
 		// ensure the sub document serialized as well
 		assert.equal(temp.obj.subdoc.foo, "subStringValue");
 		assert.equal(temp.obj.subdoc.virtualEnum, "virtualEnumValue");
+		assert.equal(temp.obj.subdoc.virtualNotEnum, undefined);
 		assert.equal(temp.obj.subdoc.virtual, "virtualValue");
 		
 		done();

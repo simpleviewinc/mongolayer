@@ -29,7 +29,23 @@ var Document = function(model, data, options) {
 Document.prototype.toJSON = function() {
 	var self = this;
 	
-	return mongolayer.toPlain(self);
+	var data = {};
+	
+	// copy across the normal keys
+	var keys = Object.keys(self);
+	for(var i = 0; i < keys.length; i++) {
+		data[keys[i]] = self[keys[i]];
+	}
+	
+	// copy across keys declared as enumerable virtual values
+	var protoKeys = Object.keys(Object.getPrototypeOf(self));
+	for(var i = 0; i < protoKeys.length; i++) {
+		if (protoKeys[i] === "toJSON") { continue; }
+		
+		data[protoKeys[i]] = self[protoKeys[i]];
+	}
+	
+	return data;
 }
 
 module.exports = Document;
