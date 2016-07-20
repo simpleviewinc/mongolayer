@@ -1068,7 +1068,7 @@ describe(__filename, function() {
 		it("should _executeHooks and not execute after an error", function(done) {
 			model._executeHooks({ type : "beforeFind", hooks : [{ name : "errors" }, { name : "foo" }], args : { filter : {}, data : [] } }, function(err, args) {
 				assert.equal(err instanceof Error, true);
-				assert.equal(args.data.length, 0);
+				assert.equal(args, undefined);
 				
 				done();
 			});

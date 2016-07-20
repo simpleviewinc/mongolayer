@@ -1013,7 +1013,11 @@ Model.prototype._executeHooks = function(args, cb) {
 	});
 	
 	async.series(calls, function(err) {
-		cb(err, state);
+		if (err) { return cb(err); }
+		
+		setImmediate(function() {
+			cb(null, state);
+		});
 	});
 }
 
@@ -1114,7 +1118,7 @@ Model.prototype.processDocs = function(args, cb) {
 						return cb(err);
 					}
 					
-					cb(null);
+					setImmediate(cb);
 				});
 			});
 		});
