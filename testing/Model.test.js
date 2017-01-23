@@ -561,7 +561,7 @@ describe(__filename, function() {
 		done();
 	});
 	
-	it("should ensureIndexes", function(done) {
+	it("should createIndexes", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -583,7 +583,7 @@ describe(__filename, function() {
 				model.collection.dropAllIndexes(cb);
 			},
 			function(cb) {
-				model.ensureIndexes(cb);
+				model.createIndexes(cb);
 			},
 			function(cb) {
 				model.collection.indexes(function(err, indexes) {
@@ -602,7 +602,7 @@ describe(__filename, function() {
 		});
 	});
 	
-	it("should provide model name on ensureIndexes error", function(done) {
+	it("should provide model name on createIndexes error", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -631,7 +631,7 @@ describe(__filename, function() {
 				
 				conn.add({ model : model2 }, function(err) {
 					assert.ok(err instanceof Error);
-					assert.ok(err.message.match(/Unable to ensureIndex on model 'foo'./));
+					assert.ok(err.message.match(/Unable to createIndex on model 'foo'./));
 					
 					done();
 				});

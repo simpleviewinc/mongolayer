@@ -122,7 +122,7 @@ describe(__filename, function() {
 		});
 	});
 	
-	it("should ensureIndexes on add", function(done) {
+	it("should createIndexes on add", function(done) {
 		conn.dropCollection({ name : "foo" }, function(err) {
 			assert.ifError(err);
 			
@@ -148,6 +148,36 @@ describe(__filename, function() {
 					assert.equal(indexes[1].name, "foo_1");
 					assert.equal(indexes[2].name, "bar_1");
 					assert.equal(indexes[2].unique, true);
+					
+					done();
+				});
+			});
+		});
+	});
+	
+	it("should not add if createIndexes === false", function(done) {
+		conn.dropCollection({ name : "foo" }, function(err) {
+			assert.ifError(err);
+			
+			var model1 = new mongolayer.Model({
+				collection : "foo",
+				fields : [
+					{ name : "foo", validation : { type : "string" } },
+					{ name : "bar", validation : { type : "string" } }
+				],
+				indexes : [
+					{ keys : { "foo" : 1 } },
+					{ keys : { "bar" : 1 }, options : { unique : true } }
+				]
+			});
+			
+			conn.add({ model : model1, createIndexes : false }, function(err) {
+				assert.ifError(err);
+				
+				model1.collection.indexes(function(err, indexes) {
+					// if you request indexes on a collection without indexes it returns code 26 "no collection", an odd result for no indexes
+					assert.strictEqual(err.code, 26);
+					assert.strictEqual(err.message, "no collection");
 					
 					done();
 				});

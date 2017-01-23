@@ -157,15 +157,15 @@ var Model = function(args) {
 }
 
 // re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
-Model.prototype.ensureIndexes = function(cb) {
+Model.prototype.createIndexes = function(cb) {
 	var self = this;
 	
 	var calls = [];
 	
 	self._indexes.forEach(function(val, i) {
 		calls.push(function(cb) {
-			self.collection.ensureIndex(val.keys, val.options, function(err) {
-				if (err) { return cb(new Error(util.format("Unable to ensureIndex on model '%s'. Original: %s", self.name, err.message))); }
+			self.collection.createIndex(val.keys, val.options, function(err) {
+				if (err) { return cb(new Error(util.format("Unable to createIndex on model '%s'. Original: %s", self.name, err.message))); }
 				
 				cb(null);
 			});
@@ -811,7 +811,7 @@ Model.prototype.removeAll = function(cb) {
 	self.connection.dropCollection({ name : self.collectionName }, function(err) {
 		if (err) { return cb(err); }
 		
-		self.ensureIndexes(cb);
+		self.createIndexes(cb);
 	});
 }
 

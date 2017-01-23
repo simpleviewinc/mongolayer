@@ -17,14 +17,19 @@ Connection.prototype.add = function(args, cb) {
 	var self = this;
 	
 	// args.model
+	// args.createIndexes
 	
+	args.createIndexes = args.createIndexes === undefined ? true : args.createIndexes;
 	args.model._setConnection({ connection : self });
 	
 	var calls = [];
 	
-	calls.push(function(cb) {
-		args.model.ensureIndexes(cb);
-	});
+	// allow option to disable createIndexes on add for performance
+	if (args.createIndexes === true) {
+		calls.push(function(cb) {
+			args.model.createIndexes(cb);
+		});
+	}
 	
 	async.series(calls, function(err) {
 		if (err) { return cb(err); }
