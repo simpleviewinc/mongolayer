@@ -2,7 +2,7 @@
 	"name" : "mongolayer",
 	"description" : "MongoDB model layer with validation and hooks, similar to Mongoose but thinner.",
 	"author" : "Owen Allen <owenallenaz@gmail.com>",
-	"version" : "1.2.4",
+	"version" : "1.2.5",
 	"devDependencies" : {
 		"mocha" : "*",
 		"request" : "*"
@@ -12,7 +12,8 @@
 		"extend" : "*",
 		"jsvalidator" : "*",
 		"mongodb" : "*",
-		"typecaster" : "*"
+		"typecaster" : "*",
+		"simple-domain" : "*"
 	},
 	"engines" : { "node" : ">=0.10.x" },
 	"scripts" : {

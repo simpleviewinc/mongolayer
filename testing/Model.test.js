@@ -1,6 +1,8 @@
 var assert = require("assert");
 var domain = require("domain");
 var util = require("util");
+var extend = require("extend");
+var simpleDomain = require("simple-domain");
 var mongolayer = require("../index.js");
 var config = require("./config.js");
 
@@ -2678,6 +2680,103 @@ describe(__filename, function() {
 						done();
 					});
 				});
+			});
+		});
+	});
+	
+	describe("domains", function() {
+		var conn;
+		var model;
+		
+		before(function(done) {
+			var domainConfig = extend(true, {}, config);
+			domainConfig.options = {
+				domainsEnabled : true
+			}
+			
+			model = new mongolayer.Model({
+				collection : "domainTest",
+				fields : [
+					{ name : "string", validation : { type : "string", required : true } }
+				]
+			});
+			
+			async.series({
+				connect : function(cb) {
+					mongolayer.connectCached(domainConfig, function(err, temp) {
+						assert.ifError(err);
+						
+						conn = temp;
+						
+						cb(null);
+					});
+				},
+				add : function(cb) {
+					conn.add({ model : model }, cb);
+				},
+				remove : function(cb) {
+					model.remove({}, cb);
+				}
+			}, done);
+		});
+		
+		it("should maintain domain on insert", function(done) {
+			async.parallel([
+				function(cb) {
+					simpleDomain.run(function(cb) {
+						model.insert({ string : "test1" }, cb);
+					}, cb);
+				},
+				function(cb) {
+					simpleDomain.run(function(cb) {
+						model.insert({ string : "test2" }, function(err) {
+							throw new Error("intentional");
+						});
+					}, function(err) {
+						assert.strictEqual(err.message, "intentional");
+						
+						cb(null);
+					});
+				},
+				function(cb) {
+					simpleDomain.run(function(cb) {
+						model.insert({ string : "test3" }, cb);
+					}, cb);
+				},
+			], done);
+		});
+		
+		it("should maintain domain on find", function(done) {
+			model.insert([
+				{ string : "test1" },
+				{ string : "test2" },
+				{ string : "test3" }
+			], function(err) {
+				assert.ifError(err);
+				
+				async.parallel([
+					function(cb) {
+						simpleDomain.run(function(cb) {
+							model.find({ string : "test1" }, cb);
+						}, cb);
+					},
+					function(cb) {
+						simpleDomain.run(function(cb) {
+							model.find({ string : "test2" }, function(err) {
+								throw new Error("intentional");
+							});
+						}, function(err) {
+							assert.strictEqual(err.message, "intentional");
+							
+							cb(null);
+						});
+					},
+					function(cb) {
+						simpleDomain.run(function(cb) {
+							model.find({ string : "test3" }, cb);
+						}, cb);
+					},
+				], done);
 			});
 		});
 	});
