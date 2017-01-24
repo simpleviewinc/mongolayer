@@ -226,6 +226,53 @@ describe(__filename, function() {
 		done();
 	});
 	
+	it("should support cached virtuals", function(done) {
+		var called = 0;
+		
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "num", validation : { type : "number" } }
+			],
+			virtuals : [
+				{
+					name : "foo",
+					get : function() {
+						called++;
+						return this.num;
+					},
+					cache : true
+				},
+				{
+					name : "nonenum",
+					get : function() {
+						called++;
+						return this.num;
+					},
+					cache : true,
+					enumerable : false
+				}
+			]
+		});
+		
+		var doc0 = new model.Document({ num : 0 });
+		var doc1 = new model.Document({ num : 1 });
+		
+		assert.deepStrictEqual(Object.keys(doc0), ["num", "_id"]);
+		assert.strictEqual(called, 0);
+		assert.strictEqual(doc0.foo, 0);
+		assert.strictEqual(doc0.foo, 0);
+		assert.strictEqual(doc0.nonenum, 0);
+		assert.strictEqual(doc1.foo, 1);
+		assert.strictEqual(called, 3);
+		
+		assert.deepStrictEqual(Object.keys(doc0), ["num", "_id", "foo"]);
+		var temp = mongolayer._prepareInsert(doc0);
+		assert.deepStrictEqual(Object.keys(temp), ["num", "_id", "foo"]);
+		
+		done();
+	});
+	
 	it("should _validateDocData and fail on invalid type", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",

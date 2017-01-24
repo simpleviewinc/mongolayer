@@ -250,9 +250,24 @@ Model.prototype.addVirtual = function(args) {
 	args.get = args.get || undefined;
 	args.set = args.set || undefined;
 	args.enumerable = args.enumerable !== undefined ? args.enumerable : true;
+	args.cache = args.cache !== undefined ? args.cache : false;
+	
+	var getter = args.get !== undefined ? args.get : undefined;
+	if (args.cache === true && getter !== undefined) {
+		getter = function() {
+			var value = args.get.call(this);
+			
+			Object.defineProperty(this, args.name, {
+				value : value,
+				enumerable : args.enumerable
+			});
+			
+			return value;
+		}
+	}
 	
 	Object.defineProperty(self._Document.prototype, args.name, {
-		get : args.get !== undefined ? args.get : undefined,
+		get : getter,
 		set : args.set !== undefined ? args.set : undefined,
 		enumerable : args.enumerable
 	});

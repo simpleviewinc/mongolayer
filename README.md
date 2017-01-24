@@ -804,6 +804,7 @@ These can also be specified by passing a `virtuals` array to a `mongolayer.Model
 * `get` - `function` - `optional` - Function executed when the key is accessed.
 * `set` - `function` - `optional` - Function executed when the key is set.
 * `enumerable` - `boolean` - `optional` - `default true` - Whether the key is exposed as enumerable with code such as `for in` loops.
+* `cache` - `boolean` - `optional` - `default false` - If true, the virtual will only be evaluate once, subsequent calls will return the first returned value.
 
 Example:
 
