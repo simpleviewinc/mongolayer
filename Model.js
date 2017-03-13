@@ -727,14 +727,14 @@ Model.prototype.update = function(filter, delta, options, cb) {
 	}
 	
 	options = options === cb ? {} : options;
-	options.hooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.update);
+	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.update);
 	options.options = options.options || {};
 	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
 	self._executeHooks({ type : "beforeUpdate", hooks : self._getHooksByType("beforeUpdate", options.hooks), args : { filter : filter, delta: delta, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } }, function(err, tempArgs) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", options.hooks), args : { filter : filter, options : options } }, function(err, tempArgs) {
 			if (err) { return cb(err); }
 			
 			var calls = [];

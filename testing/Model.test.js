@@ -2022,8 +2022,9 @@ describe(__filename, function() {
 				});
 			});
 			
-			it("should run beforeUpdate and afterUpdate hooks on update", function(done) {
+			it("should run beforeUpdate, afterUpdate, beforeFilter hooks on update", function(done) {
 				var beforeCalled = false;
+				var beforeFilterCalled = false;
 				var afterCalled = false;
 				
 				model.addHook({
@@ -2057,11 +2058,24 @@ describe(__filename, function() {
 					required : true
 				});
 				
-				model.update({ _id : id1 }, { "$set" : { foo : "change" } }, function(err, count, result) {
+				model.addHook({
+					name : "nonRequired",
+					type : "beforeFilter",
+					handler : function(args, cb) {
+						assert.deepStrictEqual(Object.keys(args), ["filter", "options", "hookArgs"]);
+						
+						beforeFilterCalled = true;
+						
+						cb(null, args);
+					}
+				});
+				
+				model.update({ _id : id1 }, { "$set" : { foo : "change" } }, { hooks : ["beforeFilter_nonRequired"] }, function(err, count, result) {
 					assert.ifError(err);
 					
-					assert.equal(beforeCalled, true);
-					assert.equal(afterCalled, true);
+					assert.strictEqual(beforeCalled, true);
+					assert.strictEqual(beforeFilterCalled, true);
+					assert.strictEqual(afterCalled, true);
 					
 					done();
 				});
