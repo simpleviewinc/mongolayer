@@ -202,8 +202,10 @@ Model.prototype.addField = function(args) {
 	// args.default
 	// args.required
 	// args.persist
+	// args.toJSON
 	// args.validation (jsvalidator syntax)
 	
+	args.toJSON = args.toJSON !== undefined ? args.toJSON : true; // default toJSON to be true
 	self.fields[args.name] = args;
 }
 

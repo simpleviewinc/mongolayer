@@ -780,6 +780,7 @@ These can also be specified by passing a `fields` array to a `mongolayer.Model` 
 * `default` - `any` - `optional` - Default value for the field. Can be a function who's return will be the value.
 * `required` - `boolean` - `optional` - Whether the field is required before putting into the database.
 * `persist` - `boolean` - `optional` - `default true`. If false, then the value of the field is not persisted into the database.
+* `toJSON` - `boolean` - `optional` - `default true`. If false, then the value will not serialize to JSON when JSON.stringify() is called on it.
 
 Example:
 

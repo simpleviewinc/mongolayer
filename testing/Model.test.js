@@ -578,7 +578,8 @@ describe(__filename, function() {
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } },
-				{ name : "array", validation : { type : "array", schema : { type : "object", schema : [{ name : "first", type : "boolean" }] } } }
+				{ name : "array", validation : { type : "array", schema : { type : "object", schema : [{ name : "first", type : "boolean" }] } } },
+				{ name : "toJSONFalse", validation : { type : "string" }, toJSON : false }
 			],
 			virtuals : [
 				{ name : "virtualEnum", get : function() { return "virtualEnumValue" }, enumerable : true },
@@ -587,20 +588,22 @@ describe(__filename, function() {
 			]
 		});
 		
-		var doc2 = new model.Document({ foo : "subStringValue" });
-		var doc = new model.Document({ foo : "stringValue", array : [{ first : true }], obj : { subdoc : doc2 } });
+		var doc2 = new model.Document({ foo : "subStringValue", toJSONFalse : "bogusDoc2" });
+		var doc = new model.Document({ foo : "stringValue", array : [{ first : true }], toJSONFalse : "bogusDoc", obj : { subdoc : doc2 } });
 		
 		var temp = JSON.parse(JSON.stringify(doc));
 		
 		// check the state of the primary doc
 		assert.equal(temp.foo, "stringValue");
 		assert.deepEqual(temp.array, [{ first : true }]);
+		assert.strictEqual(temp.toJSONFalse, undefined);
 		assert.equal(temp.virtualEnum, "virtualEnumValue");
 		assert.equal(temp.virtualNotEnum, undefined);
 		assert.equal(temp.virtual, "virtualValue");
 		
 		// ensure the sub document serialized as well
 		assert.equal(temp.obj.subdoc.foo, "subStringValue");
+		assert.strictEqual(temp.obj.toJSONFalse, undefined);
 		assert.equal(temp.obj.subdoc.virtualEnum, "virtualEnumValue");
 		assert.equal(temp.obj.subdoc.virtualNotEnum, undefined);
 		assert.equal(temp.obj.subdoc.virtual, "virtualValue");
