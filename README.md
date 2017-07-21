@@ -1166,6 +1166,8 @@ model.addIndex({
 
 Runs a find query on a mongoDB collection and returns an array of `mongolayer.Document`.
 
+Usage of `castDocs : false` and passing `fields` is recommended for performance. When done so it will only return the specified fields, and will pull down less data from MongoDB.
+
 Hooks: `beforeFind` -> `beforeFilter` -> `afterFind`
 
 Arguments
@@ -1178,7 +1180,7 @@ Arguments
 	* `limit` - `number` - `optional` - Number of records to retrieve.
 	* `skip` - `number` - `optional` - Number of records to skip before retrieving records.
 	* `maxSize` - `number` - `optional` - Enforce a maxSize at query time to prevent large data sets from being inadvertently returned, returns an Error if violated.
-	* `castDocs` - `boolean` - `default false` - If true it will not process the cast returned docs into instanceof model.Document, meaning virtuals won't be created. Usable for performance or simplicity purposes when returning incomplete models.
+	* `castDocs` - `boolean` - `default true` - *RECOMMENDED false* If false it will not convert the returned docs into instanceof model.Document. This means virtuals are not accessible, unless you specify them in your fields object. Usable for performance or simplicity purposes when returning incomplete models.
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
 	* `count` - `boolean` - `default false` - If true it will return an object with `{ count : count, docs : docs }` including the full count that matches the query (not just count of returned docs).
 * `cb` - `function` - `required`
@@ -1196,6 +1198,11 @@ model.find({}, function(err, docs) {
 // find which sorts by created, returns 10 posts, and skips the first 10 posts
 model.find({}, { sort : { created : 1 }, limit : 10, skip : 10 }, function(err, docs) {
 	
+});
+
+// castDocs === false
+model.find({}, { castDocs : false, fields : { _id : 1, title : 1, description : 1 } }, function(err, docs) {
+	// returned data will only contain _id, title, description
 });
 ```
 
