@@ -216,6 +216,8 @@ Model.prototype.addVirtual = function(args) {
 	// args.get
 	// args.set
 	// args.enumerable
+	// args.writable
+	// args.requiredFields
 	
 	if (args.type === "idToString") {
 		args.get = function() {
@@ -253,6 +255,8 @@ Model.prototype.addVirtual = function(args) {
 	args.set = args.set || undefined;
 	args.enumerable = args.enumerable !== undefined ? args.enumerable : true;
 	args.cache = args.cache !== undefined ? args.cache : false;
+	args.requiredFields = args.requiredFields || undefined;
+	args.requiredHooks = args.requiredHooks || undefined;
 	
 	var getter = args.get !== undefined ? args.get : undefined;
 	if (args.cache === true && getter !== undefined) {
@@ -268,11 +272,25 @@ Model.prototype.addVirtual = function(args) {
 		}
 	}
 	
-	Object.defineProperty(self._Document.prototype, args.name, {
-		get : getter,
-		set : args.set !== undefined ? args.set : undefined,
-		enumerable : args.enumerable
-	});
+	// defineProperty treats passing undefined different than now passing the key at all, so we have to only add the keys if they are not undefined
+	var propDef = {}
+	if (getter !== undefined) {
+		propDef.get = getter;
+	}
+	
+	if (args.set !== undefined) {
+		propDef.set = args.set;
+	}
+	
+	if (args.writable !== undefined) {
+		propDef.writable = args.writable;
+	}
+	
+	if (args.enumerable !== undefined) {
+		propDef.enumerable = args.enumerable;
+	}
+	
+	Object.defineProperty(self._Document.prototype, args.name, propDef);
 	
 	self._virtuals[args.name] = args;
 }
@@ -313,9 +331,11 @@ Model.prototype.addRelationship = function(args) {
 	var rightKey = args.rightKey;
 	var rightKeyValidation = args.rightKeyValidation;
 	
-	self.addField({
+	self.addVirtual({
 		name : objectKey,
-		persist : false
+		requiredFields : [args.leftKey],
+		requiredHooks : ["afterFind_" + objectKey],
+		writable : true
 	});
 	
 	if (multipleTypes === true) {
@@ -348,6 +368,7 @@ Model.prototype.addRelationship = function(args) {
 					connection : self.connection,
 					objectKey : objectKey,
 					docs : args.docs,
+					castDocs : args.options.castDocs,
 					hooks : args.options.hooks,
 					fields : args.options.fields
 				}, function(err, docs) {
@@ -381,6 +402,7 @@ Model.prototype.addRelationship = function(args) {
 					connection : self.connection,
 					objectKey : objectKey,
 					docs : args.docs,
+					castDocs : args.options.castDocs,
 					hooks : args.options.hooks,
 					fields : args.options.fields
 				}, function(err, docs) {
@@ -610,10 +632,21 @@ Model.prototype.find = function(filter, options, cb) {
 	}
 	
 	options = options === cb ? {} : options;
-	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.find);
+	options.hooks = options.hooks || self.defaultHooks.find;
 	options.castDocs = options.castDocs !== undefined ? options.castDocs : true;
+	options.mapDocs = options.mapDocs !== undefined ? options.mapDocs : true;
 	options.fields = options.fields || null;
 	options.options = options.options || {};
+	
+	var fieldResults;
+	
+	if (options.fields !== null) {
+		fieldResults = self._processFields(options);
+		options.fields = fieldResults.fields;
+		options.hooks = fieldResults.hooks;
+	}
+	
+	options.hooks = self._normalizeHooks(options.hooks);
 	
 	// utilize a mock when logger is disabled for performance reasons
 	var queryLog = self.connection.logger === undefined ? queryLogMock : new mongolayer.QueryLog({ type : "find", collection : self.collectionName, connection : self.connection });
@@ -669,12 +702,22 @@ Model.prototype.find = function(filter, options, cb) {
 				
 				var castedDocs = args.options.castDocs === true ? self._castDocs(docs, { cloneData : false }) : docs;
 				
+				if (args.options.castDocs === false && fieldResults !== undefined && fieldResults.virtualFields.length > 0) {
+					// if castDocs === false and our fields obj included any virtual fields we need to execute them to ensure they exist in the output
+					self._executeVirtuals(castedDocs, fieldResults);
+				}
+				
 				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs, count : count } }, function(err, args) {
 					if (err) { return cb(err); }
 					
 					queryLog.stopTimer("command");
 					queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
 					queryLog.send();
+					
+					if (args.options.mapDocs === true && args.options.castDocs === false && fieldResults !== undefined && fieldResults.fieldsAdded === true) {
+						// if we are in a castDocs === false situation with mapDocs true (not a relationship find()), and we have added fields, we need to map them away
+						args.docs = objectLib.mongoProject(args.docs, fieldResults.originalFields);
+					}
 					
 					if (args.count !== undefined) {
 						cb(null, { count : args.count, docs : args.docs });
@@ -1241,6 +1284,83 @@ Model.prototype._fillDocDefaults = function(data) {
 			}
 		}
 	});
+}
+
+Model.prototype._processFields = function(options) {
+	var self = this;
+	
+	var returnData = {
+		virtualFields : [], // fields which need to be .call() in the return docs
+		fields : Object.assign({}, options.fields),
+		originalFields : options.fields, // original fields
+		hooks : options.hooks
+	}
+	
+	var evaluatedKeys = [];
+	
+	for(var i in options.fields) {
+		var val = options.fields[i];
+		// we only process truthy fields
+		if (val !== 1 && val !== true) { continue; }
+		
+		// if we have already evaluated this rootKey, such as when { "foo.bar" : 1, "foo.baz" : 1 }, no need to process "foo" twice
+		var rootKey = _getRootKey(i);
+		if (evaluatedKeys.indexOf(rootKey) > -1) { continue; }
+		
+		evaluatedKeys.push(rootKey);
+		
+		var virtual = self._virtuals[rootKey];
+		if (virtual === undefined) { continue; }
+		
+		if (virtual.get !== undefined) {
+			// if we have a getter push it on to virtualFields so that we know what to process after the find
+			returnData.virtualFields.push(rootKey);
+		}
+		
+		if (virtual.requiredFields !== undefined) {
+			virtual.requiredFields.forEach(function(val, i) {
+				var temp = self._processFields({ fields : { [val] : 1 }, hooks : [] });
+				returnData.virtualFields.push.apply(returnData.virtualFields, temp.virtualFields);
+				returnData.hooks.push.apply(returnData.hooks, temp.hooks);
+				Object.assign(returnData.fields, temp.fields);
+			});
+		}
+		
+		if (virtual.requiredHooks !== undefined) {
+			returnData.hooks.push.apply(returnData.hooks, virtual.requiredHooks);
+		}
+	}
+	
+	returnData.virtualFields = arrayLib.unique(returnData.virtualFields);
+	
+	// if we added fields, then we note it as we this as a factor in determining if we need to map the result to remove extra keys
+	returnData.fieldsAdded = Object.keys(returnData.originalFields).length !== Object.keys(returnData.fields).length;
+	
+	if (options.castDocs === false && evaluatedKeys.length > 0 && returnData.fields._id === undefined) {
+		// if we are in castDocs, and we have at least one truthy key, and no value for _id, then we explicitly exclude it for performance since it's going to be mapped away
+		returnData.fields._id = 0;
+	}
+	
+	return returnData;
+}
+
+var _getRootKey_re = /^[^\.]*/;
+var _getRootKey = function(str) {
+	return str.match(_getRootKey_re)[0];
+}
+
+Model.prototype._executeVirtuals = function(docs, fieldResults) {
+	var self = this;
+	
+	var virtualOrder = fieldResults.virtualFields.reverse();
+	
+	docs.forEach(function(val, i) {
+		virtualOrder.forEach(function(virtualName) {
+			val[virtualName] = self._virtuals[virtualName].get.call(val);
+		});
+	});
+	
+	return;
 }
 
 module.exports = Model;

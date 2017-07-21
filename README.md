@@ -8,6 +8,14 @@ Mongolayer is a rich document system similar to Mongoose, but thinner, more type
 
 This module is an attempt at providing the vision of `mongoose` (validation, hooks, relationships) but with less eccentricities, less magic under the hood providing developers with more consistent behaviors.
 
+# Changelog
+
+## 7/21/2017 - 1.4
+- Virtuals have become a whole smarter. You can now specify a virtual field as having requiredFields and requiredHooks. If you reference that field in a find() fields obj, it will automatically include the requiredFields and hooks. This makes working with relationships and virtuals much simpler.
+- Relationships can now be executed simply by adding the field to your fields obj, without needing to ask for dependent keys and the hook. See Populating Relationships for more info.
+- `options.castDocs === false` behavior has changed. If it's specified, and a truthy fields obj is passed, it will *only* return the specified fields. This differs from native mongodb, which will continue to return _id even if it's not asked for. This makes the downstream from queries simpler to work with as you only receive what you ask for. Nested empty `{}` and `[]` will always be trimmed from the final result. See castDocs in find() for more information.
+- `options.castDocs === false` and passing fields is the recommended default behavior for all queries where performance matters as it forces you to specify only the fields you want.
+
 # Documentation
 
 * [Hooks](#hooks)
@@ -469,7 +477,7 @@ Key Points:
 	* Cross-table based relationships are not possible to maintain atomically in native MongoDB and thus should be avoided.
 * Related records that are pulled in will be of type `model.Document` specific to that model. Meaning they will have all virtuals and methods attached. In our blogPost example, the pulled in author will be a functioning `authorModel.Document`.
 * You can specify hooks at query time which will cascade down into relationships. Using our blog example, when querying the blog, you may want specific hooks to run on authors, you can specify these at query time.
-* To populate related data you must specify the hook you want to run at query time. See hooks documentation for more information.
+* To populate related data, there are two methods. You can specify the hooks and the required fields, or you can simply reference the field name in the `fields` option.
 
 Example:
 
@@ -540,13 +548,100 @@ postModel.insert({
 <a name="populating_relationships"/>
 ## Populating Relationships
 
-Each declared relationship creates an `afterFind` hook of the same name which can be passed in order to populate that data. These hooks can be nested down into inner relationships as well.
+Each declared relationship creates an `afterFind` hook and a virtual of the same name. Either can be used to populate that data. These hooks and virtuals can be nested down into inner relationships as well.
 
 When querying a model you can also pass hooks to execute on related models as well. This is the technique you would use to pull in nested relationships.
 
-In our example, if I pass the hook 'author' it will fill in the authors and if I pass in 'author.image' it will run the 'image' hook on the relationship managed at the 'author' key.
+In our example, if I pass the hook 'afterFind_author' it will fill in the authors and if I pass in 'author.afterFind_image' it will run the 'afterFind_image' hook on the model which manages the 'author' key.
 
-The merged in data will be accessed at the key for the relationship 'name'. So because I named my author relationship 'author', then I will access the author at 'doc.author'. If I need to get/set it's id, I can use 'doc.author_id'.
+The merged in data will be accessed at the key for the relationship 'name'. So because I named my author relationship 'author', then I will access the author at 'author'. If I need to get/set it's id, I can use 'doc.author_id'.
+
+### Using virtuals to fold in relationships
+
+The best practice with most queries is to specify only the fields you want. If you specify a field which is a relationship, it will automatically merge that field in.
+
+It is highly recommended to utilize `castDocs : false` at the same time to reduce the clutter of the return and ensure optimal performance.
+
+#### Example
+
+- By specifying the 'author' key, it tells mongolayer to fold in the related data. Under the hood mongolayer utilizes requiredFields and requiredHooks to add author_id to our fields and append the hook 'afterFind_author'. Using the virtual for this behavior simplifies the developer use-case, and obfuscates that complexity.
+
+```js
+postModel.find({}, { fields : { title : 1, description : 1, author : 1 } }, function(err, docs) {
+	// returned docs will have the structure
+	{
+		title : "x",
+		description : "y",
+		author_id : id,
+		author : {
+			name : "foo",
+			image_id : id
+		}
+	}
+});
+```
+
+- If you want to pull in the authors image, you can do that as well. As with MongoDB native behavior, by specifying a descendent key on a nested key, you will now only returned the queried keys. This means the query below will no longer return "author.name", because "author.image" was specified in the query, thus making the author find() no longer a SELECT *. This the query below is no different than `{ title : 1, description : 1, "author.image" : 1 }`
+```js
+postModel.find({}, { fields : { title : 1, description : 1, author : 1, "author.image" : 1 } }, function(err, docs) {
+	// returned docs will have the structure
+	{
+		_id : id,
+		title : "x",
+		description : "y",
+		author_id : authorId, // added by the virtual system
+		author : {
+			_id : authorId
+			image_id : imageId, // added by the virtual system
+			image : {
+				_id : imageId,
+				title : "title",
+				src : "http://www.foo.com/something.jpg"
+			}
+		}
+	}
+});
+```
+
+```js
+// In order to speed things up and reduce the clutter of the return, you can specify castDocs : false in your options
+postModel.find({}, { fields : { title : 1, description : 1, "author.image" : 1 }, castDocs : false }, function(err, docs) {
+	// returned docs will have the structure
+	{
+		title : "x",
+		description : "y",
+		author : {
+			image : {
+				_id : imageId,
+				title : "title",
+				src : "http://www.foo.com/something.jpg"
+			}
+		}
+	}
+});
+
+// When querying relationships, you can specify fields for inclusion or exclusion as if you were querying that model directly. As with normal mongo syntax, you cannot mix inclusion and exclusion. (except for the _id case).
+postModel.find({}, { fields : { title : 1, "author.image.src" : 1 } }, function(err, docs) {
+	// returned docs will have the structure
+	{
+		title : "x",
+		author : {
+			image : {
+				src : "x"
+			}
+		}
+	}
+	
+	// if there is no image on the author, or no src on the image the author key will be undefined
+	{
+		title : "x"
+	}
+});
+```
+
+### Using hooks to fold in all data
+
+In cases where you want to pull all fields, then you will need to specify the hooks to signal mongolayer which relationships to populate.
 
 ```js
 // query blog posts and fold in authors and their images, tags not folded in
@@ -563,21 +658,9 @@ postModel.find({}, { hooks : ["afterFind_author", "author.afterFind_image"] }, f
 });
 ```
 
-Here is another example which folds in all data
-
 ```js
 // query blog posts and fold in everything
 postModel.find({}, { hooks : ["afterFind_author", "author.afterFind_image", "afterFind_tags", "afterFind_images"] }, function(err, docs) {
-	if (err) { return cb(err); }
-	
-	cb(null);
-});
-```
-
-If you pass fields to your primary query it will pass that on to the related content. In the following query, we will exclude the description field from the related author when merging the data in.
-
-```js
-postModel.find({}, { hooks : ["afterFind_author"], fields : { "author.description" : false } }, function(err, docs) {
 	if (err) { return cb(err); }
 	
 	cb(null);
@@ -806,6 +889,14 @@ These can also be specified by passing a `virtuals` array to a `mongolayer.Model
 * `set` - `function` - `optional` - Function executed when the key is set.
 * `enumerable` - `boolean` - `optional` - `default true` - Whether the key is exposed as enumerable with code such as `for in` loops.
 * `cache` - `boolean` - `optional` - `default false` - If true, the virtual will only be evaluate once, subsequent calls will return the first returned value.
+* `writable` - `boolean` - `optional` - `default false` - If true, the virtuals value can be set directly, without a setter. Cannot be used with a getter.
+* `requiredFields` - `array of strings` - `optional` - An array of requiredFields this virtual depends on. In find() fields, if the virtual is specified for inclusion,
+it will automatically ensure that all requiredFields are part of the fields doc, simplifying downstream developer workflows. requiredFields can reference other virtual fields,
+allowing developers to chain multiple virtuals together.
+* `requiredHooks` - `array of strings` - `optional` - An array of hooks that this virtual depends on. In find() fields, if the virtual is specified for inclusion
+it will automatically add these hooks to run.
+
+Virtuals can be executed in `castDocs === false` if they are specified in the `fields` find() option.
 
 Example:
 
@@ -836,6 +927,37 @@ model.addVirtual({
 var doc = new mongolayer.Document({ description : "foo\r\nbar" });
 console.log(doc.description_formatted);
 // "foo<br/>bar"
+```
+
+Working with requiredFields
+
+```js
+model.addVirtual({
+	name : "url",
+	get : function() { return "http://www.mydomain/post/" + this.slug + "/"; },
+	requiredFields : ["slug"]
+});
+
+model.addVirtual({
+	name : "slug",
+	get : function() { return encodeURI(this.title.toLowerCase().replace(/[^\w ]/g, "").replace(/\s/g, "-")); },
+	requiredFields : ["title"]
+});
+
+var data = {
+	title : "This is a test!",
+	description : "My description text"
+}
+
+// query and ask for only the url, since the url depends on title and slug both will come back
+model.find({}, { fields : { url : 1 } }, function(err, docs) {
+	docs[0] === { _id : objectId, title : "This is a test", slug : "this-is-a-test", url : "http://www.mydomain/post/this-is-a-test/" }
+});
+
+// query with castDocs and only the specified fields come back, even though our virtual (under the hood) needed some additional fields to operate
+model.find({}, { fields : { url : 1 }, castDocs : false }, function(err, docs) {
+	docs[0] === { url : "http://www.mydomain/post/this-is-a-test/" }
+});
 ```
 
 **Note:** you cannot query against fields declared as virtuals, you can only query against fields actually stored in the database.

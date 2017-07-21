@@ -5,8 +5,11 @@ var extend = require("extend");
 var simpleDomain = require("simple-domain");
 var mongolayer = require("../index.js");
 var config = require("./config.js");
+var assertLib = require("../lib/assertLib.js");
 
 var async = require("async");
+
+var mongoId = { type : "object", class : mongolayer.ObjectId };
 
 describe(__filename, function() {
 	var conn;
@@ -1193,6 +1196,55 @@ describe(__filename, function() {
 					{ name : "single_rightKey", type : "single", modelName : "mongolayer_testRelated", rightKey : "title", rightKeyValidation : { type : "string" } },
 					{ name : "multiple_rightKey", type : "multiple", modelName : "mongolayer_testRelated", rightKey : "title", rightKeyValidation : { type : "string" } }
 				],
+				hooks : [
+					{
+						name : "testRequired",
+						type : "beforeFind",
+						handler : function(args, cb) {
+							args.options._beforeFind_testRequired = true;
+							return cb(null, args);
+						}
+					},
+					{
+						name : "testRequired",
+						type : "afterFind",
+						handler : function(args, cb) {
+							args.docs[0].afterFind_testRequired = true;
+							return cb(null, args);
+						}
+					},
+				],
+				virtuals : [
+					{
+						name : "requiresBar",
+						get : function() {
+							return "requiresBar_" + this.bar;
+						},
+						requiredFields : ["bar"]
+					},
+					{
+						name : "requiresHooks",
+						get : function() {
+							return true;
+						},
+						requiredHooks : ["beforeFind_testRequired", "afterFind_testRequired"]
+					},
+					{
+						name : "requiresChained",
+						get : function() {
+							return "requiresChained_" + this.requiresBar;
+						},
+						requiredFields : ["requiresBar", "requiresHooks"]
+					},
+					{
+						name : "requiresBoth",
+						get : function() {
+							return "requiresBoth_" + this.bar;
+						},
+						requiredFields : ["bar"],
+						requiredHooks : ["beforeFind_testRequired", "afterFind_testRequired"]
+					}
+				],
 				documentMethods : [
 					{ name : "testMethod", handler : function() { return "testMethodReturn" } }
 				],
@@ -2141,7 +2193,8 @@ describe(__filename, function() {
 				beforeEach(function(done) {
 					model.insert([
 						{
-							foo : "1"
+							foo : "1",
+							bar : "barValue"
 						},
 						{
 							foo : "2"
@@ -2184,7 +2237,7 @@ describe(__filename, function() {
 				
 				it("should enforce maxSize", function(done) {
 					model.find({}, { maxSize : 10 }, function(err, docs) {
-						assert.strictEqual(err.message, "Max size of result set '172' exceeds options.maxSize of '10'");
+						assert.strictEqual(err.message, "Max size of result set '189' exceeds options.maxSize of '10'");
 						
 						done();
 					});
@@ -2353,8 +2406,144 @@ describe(__filename, function() {
 						assert.equal(docs[0].foo, "1");
 						assert.equal(docs[0].bar, undefined);
 						assert.equal(docs[0].baz, undefined);
+						assert.equal(docs[0].requiresBar, "requiresBar_undefined");
 						
 						done();
+					});
+				});
+				
+				var tests = [
+					{
+						name : "should find and process virtual requiredFields",
+						filter : { foo : { $in : ["1", "2"] } },
+						options : { fields : { foo : 1, requiresBar : 1 } },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									_id : { type : "object", class : mongolayer.ObjectId },
+									foo : "1",
+									bar : "barValue",
+									requiresBar : "requiresBar_barValue"
+								}
+							},
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									_id : { type : "object", class : mongolayer.ObjectId },
+									foo : "2",
+									requiresBar : "requiresBar_undefined"
+								}
+							}
+						]
+					},
+					{
+						name : "should find and process virtual requiredHooks",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1, requiresHooks : 1 } },
+						results : [
+							{
+								afterFind_testRequired : true
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : true
+						}
+					},
+					{
+						name : "should require both requiredFields",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1, requiresBoth : 1 } },
+						results : [
+							{
+								requiresBoth : "requiresBoth_barValue",
+								afterFind_testRequired : true
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : true
+						}
+					},
+					{
+						name : "should chain virtuals recursively",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1, requiresChained : 1 } },
+						results : [
+							{
+								foo : "1",
+								requiresChained : "requiresChained_requiresBar_barValue",
+								requiresBar : "requiresBar_barValue",
+								afterFind_testRequired : true
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : true
+						}
+					},
+					{
+						name : "castDocs false and not including virtuals",
+						filter : { foo : "1" },
+						options : { fields : { _id : 0, bar : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									bar : "barValue"
+								}
+							}
+						]
+					},
+					{
+						name : "castDocs false should only return requested fields even when using virtuals",
+						filter : { foo : "1" },
+						options : { fields : { requiresBar : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									requiresBar : "requiresBar_barValue"
+								}
+							}
+						]
+					},
+					{
+						name : "castDocs should allow multi-step virtual chaining",
+						filter : { foo : "1" },
+						options : { fields : { requiresChained : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									requiresChained : "requiresChained_requiresBar_barValue"
+								}
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : true
+						}
+					}
+				]
+				
+				tests.forEach(function(test) {
+					(test.only ? it.only : it)(test.name, function(done) {
+						model.find(test.filter, test.options, function(err, docs) {
+							assert.ifError(err);
+							
+							if (test.results !== undefined) {
+								assertLib.deepCheck(docs, test.results);
+							}
+							
+							if (test.optionsCheck !== undefined) {
+								assertLib.deepCheck(test.options, test.optionsCheck);
+							}
+							
+							return done();
+						});
 					});
 				});
 			});
@@ -2663,6 +2852,115 @@ describe(__filename, function() {
 						assert.ok(err.message.match(/is required/));
 						
 						done();
+					});
+				});
+				
+				var tests = [
+					{
+						name : "should populate relationship via field key",
+						filter : { _id : root3 },
+						options : { fields : { foo : 1, single_rightKey : 1 } },
+						results : [
+							{
+								foo : "foo3",
+								single_rightKey : {
+									type : "object",
+									class : mongolayer.Document,
+									data : {
+										title : "title1_2",
+										extra : "extra1_2"
+									}
+								}
+							}
+						]
+					},
+					{
+						name : "should populate relationship via field key and pass castDocs",
+						filter : { _id : root3 },
+						options : { fields : { foo : 1, single_rightKey : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									foo : "foo3",
+									single_rightKey : {
+										type : "object",
+										allowExtraKeys : false,
+										data : {
+											_id : { type : "object", class : mongolayer.ObjectId },
+											title : "title1_2",
+											extra : "extra1_2",
+											singleSecond_id : { type : "object", class : mongolayer.ObjectId },
+											singleRequired_id : { type : "object", class : mongolayer.ObjectId },
+										}
+									}
+								}
+							}
+						]
+					},
+					{
+						name : "should populate recursively with castDocs returning fields required for processing the virtuals",
+						filter : { _id : root3 },
+						options : { fields : { "single_rightKey.singleSecond.extra" : 1 } },
+						results : [
+							{
+								_id : mongoId,
+								single_rightKey_id : "title1_2",
+								single_rightKey : {
+									_id : mongoId,
+									title : "title1_2",
+									singleSecond_id : mongoId,
+									singleSecond : {
+										_id : mongoId,
+										extra : "extra2_1",
+										title : undefined
+									}
+								},
+								requiresBar : "requiresBar_undefined",
+								requiresHooks : true
+							}
+						]
+					},
+					{
+						name : "should populate recursively with castDocs only returning required fields",
+						filter : { _id : root3 },
+						options : { fields : { "single_rightKey.singleSecond.extra" : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									single_rightKey : {
+										type : "object",
+										allowExtraKeys : false,
+										data : {
+											singleSecond : {
+												type : "object",
+												allowExtraKeys : false,
+												data : {
+													extra : "extra2_1"
+												}
+											}
+										}
+									}
+								}
+							}
+						]
+					}
+				]
+				
+				tests.forEach(function(test) {
+					(test.only ? it.only : it)(test.name, function(done) {
+						model.find(test.filter, test.options, function(err, docs) {
+							assert.ifError(err);
+							
+							if (test.results !== undefined) {
+								assertLib.deepCheck(docs, test.results);
+							}
+							
+							return done();
+						});
 					});
 				});
 			});

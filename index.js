@@ -350,6 +350,7 @@ var resolveRelationship = function(args, cb) {
 	// args.multipleTypes - Boolean whether this supports multiple types
 	// args.objectKey - The key in our Document which will be filled with the found results
 	// args.docs - The array of Documents
+	// args.castDocs - Whether to cast the documents after the find
 	// args.hooks - Any hooks that need to be run
 	// args.fields - Field restriction on the related item
 	
@@ -409,8 +410,16 @@ var resolveRelationship = function(args, cb) {
 	}
 	
 	var tempFields = _getMyFields(args.objectKey, args.fields);
-	if (tempFields.length === 0) {
+	if (Object.keys(tempFields).length === 0) {
 		tempFields = undefined;
+	}
+	
+	if (tempFields !== undefined) {
+		// if our fields object contains any truthy keys, then we want to make sure our rightKey is one of them.
+		var hasInclusiveFields = Object.keys(tempFields).findIndex(function(val) { return tempFields[val] === 1 || tempFields[val] === true }) > -1;
+		if (hasInclusiveFields === true) {
+			tempFields[args.rightKey] = 1; // ensure the right key will be queried
+		}
 	}
 	
 	var calls = [];
@@ -426,7 +435,8 @@ var resolveRelationship = function(args, cb) {
 				return cb(null);
 			}
 			
-			model.find(filter, { hooks : tempHooks, fields : tempFields }, function(err, docs) {
+			// pass fields, hooks, castDocs, explicitly set mapDocs to false so that relationships don't map data, saving it for the final output map in the main find()
+			model.find(filter, { hooks : tempHooks, fields : tempFields, castDocs : args.castDocs, mapDocs : false }, function(err, docs) {
 				if (err) { return cb(err); }
 				
 				// stash the result to be used after all queries have finished
@@ -545,5 +555,6 @@ extend(module.exports, {
 	resolveRelationship : resolveRelationship,
 	typecasterObjectIdDef : typecasterObjectIdDef,
 	_prepareInsert : _prepareInsert,
-	_getMyHooks : _getMyHooks
+	_getMyHooks : _getMyHooks,
+	_getMyFields : _getMyFields
 });
