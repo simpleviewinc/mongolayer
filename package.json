@@ -17,7 +17,7 @@
 	},
 	"engines" : { "node" : ">=0.10.x" },
 	"scripts" : {
-		"test" : "mocha --debug $(find testing/ -name *.test.js) -R spec --colors --check-leaks --globals Promise"
+		"test" : "mocha $(find testing/ -name *.test.js) -R spec --colors --check-leaks --globals Promise"
 	},
 	"repository" : {
 		"type" : "git",
