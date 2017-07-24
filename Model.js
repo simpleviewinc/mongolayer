@@ -88,15 +88,7 @@ var Model = function(args) {
 		remove : []
 	}, args.defaultHooks);
 	
-	self._Document = function(model, args) {
-		mongolayer.Document.apply(this, arguments); // call constructor of parent but pass this as context
-	};
-	
-	// ensures that all documents we create are instanceof mongolayer.Document and instanceof self.Document
-	self._Document.prototype = Object.create(mongolayer.Document.prototype);
-	
-	// binds the model into the document so that the core document is aware of the model, but not required when instantiating a new one
-	self.Document = self._Document.bind(self._Document, self);
+	self.Document = _getModelDocument(self);
 	
 	// adds _id field
 	self.addField({
@@ -290,7 +282,7 @@ Model.prototype.addVirtual = function(args) {
 		propDef.enumerable = args.enumerable;
 	}
 	
-	Object.defineProperty(self._Document.prototype, args.name, propDef);
+	Object.defineProperty(self.Document.prototype, args.name, propDef);
 	
 	self._virtuals[args.name] = args;
 }
@@ -443,7 +435,7 @@ Model.prototype.addDocumentMethod = function(args) {
 	// args.name
 	// args.handler
 	
-	self._Document.prototype[args.name] = args.handler;
+	self.Document.prototype[args.name] = args.handler;
 	self._documentMethods[args.name] = args;
 }
 
@@ -1361,6 +1353,64 @@ Model.prototype._executeVirtuals = function(docs, fieldResults) {
 	});
 	
 	return;
+}
+
+// need a closure to wrap the model reference
+var _getModelDocument = function(model) {
+	var ModelDocument = function(data, options) {
+		var self = this;
+		
+		data = data || {};
+		options = options || {};
+		
+		options.fillDefaults = options.fillDefaults === undefined ? true : options.fillDefaults;
+		options.cloneData = options.cloneData === undefined ? true : options.cloneData;
+		
+		// clone the incoming data
+		var temp = options.cloneData === true ? extend(true, {}, data) : data;
+		
+		// fold in the top level keys, we can't just call extend on self because it will execute getters on "self" even though it should only execute setters
+		var keys = Object.keys(temp);
+		for(var i = 0; i < keys.length; i++) {
+			self[keys[i]] = temp[keys[i]];
+		}
+		
+		if (options.fillDefaults) {
+			model._fillDocDefaults(self);
+		}
+		
+		model._onInit.call(self);
+	}
+	
+	// ensure that objects created from model.Document are instanceof mongolayer.Document
+	ModelDocument.prototype = Object.create(mongolayer.Document.prototype);
+
+	ModelDocument.prototype.toJSON = function() {
+		var self = this;
+		
+		var data = {};
+		
+		// copy across the normal keys
+		var keys = Object.keys(self);
+		for(var i = 0; i < keys.length; i++) {
+			var field = model.fields[keys[i]];
+			if (field !== undefined && field.toJSON === false) { continue; }
+			
+			data[keys[i]] = self[keys[i]];
+		}
+		
+		// copy across keys declared as enumerable virtual values
+		var protoKeys = Object.keys(Object.getPrototypeOf(self));
+		for(var i = 0; i < protoKeys.length; i++) {
+			if (protoKeys[i] === "toJSON") { continue; }
+			
+			data[protoKeys[i]] = self[protoKeys[i]];
+		}
+		
+		return data;
+	}
+	
+	return ModelDocument;
 }
 
 module.exports = Model;
