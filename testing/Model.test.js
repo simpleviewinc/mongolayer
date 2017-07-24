@@ -1213,6 +1213,25 @@ describe(__filename, function() {
 							return cb(null, args);
 						}
 					},
+					{
+						name : "testAggregate",
+						type : "beforeAggregate",
+						handler : function(args, cb) {
+							assert.notStrictEqual(args.pipeline, undefined);
+							args.options._beforeAggregate_testAggregate = true;
+							return cb(null, args);
+						}
+					},
+					{
+						name : "testAggregate",
+						type : "afterAggregate",
+						handler : function(args, cb) {
+							args.docs.forEach(function(val, i) {
+								val._afterAggregate_testAggregate = true;
+							});
+							return cb(null, args);
+						}
+					}
 				],
 				virtuals : [
 					{
@@ -2153,7 +2172,8 @@ describe(__filename, function() {
 			beforeEach(function(done) {
 				model.insert([
 					{
-						foo : "1"
+						foo : "1",
+						bar : "barValue"
 					},
 					{
 						foo : "2"
@@ -2174,16 +2194,55 @@ describe(__filename, function() {
 					
 					assert.strictEqual(docs.length, 1);
 					assert.strictEqual(docs[0].foo, "1");
+					assert.strictEqual(docs[0].bar, "barValue");
+					assert.strictEqual(docs[0].requiresBar, undefined);
 					
-					done();
+					return done();
+				});
+			});
+			
+			it("should run hooks", function(done) {
+				var options = { hooks : ["beforeAggregate_testAggregate", "afterAggregate_testAggregate"] };
+				model.aggregate([{ $match : { foo : "1" } }], options, function(err, docs) {
+					assert.ifError(err);
+					
+					assert.strictEqual(docs[0]._afterAggregate_testAggregate, true);
+					assert.strictEqual(options._beforeAggregate_testAggregate, true);
+					
+					return done();
+				});
+			});
+			
+			it("should allow execution of virtuals", function(done) {
+				model.aggregate([{ $match : { foo : "1" } }], { virtuals : ["requiresBar"] }, function(err, docs) {
+					assert.ifError(err);
+					
+					assert.strictEqual(docs[0].requiresBar, "requiresBar_barValue");
+					assert.strictEqual(docs[0].bar, "barValue");
+					assert.strictEqual(docs[0].requiresChained, undefined);
+					
+					return done();
+				});
+			});
+			
+			it("should allow castDocs", function(done) {
+				model.aggregate([{ $match : { foo : "1" } }], { castDocs : true }, function(err, docs) {
+					assert.ifError(err);
+					
+					assert.strictEqual(docs[0] instanceof model.Document, true);
+					assert.strictEqual(docs[0].bar, "barValue");
+					assert.strictEqual(docs[0].requiresBar, "requiresBar_barValue");
+					assert.strictEqual(docs[0].requiresChained, "requiresChained_requiresBar_barValue");
+					
+					return done();
 				});
 			});
 			
 			it("should enforce maxSize", function(done) {
 				model.aggregate([{ $match : { foo : "1" } }], { maxSize : 10 }, function(err, docs) {
-					assert.strictEqual(err.message, "Max size of result set '58' exceeds options.maxSize of '10'");
+					assert.strictEqual(err.message, "Max size of result set '75' exceeds options.maxSize of '10'");
 					
-					done();
+					return done();
 				});
 			});
 		});

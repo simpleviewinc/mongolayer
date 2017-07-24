@@ -51,6 +51,8 @@ var Model = function(args) {
 	self.methods = {};
 	self.connection = null; // stores Connection ref
 	self.hooks = {
+		beforeAggregate : {},
+		afterAggregate : {},
 		beforeInsert : {},
 		afterInsert : {},
 		beforeSave : {},
@@ -80,6 +82,7 @@ var Model = function(args) {
 	self._convertSchemaV2 = undefined;
 	
 	self.defaultHooks = extend({
+		aggregate : [],
 		find : [],
 		count : [],
 		insert : [],
@@ -585,19 +588,37 @@ Model.prototype.aggregate = function(pipeline, options, cb) {
 	
 	cb = cb || options;
 	options = options === cb ? {} : options;
+	options.castDocs = options.castDocs !== undefined ? options.castDocs : false;
 	options.options = options.options || {};
+	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.aggregate);
 	
-	self.collection.aggregate(pipeline, options, function(err, docs) {
+	self._executeHooks({ type : "beforeAggregate", hooks : self._getHooksByType("beforeAggregate", options.hooks), args : { pipeline : pipeline, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		if (options.maxSize) {
-			var size = JSON.stringify(docs).length;
-			if (size > options.maxSize) {
-				return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + options.maxSize + "'"));
+		self.collection.aggregate(args.pipeline, args.options, function(err, docs) {
+			if (err) { return cb(err); }
+			
+			if (args.options.maxSize) {
+				var size = JSON.stringify(docs).length;
+				if (size > args.options.maxSize) {
+					return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
+				}
 			}
-		}
-		
-		cb(null, docs);
+			
+			if (args.options.virtuals !== undefined) {
+				self._executeVirtuals(docs, args.options.virtuals);
+			}
+			
+			if (args.options.castDocs === true) {
+				docs = self._castDocs(docs, { cloneData : false })
+			}
+			
+			self._executeHooks({ type : "afterAggregate", hooks : self._getHooksByType("afterAggregate", options.hooks), args : { pipeline : args.pipeline, options : args.options, docs : docs } }, function(err, args) {
+				if (err) { return cb(err); }
+				
+				cb(null, args.docs);
+			});
+		});
 	});
 }
 
@@ -696,7 +717,7 @@ Model.prototype.find = function(filter, options, cb) {
 				
 				if (args.options.castDocs === false && fieldResults !== undefined && fieldResults.virtualFields.length > 0) {
 					// if castDocs === false and our fields obj included any virtual fields we need to execute them to ensure they exist in the output
-					self._executeVirtuals(castedDocs, fieldResults);
+					self._executeVirtuals(castedDocs, fieldResults.virtualFields.reverse());
 				}
 				
 				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs, count : count } }, function(err, args) {
@@ -1341,13 +1362,11 @@ var _getRootKey = function(str) {
 	return str.match(_getRootKey_re)[0];
 }
 
-Model.prototype._executeVirtuals = function(docs, fieldResults) {
+Model.prototype._executeVirtuals = function(docs, virtuals) {
 	var self = this;
 	
-	var virtualOrder = fieldResults.virtualFields.reverse();
-	
 	docs.forEach(function(val, i) {
-		virtualOrder.forEach(function(virtualName) {
+		virtuals.forEach(function(virtualName) {
 			val[virtualName] = self._virtuals[virtualName].get.call(val);
 		});
 	});

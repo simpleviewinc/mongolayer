@@ -172,6 +172,17 @@ var model = new mongolayer.Model({
 
 The arguments a hook receives will differ based on the specific hook. The following describes which arguments each hook will receive.
 
+### beforeAggregate(args, cb)
+
+* `args.pipeline` - `array` - The aggregation pipeline
+* `args.options` - `object` - Options passed to the aggregate call
+
+### afterAggregate(args, cb)
+
+* `args.pipeline` - `array` - The aggregation pipeline
+* `args.options` - `object` - Options passed to the aggregate call
+* `args.docs` - `array` - Array of documents returned from the aggregate call
+
 ### beforeFind(args, cb)
 
 * `args.filter` - `object` - The filter passed in to the query.
@@ -1162,6 +1173,37 @@ model.addIndex({
 <a name="querying"/>
 ## Querying
 
+### model.aggregate(pipeline, options, cb
+
+Runs a aggregation query on a mongoDB collection and returns an array of objects.
+
+Hooks: `beforeAggregation` -> `afterAggregation`
+
+Arguments
+
+* `pipeline` - `array` - `required` - MongoDB aggregation pipeline. See official docs
+* `options` - `object` - `optional`
+	* `maxSize` - `number` - `optional` - Enforce a maxSize at query time to prevent large data sets from being inadvertently returned, returns an Error if violated.
+	* `castDocs` - `boolean` - `default false` - *RECOMMENDED false*. If true it will convert the returned docs into instanceof model.Document, allowing access to virtuals. If false, you can utilize `options.virtuals` to execute specific virtuals, which is preferred versus castDocs.
+	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
+	* `virtuals` - `array of strings` - `optional` - An array of virtuals to attach to the returned documents. If used it is assumed that the aggregation will return any dependent data needed to fulfill the virtual.
+	
+```js
+// simple aggregate
+model.aggregate([
+	{ $match : { foo : "fooValue" } }
+], function(err, docs) {
+	
+});
+
+// with virtuals and hooks
+model.aggregate([
+	{ $match : { foo : "fooValue" } }
+], { virtuals : ["fooVirtual"], hooks : ["beforeAggregate_test", "afterAggregate_test2"] }, function(err, docs) {
+	
+});
+```
+
 ### model.find(filter, options, cb)
 
 Runs a find query on a mongoDB collection and returns an array of `mongolayer.Document`.
@@ -1180,7 +1222,7 @@ Arguments
 	* `limit` - `number` - `optional` - Number of records to retrieve.
 	* `skip` - `number` - `optional` - Number of records to skip before retrieving records.
 	* `maxSize` - `number` - `optional` - Enforce a maxSize at query time to prevent large data sets from being inadvertently returned, returns an Error if violated.
-	* `castDocs` - `boolean` - `default true` - *RECOMMENDED false* If false it will not convert the returned docs into instanceof model.Document. This means virtuals are not accessible, unless you specify them in your fields object. Usable for performance or simplicity purposes when returning incomplete models.
+	* `castDocs` - `boolean` - `default true` - *RECOMMENDED false*. If true it will convert the returned docs into instanceof model.Document, allowing access to virtuals. If false, only virtuals mentioned in the fields object are accessible, which is the recommendataion!
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
 	* `count` - `boolean` - `default false` - If true it will return an object with `{ count : count, docs : docs }` including the full count that matches the query (not just count of returned docs).
 * `cb` - `function` - `required`
