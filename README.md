@@ -13,8 +13,12 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 ## 7/21/2017 - 1.4
 - Virtuals have become a whole smarter. You can now specify a virtual field as having requiredFields and requiredHooks. If you reference that field in a find() fields obj, it will automatically include the requiredFields and hooks. This makes working with relationships and virtuals much simpler.
 - Relationships can now be executed simply by adding the field to your fields obj, without needing to ask for dependent keys and the hook. See Populating Relationships for more info.
-- `options.castDocs === false` behavior has changed. If it's specified, and a truthy fields obj is passed, it will *only* return the specified fields. This differs from native mongodb, which will continue to return _id even if it's not asked for. This makes the downstream from queries simpler to work with as you only receive what you ask for. Nested empty `{}` and `[]` will always be trimmed from the final result. See castDocs in find() for more information.
-- `options.castDocs === false` and passing fields is the recommended default behavior for all queries where performance matters as it forces you to specify only the fields you want.
+- find() `options.castDocs === false` behavior has changed. If it's specified, and a truthy fields obj is passed, it will *only* return the specified fields. This differs from native mongodb, which will continue to return _id even if it's not asked for. This makes the downstream from queries simpler to work with as you only receive what you ask for. Nested empty `{}` and `[]` will always be trimmed from the final result. See castDocs in find() for more information.
+- find() `options.castDocs === false` and passing fields is the recommended default behavior for all queries where performance matters as it forces you to specify only the fields you want.
+- BREAKING - Virtuals can no longer be referenced in hooks. This is for capability when working with `castDocs === false` and `castDocs === true`. In general if you need data created via a virtual inside a hook, you should be creating that data with a hook instead.
+- Aggregate now supports hooks, `beforeAggregate` and `afterAggregate`
+- Aggregate now supports `options.castDocs` and `options.virtuals` for utilizing virtuals when returning data via aggregate
+- Fixed potential RSS memory expansion issue due to usage of `WeakMap()`.
 
 # Documentation
 
