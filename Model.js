@@ -1013,9 +1013,13 @@ Model.prototype._getHooksByType = function(type, hooks) {
 	
 	var matcher = new RegExp("^" + type + "_");
 	
-	return hooks.filter(function(val) {
-		return val.name.match(matcher)
-	}).map(function(val) {
+	var returnHooks = [];
+	
+	for(var i = 0; i < hooks.length; i++) {
+		var val = hooks[i];
+		var isMyType = val.name.match(matcher) !== null;
+		if (isMyType === false) { continue; }
+		
 		var temp = {
 			name : val.name.replace(matcher, "")
 		}
@@ -1024,8 +1028,10 @@ Model.prototype._getHooksByType = function(type, hooks) {
 			temp.args = val.args;
 		}
 		
-		return temp;
-	});
+		returnHooks.push(temp);
+	}
+	
+	return returnHooks;
 }
 
 Model.prototype._normalizeHooks = function(hooks, cb) {
@@ -1034,9 +1040,10 @@ Model.prototype._normalizeHooks = function(hooks, cb) {
 	// args.hooks
 	
 	var newHooks = [];
-	hooks.forEach(function(val, i) {
+	for(var i = 0; i < hooks.length; i++) {
+		var val = hooks[i];
 		newHooks.push(typeof val === "string" ? { name : val } : val);
-	});
+	}
 	
 	return newHooks;
 }
@@ -1050,11 +1057,13 @@ Model.prototype._executeHooks = function(args, cb) {
 	// args.args
 	
 	var hooks = [];
+	var state = args.args;
 	
-	args.hooks.forEach(function(val, i) {
+	for(var i = 0; i < args.hooks.length; i++) {
+		var val = args.hooks[i];
 		if (val.name.match(/\./) !== null) {
 			// only execute hooks which are part of my namespace
-			return false;
+			continue;
 		}
 		
 		if (self.hooks[args.type][val.name] === undefined) {
@@ -1062,18 +1071,23 @@ Model.prototype._executeHooks = function(args, cb) {
 		}
 		
 		hooks.push({ hook : self.hooks[args.type][val.name], requestedHook : val });
-	});
+	}
 	
 	var hookIndex = arrayLib.index(hooks, ["hook", "name"]);
 	
-	objectLib.forEach(self.hooks[args.type], function(val, i) {
+	for(var i in self.hooks[args.type]) {
+		var val = self.hooks[args.type][i];
 		if (hookIndex[i] === undefined && val.required === true) {
 			hooks.push({ hook : val, requestedHook : { name : i } });
 		}
-	});
+	}
+	
+	// no hooks to run, short circuit out
+	if (hooks.length === 0) {
+		return cb(null, state);
+	}
 	
 	var calls = [];
-	var state = args.args;
 	hooks.forEach(function(val, i) {
 		calls.push(function(cb) {
 			state.hookArgs = val.requestedHook.args;
@@ -1090,28 +1104,29 @@ Model.prototype._executeHooks = function(args, cb) {
 	async.series(calls, function(err) {
 		if (err) { return cb(err); }
 		
-		setImmediate(function() {
-			cb(null, state);
-		});
+		cb(null, state);
 	});
 }
 
+var _getMyFindFields_regex = /^(\w+?)\./;
 Model.prototype._getMyFindFields = function(fields) {
 	var self = this;
 	
 	if (fields === null) { return fields };
 	
 	var newFields = {};
+	var hasKeys = false;
 	
-	Object.keys(fields).forEach(function(val, i) {
-		var temp = val.match(/^(\w+?)\./);
+	for(var val in fields) {
+		var temp = val.match(_getMyFindFields_regex);
 		if (temp === null || self.relationships[temp[1]] === undefined) {
 			// if the key either has no root, or it's root is not a known relationship, then include it
+			hasKeys = true;
 			newFields[val] = fields[val];
 		}
-	});
+	}
 	
-	if (Object.keys(newFields).length === 0) {
+	if (hasKeys === false) {
 		return null;
 	}
 	
@@ -1124,9 +1139,10 @@ Model.prototype._castDocs = function(docs, options) {
 	options = options || {};
 	
 	var castedDocs = [];
-	docs.forEach(function(val, i) {
+	for(var i = 0; i < docs.length; i++) {
+		var val = docs[i];
 		castedDocs.push(new self.Document(val, { fillDefaults : false, cloneData : options.cloneData }));
-	});
+	}
 	
 	return castedDocs;
 }
@@ -1288,9 +1304,8 @@ Model.prototype._checkRequired = function(data, cb) {
 Model.prototype._fillDocDefaults = function(data) {
 	var self = this;
 	
-	var calls = [];
-	
-	objectLib.forEach(self.fields, function(val, i) {
+	for(var i in self.fields) {
+		var val = self.fields[i];
 		if (val.default !== undefined && data[i] === undefined) {
 			if (typeof val.default === "function") {
 				data[i] = val.default({ raw : data, column : i });
@@ -1298,7 +1313,7 @@ Model.prototype._fillDocDefaults = function(data) {
 				data[i] = val.default;
 			}
 		}
-	});
+	}
 }
 
 Model.prototype._processFields = function(options) {
@@ -1420,9 +1435,8 @@ var _getModelDocument = function(model) {
 		var temp = options.cloneData === true ? extend(true, {}, data) : data;
 		
 		// fold in the top level keys, we can't just call extend on self because it will execute getters on "self" even though it should only execute setters
-		var keys = Object.keys(temp);
-		for(var i = 0; i < keys.length; i++) {
-			self[keys[i]] = temp[keys[i]];
+		for(var i in temp) {
+			self[i] = temp[i];
 		}
 		
 		if (options.fillDefaults) {
