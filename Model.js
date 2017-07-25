@@ -651,6 +651,10 @@ Model.prototype.find = function(filter, options, cb) {
 	options.fields = options.fields || null;
 	options.options = options.options || {};
 	
+	// utilize a mock when logger is disabled for performance reasons
+	var queryLog = self.connection.logger === undefined ? queryLogMock : new mongolayer.QueryLog({ type : "find", collection : self.collectionName, connection : self.connection });
+	queryLog.startTimer("command");
+	
 	var fieldResults;
 	
 	if (options.fields !== null) {
@@ -660,10 +664,6 @@ Model.prototype.find = function(filter, options, cb) {
 	}
 	
 	options.hooks = self._normalizeHooks(options.hooks);
-	
-	// utilize a mock when logger is disabled for performance reasons
-	var queryLog = self.connection.logger === undefined ? queryLogMock : new mongolayer.QueryLog({ type : "find", collection : self.collectionName, connection : self.connection });
-	queryLog.startTimer("command");
 	
 	self._executeHooks({ type : "beforeFind", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
@@ -713,24 +713,26 @@ Model.prototype.find = function(filter, options, cb) {
 					}
 				}
 				
-				var castedDocs = args.options.castDocs === true ? self._castDocs(docs, { cloneData : false }) : docs;
-				
-				if (args.options.castDocs === false && fieldResults !== undefined && fieldResults.virtualFields.length > 0) {
-					// if castDocs === false and our fields obj included any virtual fields we need to execute them to ensure they exist in the output
-					self._executeVirtuals(castedDocs, fieldResults.virtualFields.reverse());
-				}
-				
-				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs, count : count } }, function(err, args) {
+				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : docs, count : count } }, function(err, args) {
 					if (err) { return cb(err); }
 					
-					queryLog.stopTimer("command");
-					queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
-					queryLog.send();
+					if (args.options.castDocs === true) {
+						args.docs = self._castDocs(args.docs, { cloneData : false });
+					}
+					
+					if (args.options.castDocs === false && fieldResults !== undefined && fieldResults.virtuals.length > 0) {
+						// if castDocs === false and our fields obj included any virtual fields we need to execute them to ensure they exist in the output
+						self._executeVirtuals(args.docs, fieldResults.virtuals);
+					}
 					
 					if (args.options.mapDocs === true && args.options.castDocs === false && fieldResults !== undefined && fieldResults.fieldsAdded === true) {
 						// if we are in a castDocs === false situation with mapDocs true (not a relationship find()), and we have added fields, we need to map them away
 						args.docs = objectLib.mongoProject(args.docs, fieldResults.originalFields);
 					}
+					
+					queryLog.stopTimer("command");
+					queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
+					queryLog.send();
 					
 					if (args.count !== undefined) {
 						cb(null, { count : args.count, docs : args.docs });
@@ -1303,7 +1305,7 @@ Model.prototype._processFields = function(options) {
 	var self = this;
 	
 	var returnData = {
-		virtualFields : [], // fields which need to be .call() in the return docs
+		virtuals : [], // fields which need to be .call() in the return docs
 		fields : Object.assign({}, options.fields),
 		originalFields : options.fields, // original fields
 		hooks : options.hooks
@@ -1325,26 +1327,16 @@ Model.prototype._processFields = function(options) {
 		var virtual = self._virtuals[rootKey];
 		if (virtual === undefined) { continue; }
 		
-		if (virtual.get !== undefined) {
-			// if we have a getter push it on to virtualFields so that we know what to process after the find
-			returnData.virtualFields.push(rootKey);
-		}
-		
-		if (virtual.requiredFields !== undefined) {
-			virtual.requiredFields.forEach(function(val, i) {
-				var temp = self._processFields({ fields : { [val] : 1 }, hooks : [] });
-				returnData.virtualFields.push.apply(returnData.virtualFields, temp.virtualFields);
-				returnData.hooks.push.apply(returnData.hooks, temp.hooks);
-				Object.assign(returnData.fields, temp.fields);
-			});
-		}
-		
-		if (virtual.requiredHooks !== undefined) {
-			returnData.hooks.push.apply(returnData.hooks, virtual.requiredHooks);
-		}
+		var temp = self._getFieldDependecies(rootKey);
+		returnData.virtuals.push.apply(returnData.virtuals, temp.virtuals);
+		returnData.hooks.push.apply(returnData.hooks, temp.hooks);
+		temp.fields.forEach(function(val, i) {
+			returnData.fields[val] = 1;
+		});
 	}
 	
-	returnData.virtualFields = arrayLib.unique(returnData.virtualFields);
+	returnData.virtuals = arrayLib.unique(returnData.virtuals);
+	returnData.hooks = arrayLib.unique(returnData.hooks);
 	
 	// if we added fields, then we note it as we this as a factor in determining if we need to map the result to remove extra keys
 	returnData.fieldsAdded = Object.keys(returnData.originalFields).length !== Object.keys(returnData.fields).length;
@@ -1352,6 +1344,41 @@ Model.prototype._processFields = function(options) {
 	if (options.castDocs === false && evaluatedKeys.length > 0 && returnData.fields._id === undefined) {
 		// if we are in castDocs, and we have at least one truthy key, and no value for _id, then we explicitly exclude it for performance since it's going to be mapped away
 		returnData.fields._id = 0;
+	}
+	
+	return returnData;
+}
+
+Model.prototype._getFieldDependecies = function(name) {
+	var self = this;
+	
+	var returnData = {
+		virtuals : [],
+		fields : [name],
+		hooks : []
+	}
+	
+	var virtual = self._virtuals[name];
+	if (virtual === undefined) { return returnData; }
+	
+	if (virtual.get !== undefined) {
+		returnData.virtuals.push(name);
+	}
+	
+	if (virtual.requiredHooks !== undefined) {
+		returnData.hooks.push.apply(returnData.hooks, virtual.requiredHooks);
+	}
+	
+	if (virtual.requiredFields !== undefined) {
+		virtual.requiredFields.forEach(function(val, i) {
+			var temp = self._getFieldDependecies(val);
+			// push the fields on
+			returnData.fields.push.apply(returnData.fields, temp.fields);
+			// push the required virtuals so they end up before the current virtual
+			returnData.virtuals.splice.apply(returnData.virtuals, [i, 0].concat(temp.virtuals));
+			// push the required hooks so they end up before the current hook
+			returnData.hooks.splice.apply(returnData.hooks, [i, 0].concat(temp.hooks));
+		});
 	}
 	
 	return returnData;
@@ -1367,6 +1394,10 @@ Model.prototype._executeVirtuals = function(docs, virtuals) {
 	
 	docs.forEach(function(val, i) {
 		virtuals.forEach(function(virtualName) {
+			// check if we have already executed this virtual
+			if (val[virtualName] !== undefined) { return; }
+			
+			// call the virtual
 			val[virtualName] = self._virtuals[virtualName].get.call(val);
 		});
 	});

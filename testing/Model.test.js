@@ -1262,6 +1262,27 @@ describe(__filename, function() {
 						},
 						requiredFields : ["bar"],
 						requiredHooks : ["beforeFind_testRequired", "afterFind_testRequired"]
+					},
+					{
+						name : "counter",
+						get : function() {
+							this._count = this._count || 0;
+							return ++this._count;
+						}
+					},
+					{
+						name : "requiresCount0",
+						get : function() {
+							return this.counter;
+						},
+						requiredFields : ["counter"]
+					},
+					{
+						name : "requiresCount1",
+						get : function() {
+							return this.counter;
+						},
+						requiredFields : ["counter"]
 					}
 				],
 				documentMethods : [
@@ -2570,7 +2591,7 @@ describe(__filename, function() {
 						]
 					},
 					{
-						name : "castDocs should allow multi-step virtual chaining",
+						name : "castDocs false should allow multi-step virtual chaining",
 						filter : { foo : "1" },
 						options : { fields : { requiresChained : 1 }, castDocs : false },
 						results : [
@@ -2585,6 +2606,22 @@ describe(__filename, function() {
 						optionsCheck : {
 							_beforeFind_testRequired : true
 						}
+					},
+					{
+						name : "castDocs false should only execute each virtual once",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1, requiresCount0 : 1, requiresCount1 : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									foo : "1",
+									requiresCount0 : 1,
+									requiresCount1 : 1
+								}
+							}
+						]
 					}
 				]
 				

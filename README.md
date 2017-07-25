@@ -128,6 +128,8 @@ Query functions which support hooks: `find`, `findById` (runs same hooks as `fin
 
 For specific rules of which hooks are executed by which query see the API documentation for that query.
 
+Important: Hooks do not have access to data created by virtuals! Often hooks are used to populate data needed by virtuals. If you need virtual data in a hook, the recommendation is to utilize the virtual system to declare a writable virtual which is populated via a requiredHook. If both hooks are invoked via virtuals then the dependency system is managed automatically without needing to understand it at query time.
+
 ## Declaring Hooks
 
 All hooks are specified as a function which recieves an arguments object and a callback. All hooks are expected to callback with either an error or the args they received.
