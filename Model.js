@@ -645,22 +645,21 @@ Model.prototype.find = function(filter, options, cb) {
 	}
 	
 	options = options === cb ? {} : options;
-	options.hooks = options.hooks || self.defaultHooks.find;
+	options.hooks = options.hooks || self.defaultHooks.find.slice(); // clone default hooks so we don't end up with them being affected when items push on to them via fields
 	options.castDocs = options.castDocs !== undefined ? options.castDocs : true;
 	options.mapDocs = options.mapDocs !== undefined ? options.mapDocs : true;
-	options.fields = options.fields || null;
+	options.fields = options.fields || {};
 	options.options = options.options || {};
+	
+	var originalFields = Object.assign({}, options.fields);
 	
 	// utilize a mock when logger is disabled for performance reasons
 	var queryLog = self.connection.logger === undefined ? queryLogMock : new mongolayer.QueryLog({ type : "find", collection : self.collectionName, connection : self.connection });
 	queryLog.startTimer("command");
 	
 	var fieldResults;
-	
-	if (options.fields !== null) {
+	if (Object.keys(options.fields).length > 0) {
 		fieldResults = self._processFields(options);
-		options.fields = fieldResults.fields;
-		options.hooks = fieldResults.hooks;
 	}
 	
 	options.hooks = self._normalizeHooks(options.hooks);
@@ -727,7 +726,7 @@ Model.prototype.find = function(filter, options, cb) {
 					
 					if (args.options.mapDocs === true && args.options.castDocs === false && fieldResults !== undefined && fieldResults.fieldsAdded === true) {
 						// if we are in a castDocs === false situation with mapDocs true (not a relationship find()), and we have added fields, we need to map them away
-						args.docs = objectLib.mongoProject(args.docs, fieldResults.originalFields);
+						args.docs = objectLib.mongoProject(args.docs, originalFields);
 					}
 					
 					queryLog.stopTimer("command");
@@ -1321,8 +1320,8 @@ Model.prototype._processFields = function(options) {
 	
 	var returnData = {
 		virtuals : [], // fields which need to be .call() in the return docs
-		fields : Object.assign({}, options.fields),
-		originalFields : options.fields, // original fields
+		fields : options.fields,
+		fieldsAdded : false,
 		hooks : options.hooks
 	}
 	
@@ -1346,15 +1345,15 @@ Model.prototype._processFields = function(options) {
 		returnData.virtuals.push.apply(returnData.virtuals, temp.virtuals);
 		returnData.hooks.push.apply(returnData.hooks, temp.hooks);
 		temp.fields.forEach(function(val, i) {
+			if (returnData.fields[val] !== undefined) { return; }
+			
+			returnData.fieldsAdded = true;
 			returnData.fields[val] = 1;
 		});
 	}
 	
 	returnData.virtuals = arrayLib.unique(returnData.virtuals);
 	returnData.hooks = arrayLib.unique(returnData.hooks);
-	
-	// if we added fields, then we note it as we this as a factor in determining if we need to map the result to remove extra keys
-	returnData.fieldsAdded = Object.keys(returnData.originalFields).length !== Object.keys(returnData.fields).length;
 	
 	if (options.castDocs === false && evaluatedKeys.length > 0 && returnData.fields._id === undefined) {
 		// if we are in castDocs, and we have at least one truthy key, and no value for _id, then we explicitly exclude it for performance since it's going to be mapped away
