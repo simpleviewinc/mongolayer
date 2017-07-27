@@ -19,6 +19,8 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 - Aggregate now supports hooks, `beforeAggregate` and `afterAggregate`
 - Aggregate now supports `options.castDocs` and `options.virtuals` for utilizing virtuals when returning data via aggregate
 - Fixed potential RSS memory expansion issue due to usage of `WeakMap()`.
+- BREAKING - When specifying a fields object you will only receive those fields. Previously if you requested { "relationship.foo" : 1 }, you would still get all keys on the root (since foo is on a relationship). This is no longer the case. This change was made so it more closely mimics native MongoDB which only returns the fields that are requested.
+- find() `options.castDocs === false` is now recursive through relationships. When specified all relationships will also be pulled with castDocs === false. This means if you need to access virtuals on them, you should specify them via the fields obj.
 
 # Documentation
 
@@ -1228,7 +1230,7 @@ Arguments
 	* `limit` - `number` - `optional` - Number of records to retrieve.
 	* `skip` - `number` - `optional` - Number of records to skip before retrieving records.
 	* `maxSize` - `number` - `optional` - Enforce a maxSize at query time to prevent large data sets from being inadvertently returned, returns an Error if violated.
-	* `castDocs` - `boolean` - `default true` - *RECOMMENDED false*. If true it will convert the returned docs into instanceof model.Document, allowing access to virtuals. If false, only virtuals mentioned in the fields object are accessible, which is the recommendataion!
+	* `castDocs` - `boolean` - `default true` - *RECOMMENDED false*. If true it will convert the returned docs into instanceof model.Document, allowing access to virtuals. If false, only virtuals mentioned in the fields object are accessible, which is the recommendataion! castDocs is also recursive, so all relationships will be pulled with castDocs === false as well. If you require virtuals on them, specify it in your fields object.
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
 	* `count` - `boolean` - `default false` - If true it will return an object with `{ count : count, docs : docs }` including the full count that matches the query (not just count of returned docs).
 * `cb` - `function` - `required`
