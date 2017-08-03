@@ -27,7 +27,7 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 * [Hooks](#hooks)
 	* [Hook Arguments](#hook-arguments)
 	* [Hook Examples](#hook-examples)
-		* [blogPost beforeFilter](#blogPost-beforeFilter)
+		* [blogPost beforeFilter](#blogpost-beforefilter)
 	* [Calling Hooks](#calling-hooks)
 	* [Runtime Hooks](#runtime-hooks)
 	* [Default Hooks](#default-hooks)
@@ -39,7 +39,7 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 	* [Connection](#connection)
 	* [Model](#model)
 		* [Querying](#querying)
-		* [Properties](#model_properties)
+		* [Properties](#model-properties)
 
 # Features
 1. Supports the basic queries: `find`, `findById`, `save`, `update`, `count`, and `remove`.
