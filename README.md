@@ -26,7 +26,7 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 
 * [Hooks](#hooks)
 	* [Hook Arguments](#hook_arguments)
-	* [Hook Examples](#hook_examples)
+	* [Hook Examples](#hook-examples)
 		* [blogPost beforeFilter](#blogPost_beforeFilter)
 	* [Calling Hooks](#calling_hooks)
 	* [Runtime Hooks](#runtime_hooks)
@@ -42,14 +42,14 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 		* [Properties](#model_properties)
 
 # Features
-0. Supports the basic queries: `find`, `findById`, `save`, `update`, `count`, and `remove`.
-0. Infinitely recursive field validation on `insert`, `save`, and `update`. Allowing you to validate arrays, objects, and any recursive combination of them.
-0. Enforce required fields and field defaults on `insert`, `save` and `update`.
-0. Robust hook system to run async code before and after any query. You can set default hooks, required hooks, and specify which hooks run at query time.
-0. Declare relationships between models allowing infinite recursive population of related records. Related records will be pulled with virtuals and methods.
-0. Getter and setter virtuals on the document level.
-0. Methods on the document level.
-0. Methods on the model level.
+1. Supports the basic queries: `find`, `findById`, `save`, `update`, `count`, and `remove`.
+1. Infinitely recursive field validation on `insert`, `save`, and `update`. Allowing you to validate arrays, objects, and any recursive combination of them.
+1. Enforce required fields and field defaults on `insert`, `save` and `update`.
+1. Robust hook system to run async code before and after any query. You can set default hooks, required hooks, and specify which hooks run at query time.
+1. Declare relationships between models allowing infinite recursive population of related records. Related records will be pulled with virtuals and methods.
+1. Getter and setter virtuals on the document level.
+1. Methods on the document level.
+1. Methods on the model level.
 
 # Why not just use Mongoose?
 
@@ -57,14 +57,14 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 
 Here are some examples of frustrations I personally came across using `mongoose`.
 
-0. If a record in the DB does not have a value in a field, it will still fill that field with a default value when you pull it out of the database. This gives the illusion a value exists in the db, when it doesn't.
-0. Unable to recursive populate recursive records (populate in a populate). You can only populate one level deep.
-0. When records are populated, they are plain objects, lacking virtuals and methods that they would have if acquired with a normal query.
-0. Unable to run post-query hooks with async code that gets flow control.
-0. Too many differences from the way that node-mongodb-native and mongodb function out of the box. In example, `mongoose` wraps `update` with `$set` causing queries that 'look' correct in mongodb shell and node-mongodb-native to perform entirelly different. Mongoose calls it `create` while node-mongodb-native and mongodb shell call it `insert`.
-0. Update method doesn't run hooks, or validation.
-0. `save` method not implemented with unless using the new doc() syntax. So `find`, `create`, all use one syntax, but `save` uses an entirely different syntax.
-0. Each document in mongoose is an instance of the Schema. That just doesn't make sense to me. The fields on my Document should only be the fields I add, nothing more, nothing less.
+1. If a record in the DB does not have a value in a field, it will still fill that field with a default value when you pull it out of the database. This gives the illusion a value exists in the db, when it doesn't.
+1. Unable to recursive populate recursive records (populate in a populate). You can only populate one level deep.
+1. When records are populated, they are plain objects, lacking virtuals and methods that they would have if acquired with a normal query.
+1. Unable to run post-query hooks with async code that gets flow control.
+1. Too many differences from the way that node-mongodb-native and mongodb function out of the box. In example, `mongoose` wraps `update` with `$set` causing queries that 'look' correct in mongodb shell and node-mongodb-native to perform entirelly different. Mongoose calls it `create` while node-mongodb-native and mongodb shell call it `insert`.
+1. Update method doesn't run hooks, or validation.
+1. `save` method not implemented with unless using the new doc() syntax. So `find`, `create`, all use one syntax, but `save` uses an entirely different syntax.
+1. Each document in mongoose is an instance of the Schema. That just doesn't make sense to me. The fields on my Document should only be the fields I add, nothing more, nothing less.
 
 # Getting Started
 
@@ -79,10 +79,10 @@ Mongolayer has three basic constructs, **Models**, **Connections** and **Documen
 
 Basic application boot-up
 
-0. Create connection.
-0. Create models.
-0. Attach models to connection.
-0. Run queries, and return documents.
+1. Create connection.
+1. Create models.
+1. Attach models to connection.
+1. Run queries, and return documents.
 
 ```js
 var mongolayer = require("mongolayer");
@@ -282,7 +282,6 @@ Due to technical eccentricities `afterPut` cannot be called on `update`, even wh
 
 * `args.doc` - `model.Document` - The document that was placed into the database.
 
-<a name="hook_examples"/>
 ## Hook Examples
 
 <a name="blogPost_beforeFilter"/>
