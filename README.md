@@ -25,17 +25,17 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 # Documentation
 
 * [Hooks](#hooks)
-	* [Hook Arguments](#hook_arguments)
+	* [Hook Arguments](#hook-arguments)
 	* [Hook Examples](#hook-examples)
-		* [blogPost beforeFilter](#blogPost_beforeFilter)
-	* [Calling Hooks](#calling_hooks)
-	* [Runtime Hooks](#runtime_hooks)
-	* [Default Hooks](#default_hooks)
+		* [blogPost beforeFilter](#blogPost-beforeFilter)
+	* [Calling Hooks](#calling-hooks)
+	* [Runtime Hooks](#runtime-hooks)
+	* [Default Hooks](#default-hooks)
 * [Relationships](#relationships)
-	* [Setting Data](#setting_data)
-	* [Populating Relationships](#populating_relationships)
-* [API Documentation](#api_documentation)
-	* [mongolayer](#api_documentation)
+	* [Setting Data](#setting-data)
+	* [Populating Relationships](#populating-relationships)
+* [API Documentation](#api-documentation)
+	* [mongolayer](#api-documentation)
 	* [Connection](#connection)
 	* [Model](#model)
 		* [Querying](#querying)
@@ -117,7 +117,6 @@ mongolayer.connectCached({ connectionString : "mongodb://127.0.0.1:27017/mongoLa
 });
 ```
 
-<a name="hooks"/>
 # Hooks
 
 Hooks are the powerful underpining that makes relationship management possible, in addition they provide an entry point for developers to run async code before or after all major qureies, allowing them to maintain a coherent object model. Every major query function invokes a number of different hooks.
@@ -175,7 +174,6 @@ var model = new mongolayer.Model({
 });
 ```
 
-<a name="hook_arguments"/>
 ## Hook Arguments
 
 The arguments a hook receives will differ based on the specific hook. The following describes which arguments each hook will receive.
@@ -284,7 +282,6 @@ Due to technical eccentricities `afterPut` cannot be called on `update`, even wh
 
 ## Hook Examples
 
-<a name="blogPost_beforeFilter"/>
 ### blogPost beforeFilter
 
 Imagine you have the following Model for a blog post.
@@ -378,7 +375,6 @@ model.count({
 
 Using this, we've abstracted the concept of "active" so that other developers don't have to deal with the complexity behind it. This reduces code repetition and the possibility for developer errors downstream.
 
-<a name="calling_hooks"/>
 ## Calling Hooks
 
 You can choose to execute these hooks always, by default, or at run-time.
@@ -403,7 +399,6 @@ model.addHook({
 });
 ```
 
-<a name="runtime_hooks"/>
 ### Runtime Hooks
 
 Hook sets are specified by passing an `array` of `string` or an `array` of `object` with a specific naming scheme.
@@ -455,7 +450,6 @@ model.find({ foo : "bar" }, { hooks : [{ name : "afterFind_getExtraData", args :
 });
 ```
 
-<a name="default_hooks"/>
 ### Default Hooks
 
 Default hooks allow you to specify an `array` of hooks to run when a query is called an no hooks are passed.
@@ -482,7 +476,6 @@ var model = new mongolayer.Model({
 });
 ```
 
-<a name="relationships"/>
 # Relationships
 
 Managing relationships is a key functionality of mongolayer. Relationships are primarily used to connect records together. Like mongoose, it provides a way to pull in related records. Unlike mongoose, it provides that capability recursively.
@@ -545,7 +538,6 @@ var imageModel = new mongolayer.Model({
 });
 ```
 
-<a name="setting_data"/>
 ## Setting Data
 
 For the author, because the name of the relationships is "author" and it's type is "single" the key to set it's value is "author_id". That field expects a `mongolayer.ObjectId`.
@@ -563,7 +555,6 @@ postModel.insert({
 });
 ```
 
-<a name="populating_relationships"/>
 ## Populating Relationships
 
 Each declared relationship creates an `afterFind` hook and a virtual of the same name. Either can be used to populate that data. These hooks and virtuals can be nested down into inner relationships as well.
@@ -736,10 +727,8 @@ var postModel = new mongolayer.Model({
 });
 ```
 
-<a name="api_documentation"/>
 # API Documentation
 
-<a name="mongolayer"/>
 ## mongolayer
 
 ### mongolayer.connectCached(options, cb)
@@ -805,7 +794,6 @@ var id = mongolayer.testId("foo");
 // id === "666f6f000000000000000000"
 ```
 
-<a name="connection"/>
 ## Connection
 
 ### constructor
@@ -853,7 +841,6 @@ Removes all **Models** from a **Connection**. This does not remove data or remov
 * `callback`
 	* `Error` or null
 
-<a name="model"/>
 ## Model
 
 ### constructor - new mongolayer.Model(args);
@@ -1177,7 +1164,6 @@ model.addIndex({
 });
 ```
 
-<a name="querying"/>
 ## Querying
 
 ### model.aggregate(pipeline, options, cb
@@ -1417,7 +1403,6 @@ Arguments
 	* `Error` or null
 	* `number` of documents
 
-<a name="model_properties"/>
 ## model properties
 
 A list of public properties which you can access to introspect various functionality of your models.
