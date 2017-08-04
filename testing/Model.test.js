@@ -2317,7 +2317,7 @@ describe(__filename, function() {
 				
 				it("should enforce maxSize", function(done) {
 					model.find({}, { maxSize : 10 }, function(err, docs) {
-						assert.strictEqual(err.message, "Max size of result set '189' exceeds options.maxSize of '10'");
+						assert.strictEqual(err.message, "Max size of result set '903' exceeds options.maxSize of '10'");
 						
 						done();
 					});

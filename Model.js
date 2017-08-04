@@ -598,23 +598,23 @@ Model.prototype.aggregate = function(pipeline, options, cb) {
 		self.collection.aggregate(args.pipeline, args.options, function(err, docs) {
 			if (err) { return cb(err); }
 			
-			if (args.options.maxSize) {
-				var size = JSON.stringify(docs).length;
-				if (size > args.options.maxSize) {
-					return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
-				}
-			}
-			
-			if (args.options.virtuals !== undefined) {
-				self._executeVirtuals(docs, args.options.virtuals);
-			}
-			
-			if (args.options.castDocs === true) {
-				docs = self._castDocs(docs, { cloneData : false })
-			}
-			
 			self._executeHooks({ type : "afterAggregate", hooks : self._getHooksByType("afterAggregate", options.hooks), args : { pipeline : args.pipeline, options : args.options, docs : docs } }, function(err, args) {
 				if (err) { return cb(err); }
+				
+				if (args.options.virtuals !== undefined) {
+					self._executeVirtuals(args.docs, args.options.virtuals);
+				}
+				
+				if (args.options.castDocs === true) {
+					args.docs = self._castDocs(args.docs, { cloneData : false })
+				}
+				
+				if (args.options.maxSize) {
+					var size = JSON.stringify(args.docs).length;
+					if (size > args.options.maxSize) {
+						return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
+					}
+				}
 				
 				cb(null, args.docs);
 			});
@@ -705,13 +705,6 @@ Model.prototype.find = function(filter, options, cb) {
 				var docs = results.docs;
 				var count = results.count;
 				
-				if (args.options.maxSize) {
-					var size = JSON.stringify(docs).length;
-					if (size > args.options.maxSize) {
-						return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
-					}
-				}
-				
 				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : docs, count : count } }, function(err, args) {
 					if (err) { return cb(err); }
 					
@@ -727,6 +720,13 @@ Model.prototype.find = function(filter, options, cb) {
 					if (args.options.mapDocs === true && args.options.castDocs === false && fieldResults !== undefined && fieldResults.fieldsAdded === true) {
 						// if we are in a castDocs === false situation with mapDocs true (not a relationship find()), and we have added fields, we need to map them away
 						args.docs = objectLib.mongoProject(args.docs, originalFields);
+					}
+					
+					if (args.options.maxSize) {
+						var size = JSON.stringify(args.docs).length;
+						if (size > args.options.maxSize) {
+							return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
+						}
 					}
 					
 					queryLog.stopTimer("command");
