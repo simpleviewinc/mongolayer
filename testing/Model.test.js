@@ -1201,7 +1201,9 @@ describe(__filename, function() {
 						name : "testRequired",
 						type : "beforeFind",
 						handler : function(args, cb) {
-							args.options._beforeFind_testRequired = true;
+							// allows testing for hook duplication
+							args.options._beforeFind_testRequired = args.options._beforeFind_testRequired || 0;
+							args.options._beforeFind_testRequired++;
 							return cb(null, args);
 						}
 					},
@@ -1209,7 +1211,9 @@ describe(__filename, function() {
 						name : "testRequired",
 						type : "afterFind",
 						handler : function(args, cb) {
-							args.docs[0].afterFind_testRequired = true;
+							// allows testing for hook duplication
+							args.docs[0].afterFind_testRequired = args.docs[0].afterFind_testRequired || 0;
+							args.docs[0].afterFind_testRequired++;
 							return cb(null, args);
 						}
 					},
@@ -2538,11 +2542,11 @@ describe(__filename, function() {
 						options : { fields : { foo : 1, requiresHooks : 1 } },
 						results : [
 							{
-								afterFind_testRequired : true
+								afterFind_testRequired : 1
 							}
 						],
 						optionsCheck : {
-							_beforeFind_testRequired : true
+							_beforeFind_testRequired : 1
 						}
 					},
 					{
@@ -2552,11 +2556,11 @@ describe(__filename, function() {
 						results : [
 							{
 								requiresBoth : "requiresBoth_barValue",
-								afterFind_testRequired : true
+								afterFind_testRequired : 1
 							}
 						],
 						optionsCheck : {
-							_beforeFind_testRequired : true
+							_beforeFind_testRequired : 1
 						}
 					},
 					{
@@ -2568,11 +2572,11 @@ describe(__filename, function() {
 								foo : "1",
 								requiresChained : "requiresChained_requiresBar_barValue",
 								requiresBar : "requiresBar_barValue",
-								afterFind_testRequired : true
+								afterFind_testRequired : 1
 							}
 						],
 						optionsCheck : {
-							_beforeFind_testRequired : true
+							_beforeFind_testRequired : 1
 						}
 					},
 					{
@@ -2617,7 +2621,7 @@ describe(__filename, function() {
 							}
 						],
 						optionsCheck : {
-							_beforeFind_testRequired : true
+							_beforeFind_testRequired : 1
 						}
 					},
 					{
@@ -2633,6 +2637,29 @@ describe(__filename, function() {
 									requiresCount0 : 1,
 									requiresCount1 : 1
 								}
+							}
+						]
+					},
+					{
+						name : "should not push the same hook multiple times",
+						filter : { foo : "1" },
+						options : { fields : { requiresHooks : 1, requiresChained : 1 } },
+						results : [
+							{
+								afterFind_testRequired : 1
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : 1
+						}
+					},
+					{
+						name : "should use hook multiple if requested multiple",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1 }, hooks : ["afterFind_testRequired", "afterFind_testRequired"] },
+						results : [
+							{
+								afterFind_testRequired : 2
 							}
 						]
 					}

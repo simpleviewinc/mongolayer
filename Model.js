@@ -1342,8 +1342,20 @@ Model.prototype._processFields = function(options) {
 		if (virtual === undefined) { continue; }
 		
 		var temp = self._getFieldDependecies(rootKey);
-		returnData.virtuals.push.apply(returnData.virtuals, temp.virtuals);
-		returnData.hooks.push.apply(returnData.hooks, temp.hooks);
+		for(var j = 0; j < temp.virtuals.length; j++) {
+			var val = temp.virtuals[j];
+			if (returnData.virtuals.indexOf(val) === -1) {
+				returnData.virtuals.push(val);
+			}
+		}
+		
+		for(var j = 0; j < temp.hooks.length; j++) {
+			var val = temp.hooks[j];
+			if (returnData.hooks.indexOf(val) === -1) {
+				returnData.hooks.push(val);
+			}
+		}
+		
 		temp.fields.forEach(function(val, i) {
 			if (returnData.fields[val] !== undefined) { return; }
 			
@@ -1351,9 +1363,6 @@ Model.prototype._processFields = function(options) {
 			returnData.fields[val] = 1;
 		});
 	}
-	
-	returnData.virtuals = arrayLib.unique(returnData.virtuals);
-	returnData.hooks = arrayLib.unique(returnData.hooks);
 	
 	if (options.castDocs === false && evaluatedKeys.length > 0 && returnData.fields._id === undefined) {
 		// if we are in castDocs, and we have at least one truthy key, and no value for _id, then we explicitly exclude it for performance since it's going to be mapped away
