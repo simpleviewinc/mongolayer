@@ -177,7 +177,7 @@ describe(__filename, function() {
 				model1.collection.indexes(function(err, indexes) {
 					// if you request indexes on a collection without indexes it returns code 26 "no collection", an odd result for no indexes
 					assert.strictEqual(err.code, 26);
-					assert.strictEqual(err.message, "no collection");
+					assert.strictEqual(err.message, "Collection mongolayer.foo doesn't exist");
 					
 					done();
 				});

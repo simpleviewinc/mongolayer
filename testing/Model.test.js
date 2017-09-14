@@ -1561,6 +1561,12 @@ describe(__filename, function() {
 					type : "beforePut",
 					handler : function(args, cb) {
 						assert.equal(args.doc, data[0]);
+						assert.deepStrictEqual(args.options, {
+							options : { fullResult : true },
+							hooks : [{ name : "beforeInsert_process" }, { name : "afterInsert_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
+						});
+						
+						args.options.custom = { beforePutCalled : true };
 						
 						beforePutCalled = true;
 						
@@ -1574,6 +1580,11 @@ describe(__filename, function() {
 					type : "afterPut",
 					handler : function(args, cb) {
 						assert.ok(args.doc instanceof model.Document);
+						assert.deepStrictEqual(args.options, {
+							options : { fullResult : true, checkKeys : true, promiseLibrary : Promise, serializeFunctions : undefined },
+							custom : { beforePutCalled : true },
+							hooks : [{ name : "beforeInsert_process" }, { name : "afterInsert_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
+						});
 						
 						afterPutCalled = true;
 						
@@ -1926,6 +1937,12 @@ describe(__filename, function() {
 					type : "beforePut",
 					handler : function(args, cb) {
 						assert.equal(args.doc, data);
+						assert.deepStrictEqual(args.options, {
+							options : { fullResult : true },
+							hooks : [{ name : "beforeSave_process" }, { name : "afterSave_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
+						});
+						
+						args.options.custom = { beforePutCalled : true }
 						
 						beforePutCalled = true;
 						
@@ -1939,6 +1956,11 @@ describe(__filename, function() {
 					type : "afterPut",
 					handler : function(args, cb) {
 						assert.ok(args.doc instanceof model.Document);
+						assert.deepStrictEqual(args.options, {
+							options : { fullResult : true },
+							custom : { beforePutCalled : true },
+							hooks : [{ name : "beforeSave_process" }, { name : "afterSave_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
+						});
 						
 						afterPutCalled = true;
 						

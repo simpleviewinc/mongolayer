@@ -271,6 +271,7 @@ The arguments a hook receives will differ based on the specific hook. The follow
 Due to technical eccentricities `beforePut` cannot be called on `update`, even when using `upsert : true` in your options. If you want to fully replace a record with upsert semantics use `save`.
 
 * `args.doc` - `object` - Simple JS object or `model.Document` to be inserted or overwrite an existing record.
+* `args.options` - `object` - The options object passed in to the query.
 
 ### afterPut(args, cb)
 
@@ -279,6 +280,7 @@ Due to technical eccentricities `beforePut` cannot be called on `update`, even w
 Due to technical eccentricities `afterPut` cannot be called on `update`, even when using `upsert : true` in your options. If you want to fully replace a record with upsert semantics use `save`.
 
 * `args.doc` - `model.Document` - The document that was placed into the database.
+* `args.options` - `object` - The options object passed in to the query.
 
 ## Hook Examples
 

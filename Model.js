@@ -480,12 +480,13 @@ Model.prototype.insert = function(docs, options, cb) {
 		// args.hooks
 		// args.docs
 		// args.type
+		// args.options
 		
 		var calls = [];
 		var newDocs = [];
 		args.docs.forEach(function(val, i) {
 			calls.push(function(cb) {
-				self._executeHooks({ type : args.type, hooks : args.hooks, args : { doc : val } }, function(err, temp) {
+				self._executeHooks({ type : args.type, hooks : args.hooks, args : { doc : val, options : args.options } }, function(err, temp) {
 					if (err) { return cb(err); }
 					
 					newDocs[i] = temp.doc;
@@ -498,18 +499,18 @@ Model.prototype.insert = function(docs, options, cb) {
 		async.parallel(calls, function(err) {
 			if (err) { return cb(err); }
 			
-			cb(null, newDocs);
+			cb(null, { docs : newDocs, options : args.options });
 		});
 	}
 	
 	self._executeHooks({ type : "beforeInsert", hooks : self._getHooksByType("beforeInsert", options.hooks), args : { docs : docs, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		callPutHook({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), docs : args.docs }, function(err, newDocs) {
+		callPutHook({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), docs : args.docs, options : args.options }, function(err, args) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self.processDocs({ data : newDocs, validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
+			self.processDocs({ data : args.docs, validate : true, checkRequired : true, stripEmpty : args.options.stripEmpty }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
 				// insert the data into mongo
@@ -518,10 +519,10 @@ Model.prototype.insert = function(docs, options, cb) {
 					
 					var castedDocs = self._castDocs(cleanDocs);
 					
-					callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs }, function(err, castedDocs) {
+					callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs, options : args.options }, function(err, args) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : castedDocs, options : args.options } }, function(err, args) {
+						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : args.docs, options : args.options } }, function(err, args) {
 							if (err) { return cb(err); }
 							
 							cb(null, isArray ? args.docs : args.docs[0], args.result);
@@ -556,11 +557,11 @@ Model.prototype.save = function(doc, options, cb) {
 	self._executeHooks({ type : "beforeSave", hooks : self._getHooksByType("beforeSave", options.hooks), args : { doc : doc, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), args : { doc : args.doc } }, function(err, tempArgs) {
+		self._executeHooks({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), args : { doc : args.doc, options : args.options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self.processDocs({ data : [tempArgs.doc], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
+			self.processDocs({ data : [args.doc], validate : true, checkRequired : true, stripEmpty : args.options.stripEmpty }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
 				self.collection.save(cleanDocs[0], args.options.options, function(err, result) {
@@ -568,10 +569,10 @@ Model.prototype.save = function(doc, options, cb) {
 					
 					var castedDoc = self._castDocs(cleanDocs)[0];
 					
-					self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc } }, function(err, tempArgs) {
+					self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc, options : args.options } }, function(err, args) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : tempArgs.doc, options : args.options } }, function(err, args) {
+						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : args.doc, options : args.options } }, function(err, args) {
 							if (err) { return cb(err); }
 							
 							cb(null, castedDoc, args.result);
