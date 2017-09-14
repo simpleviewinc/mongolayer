@@ -1581,7 +1581,7 @@ describe(__filename, function() {
 					handler : function(args, cb) {
 						assert.ok(args.doc instanceof model.Document);
 						assert.deepStrictEqual(args.options, {
-							options : { fullResult : true, checkKeys : true, promiseLibrary : Promise, serializeFunctions : undefined },
+							options : { fullResult : true },
 							custom : { beforePutCalled : true },
 							hooks : [{ name : "beforeInsert_process" }, { name : "afterInsert_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
 						});
