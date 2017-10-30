@@ -2304,13 +2304,16 @@ describe(__filename, function() {
 				beforeEach(function(done) {
 					model.insert([
 						{
+							_id : mongolayer.testId("basic1"),
 							foo : "1",
 							bar : "barValue"
 						},
 						{
+							_id : mongolayer.testId("basic2"),
 							foo : "2"
 						},
 						{
+							_id : mongolayer.testId("basic3"),
 							foo : "3"
 						}
 					], function(err) {
@@ -2663,6 +2666,20 @@ describe(__filename, function() {
 									foo : "1",
 									requiresCount0 : 1,
 									requiresCount1 : 1
+								}
+							}
+						]
+					},
+					{
+						name : "castDocs false should allow querying just id",
+						filter : { foo : "1" },
+						options : { fields : { id : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									id : mongolayer.testId("basic1").toString()
 								}
 							}
 						]

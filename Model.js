@@ -111,7 +111,8 @@ var Model = function(args) {
 		type : "idToString",
 		options : {
 			key : "_id"
-		}
+		},
+		requiredFields : ["_id"]
 	});
 	
 	// adds storage for core functionality in case we need this in the future
