@@ -7,13 +7,18 @@ describe(__filename, function() {
 	var conn;
 	
 	beforeEach(function(done) {
-		mongolayer.connectCached(config, function(err, temp) {
+		mongolayer.connectCached(config(), function(err, temp) {
 			assert.ifError(err);
 			
 			conn = temp;
 			
 			done();
 		});
+	});
+	
+	after(function(done) {
+		mongolayer._clearConnectCache();
+		conn.db.close(done);
 	});
 	
 	it("should add", function(done) {

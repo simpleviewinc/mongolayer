@@ -74,6 +74,11 @@ var _getDb = function(args, cb) {
 }
 
 var _getDbCached = async.memoize(_getDb, function() { return JSON.stringify(arguments) });
+var _clearConnectCache = function() {
+	for(var i in _getDbCached.memo) {
+		delete _getDbCached.memo[i];
+	}
+}
 
 var toPlain = function(data) {
 	if (data instanceof Array) {
@@ -554,6 +559,7 @@ extend(module.exports, {
 	convertValue : convertValue,
 	resolveRelationship : resolveRelationship,
 	typecasterObjectIdDef : typecasterObjectIdDef,
+	_clearConnectCache : _clearConnectCache,
 	_prepareInsert : _prepareInsert,
 	_getMyHooks : _getMyHooks,
 	_getMyFields : _getMyFields

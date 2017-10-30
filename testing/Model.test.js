@@ -15,13 +15,18 @@ describe(__filename, function() {
 	var conn;
 	
 	beforeEach(function(done) {
-		mongolayer.connectCached(config, function(err, temp) {
+		mongolayer.connectCached(config(), function(err, temp) {
 			assert.ifError(err);
 			
 			conn = temp;
 			
 			done();
 		});
+	});
+	
+	after(function(done) {
+		mongolayer._clearConnectCache();
+		conn.db.close(done);
 	});
 	
 	it("should create", function(done) {
@@ -3209,7 +3214,7 @@ describe(__filename, function() {
 		var model;
 		
 		before(function(done) {
-			var domainConfig = extend(true, {}, config);
+			var domainConfig = extend(true, {}, config());
 			domainConfig.options = {
 				domainsEnabled : true
 			}
@@ -3238,6 +3243,10 @@ describe(__filename, function() {
 					model.remove({}, cb);
 				}
 			}, done);
+		});
+		
+		after(function(done) {
+			conn.db.close(done);
 		});
 		
 		it("should maintain domain on insert", function(done) {

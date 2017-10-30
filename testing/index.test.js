@@ -5,12 +5,17 @@ var mongodb = require("mongodb");
 var async = require("async");
 
 describe(__filename, function() {
+	after(function(done) {
+		mongolayer._clearConnectCache();
+		return done();
+	});
+	
 	it("should connect", function(done) {
-		mongolayer.connect(config, function(err, conn) {
+		mongolayer.connect(config(), function(err, conn) {
 			assert.ifError(err);
 			assert.equal(conn instanceof mongolayer.Connection, true);
 			
-			done();
+			conn.db.close(done);
 		});
 	});
 	
@@ -22,7 +27,7 @@ describe(__filename, function() {
 		
 		async.series([
 			function(cb) {
-				mongolayer.connect(config, function(err, conn) {
+				mongolayer.connect(config(), function(err, conn) {
 					assert.ifError(err);
 					
 					conn1 = conn;
@@ -31,7 +36,7 @@ describe(__filename, function() {
 				});
 			},
 			function(cb) {
-				mongolayer.connect(config, function(err, conn) {
+				mongolayer.connect(config(), function(err, conn) {
 					assert.ifError(err);
 					
 					conn2 = conn;
@@ -40,7 +45,7 @@ describe(__filename, function() {
 				});
 			},
 			function(cb) {
-				mongolayer.connectCached(config, function(err, conn) {
+				mongolayer.connectCached(config(), function(err, conn) {
 					assert.ifError(err);
 					
 					conn3 = conn;
@@ -49,7 +54,7 @@ describe(__filename, function() {
 				});
 			},
 			function(cb) {
-				mongolayer.connectCached(config, function(err, conn) {
+				mongolayer.connectCached(config(), function(err, conn) {
 					assert.ifError(err);
 					
 					conn4 = conn;
@@ -63,7 +68,12 @@ describe(__filename, function() {
 			assert.equal(conn3.db, conn4.db);
 			assert.notEqual(conn3, conn4);
 			
-			done();
+			async.series([
+				(cb) => conn1.db.close(cb),
+				(cb) => conn2.db.close(cb),
+				(cb) => conn3.db.close(cb),
+				(cb) => conn4.db.close(cb)
+			], done);
 		});
 	});
 	
