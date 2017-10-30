@@ -4,6 +4,8 @@ var config = require("./config.js");
 var async = require("async");
 
 describe(__filename, function() {
+	this.timeout(5000);
+	
 	var conn;
 	
 	beforeEach(function(done) {
