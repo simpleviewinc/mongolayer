@@ -344,6 +344,26 @@ Model.prototype.addRelationship = function(args) {
 		}
 	}
 	
+	var hookHandler = function(args, cb) {
+		mongolayer.resolveRelationship({
+			type : type,
+			leftKey : leftKey,
+			rightKey : rightKey,
+			multipleTypes : multipleTypes,
+			modelName : modelName,
+			connection : self.connection,
+			objectKey : objectKey,
+			docs : args.docs,
+			castDocs : args.options.castDocs,
+			hooks : args.options.hooks,
+			fields : args.options.fields
+		}, function(err, docs) {
+			if (err) { return cb(err); }
+			
+			cb(null, args);
+		});
+	}
+	
 	if (type === "single") {
 		self.addField({
 			name : leftKey,
@@ -354,25 +374,7 @@ Model.prototype.addRelationship = function(args) {
 		self.addHook({
 			name : objectKey,
 			type : "afterFind",
-			handler : function(args, cb) {
-				mongolayer.resolveRelationship({
-					type : type,
-					leftKey : leftKey,
-					rightKey : rightKey,
-					multipleTypes : multipleTypes,
-					modelName : modelName,
-					connection : self.connection,
-					objectKey : objectKey,
-					docs : args.docs,
-					castDocs : args.options.castDocs,
-					hooks : args.options.hooks,
-					fields : args.options.fields
-				}, function(err, docs) {
-					if (err) { return cb(err); }
-					
-					cb(null, args);
-				});
-			},
+			handler : hookHandler,
 			required : args.hookRequired === true
 		});
 	} else if (type === "multiple") {
@@ -388,25 +390,7 @@ Model.prototype.addRelationship = function(args) {
 		self.addHook({
 			name : objectKey,
 			type : "afterFind",
-			handler : function(args, cb) {
-				mongolayer.resolveRelationship({
-					type : type,
-					leftKey : leftKey,
-					rightKey : rightKey,
-					multipleTypes : multipleTypes,
-					modelName : modelName,
-					connection : self.connection,
-					objectKey : objectKey,
-					docs : args.docs,
-					castDocs : args.options.castDocs,
-					hooks : args.options.hooks,
-					fields : args.options.fields
-				}, function(err, docs) {
-					if (err) { return cb(err); }
-					
-					cb(null, args);
-				});
-			},
+			handler : hookHandler,
 			required : args.hookRequired === true
 		});
 	}
