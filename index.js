@@ -356,11 +356,12 @@ var resolveRelationship = function(args, cb) {
 	// args.objectKey - The key in our Document which will be filled with the found results
 	// args.docs - The array of Documents
 	// args.castDocs - Whether to cast the documents after the find
+	// args.mapDocs - Whether or not to map docs
 	// args.hooks - Any hooks that need to be run
 	// args.fields - Field restriction on the related item
 	
-	args.hooks = args.hooks || [];
-	args.fields = args.fields || [];
+	var fields = args.fields;
+	args.mapDocs = args.mapDocs !== undefined ? args.mapDocs : false;
 	
 	if (args.docs.length === 0) {
 		return cb(null, args.docs);
@@ -408,22 +409,11 @@ var resolveRelationship = function(args, cb) {
 		return cb(null, args.docs);
 	}
 	
-	// ensure we only pass hooks if we have them allowing defaultHooks on related models to execute
-	var tempHooks = _getMyHooks(args.objectKey, args.hooks);
-	if (tempHooks.length === 0) {
-		tempHooks = undefined;
-	}
-	
-	var tempFields = _getMyFields(args.objectKey, args.fields);
-	if (Object.keys(tempFields).length === 0) {
-		tempFields = undefined;
-	}
-	
-	if (tempFields !== undefined) {
+	if (fields !== undefined) {
 		// if our fields object contains any truthy keys, then we want to make sure our rightKey is one of them.
-		var hasInclusiveFields = Object.keys(tempFields).findIndex(function(val) { return tempFields[val] === 1 || tempFields[val] === true }) > -1;
+		var hasInclusiveFields = Object.keys(fields).findIndex(function(val) { return fields[val] === 1 || fields[val] === true }) > -1;
 		if (hasInclusiveFields === true) {
-			tempFields[args.rightKey] = 1; // ensure the right key will be queried
+			fields[args.rightKey] = 1; // ensure the right key will be queried
 		}
 	}
 	
@@ -441,7 +431,7 @@ var resolveRelationship = function(args, cb) {
 			}
 			
 			// pass fields, hooks, castDocs, explicitly set mapDocs to false so that relationships don't map data, saving it for the final output map in the main find()
-			model.find(filter, { hooks : tempHooks, fields : tempFields, castDocs : args.castDocs, mapDocs : false }, function(err, docs) {
+			model.find(filter, { hooks : args.hooks, fields : fields, castDocs : args.castDocs, mapDocs : args.mapDocs }, function(err, docs) {
 				if (err) { return cb(err); }
 				
 				// stash the result to be used after all queries have finished

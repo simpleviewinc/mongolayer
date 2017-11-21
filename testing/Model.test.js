@@ -3035,6 +3035,22 @@ describe(__filename, function() {
 					});
 				});
 				
+				it("should not alter relationship hookArgs fields when calling", function(done) {
+					var fields = { title : 1, "singleSecond.title" : 1 };
+					var hooks = [];
+					model.find({ _id : root4 }, { hooks : [{ name : "afterFind_single", args : { fields : fields, castDocs : false, hooks : [] } }] }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.deepStrictEqual(hooks, []);
+						assert.deepStrictEqual(fields, {
+							title : 1,
+							"singleSecond.title" : 1
+						});
+						
+						return done();
+					});
+				});
+				
 				var tests = [
 					{
 						name : "should populate relationship via field key",
@@ -3123,6 +3139,97 @@ describe(__filename, function() {
 												}
 											}
 										}
+									}
+								}
+							}
+						]
+					},
+					{
+						name : "should pull down extra key if not overwritten",
+						filter : { _id : root4 },
+						options : {
+							fields : {
+								foo : 1,
+								"single.extra" : 1
+							}
+						},
+						results : [
+							{
+								foo : "foo4",
+								single : {
+									extra : "extra1_2"
+								}
+							}
+						]
+					},
+					{
+						name : "should allow overwrite passed in fields with hookArgs",
+						filter : { _id : root4 },
+						options : {
+							fields : {
+								"foo" : 1,
+								"single.extra" : 1
+							},
+							hooks : [
+								{ name : "afterFind_single", args : { fields : { title : 1 } } }
+							]
+						},
+						results : [
+							{
+								foo : "foo4",
+								single : {
+									_id : related1_2,
+									id : related1_2.toString(),
+									title : "title1_2",
+									extra : undefined
+								}
+							}
+						]
+					},
+					{
+						name : "should allow overwrite of castDocs with hookArgs",
+						filter : { _id : root4 },
+						options : {
+							fields : {
+								foo : 1,
+								"single.extra" : 1
+							},
+							hooks : [
+								{ name : "afterFind_single", args : { fields : { title : 1, "singleSecond.title" : 1 }, castDocs : false } }
+							]
+						},
+						results : [
+							{
+								foo : "foo4",
+								single : {
+									_id : related1_2, // despite not being in fields, this comes back because the parent join requires it
+									id : undefined,
+									title : "title1_2",
+									extra : undefined,
+									singleSecond : {
+										_id : undefined,
+										title : "title2_1"
+									}
+								}
+							}
+						]
+					},
+					{
+						name : "should allow overwrite of hooks with hookArgs",
+						filter : { _id : root4 },
+						options : {
+							hooks : [{ name : "afterFind_single", args : { hooks : ["afterFind_singleRequired"] } }, "single.afterFind_singleSecond"]
+						},
+						results : [
+							{
+								foo : "foo4",
+								single : {
+									_id : related1_2,
+									title : "title1_2",
+									extra : "extra1_2",
+									singleSecond : undefined,
+									singleRequired : {
+										title : "title2_1"
 									}
 								}
 							}

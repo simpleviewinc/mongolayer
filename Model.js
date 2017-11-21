@@ -345,6 +345,17 @@ Model.prototype.addRelationship = function(args) {
 	}
 	
 	var hookHandler = function(args, cb) {
+		var newOptions = {};
+		var hookArgs = extend(true, {}, args.hookArgs || {});
+		
+		// use the hookArgs fields, or cherry-pick the fields that apply to the relationship
+		newOptions.fields = hookArgs.fields !== undefined ? hookArgs.fields : mongolayer._getMyFields(objectKey, args.options.fields || {});
+		// use the hookArgs hooks, or cherry-pick the hooks that apply to the relationship
+		newOptions.hooks = hookArgs.hooks !== undefined ? hookArgs.hooks : mongolayer._getMyHooks(objectKey, args.options.hooks || []);
+		// if we have fields, we pass mapDocs, it will take affect according to the state of castDocs
+		newOptions.mapDocs = hookArgs.fields !== undefined ? true : undefined;
+		newOptions.castDocs = hookArgs.castDocs !== undefined ? hookArgs.castDocs : args.options.castDocs;
+		
 		mongolayer.resolveRelationship({
 			type : type,
 			leftKey : leftKey,
@@ -354,9 +365,10 @@ Model.prototype.addRelationship = function(args) {
 			connection : self.connection,
 			objectKey : objectKey,
 			docs : args.docs,
-			castDocs : args.options.castDocs,
-			hooks : args.options.hooks,
-			fields : args.options.fields
+			mapDocs : newOptions.mapDocs,
+			castDocs : newOptions.castDocs,
+			hooks : newOptions.hooks,
+			fields : newOptions.fields
 		}, function(err, docs) {
 			if (err) { return cb(err); }
 			
@@ -1313,6 +1325,8 @@ Model.prototype._processFields = function(options) {
 	
 	var evaluatedKeys = [];
 	
+	var hookNames = returnData.hooks.map(val => typeof val === "string" ? val : val.name);
+	
 	for(var i in options.fields) {
 		var val = options.fields[i];
 		// we only process truthy fields
@@ -1337,7 +1351,8 @@ Model.prototype._processFields = function(options) {
 		
 		for(var j = 0; j < temp.hooks.length; j++) {
 			var val = temp.hooks[j];
-			if (returnData.hooks.indexOf(val) === -1) {
+			if (hookNames.indexOf(val) === -1) {
+				hookNames.push(val);
 				returnData.hooks.push(val);
 			}
 		}
