@@ -7,6 +7,14 @@ var extend = require("extend");
 var async = require("async");
 var util = require("util");
 
+var queryLogMock = {
+	startTimer : function() {},
+	stopTimer : function() {},
+	get : function() {},
+	set : function() {},
+	send : function() {}
+}
+
 var Model = function(args) {
 	var self = this;
 	
@@ -15,7 +23,9 @@ var Model = function(args) {
 	validator.validate(args, {
 		type : "object",
 		schema : [
-			{ name : "collection", type : "string", required : true }
+			{ name : "collection", type : "string", required : true },
+			{ name : "allowExtraKeys", type : "boolean", default : false },
+			{ name : "deleteExtraKeys", type : "boolean", default : false }
 		],
 		throwOnInvalid : true
 	});
@@ -40,14 +50,9 @@ var Model = function(args) {
 	self.relationships = {};
 	self.methods = {};
 	self.connection = null; // stores Connection ref
-	
-	// private
-	self._onInit = args.onInit;
-	self._virtuals = {};
-	self._modelMethods = {};
-	self._documentMethods = {};
-	self._indexes = [];
-	self._hooks = {
+	self.hooks = {
+		beforeAggregate : {},
+		afterAggregate : {},
 		beforeInsert : {},
 		afterInsert : {},
 		beforeSave : {},
@@ -64,7 +69,20 @@ var Model = function(args) {
 		afterPut : {},
 		beforeFilter : {}
 	};
+	
+	// private
+	self._onInit = args.onInit;
+	self._allowExtraKeys = args.allowExtraKeys;
+	self._deleteExtraKeys = args.deleteExtraKeys;
+	self._virtuals = {};
+	self._modelMethods = {};
+	self._documentMethods = {};
+	self._indexes = [];
+	self._convertSchema = undefined;
+	self._convertSchemaV2 = undefined;
+	
 	self.defaultHooks = extend({
+		aggregate : [],
 		find : [],
 		count : [],
 		insert : [],
@@ -73,15 +91,7 @@ var Model = function(args) {
 		remove : []
 	}, args.defaultHooks);
 	
-	self._Document = function(model, args) {
-		mongolayer.Document.apply(this, arguments); // call constructor of parent but pass this as context
-	};
-	
-	// ensures that all documents we create are instanceof mongolayer.Document and instanceof self.Document
-	self._Document.prototype = Object.create(mongolayer.Document.prototype);
-	
-	// binds the model into the document so that the core document is aware of the model, but not required when instantiating a new one
-	self.Document = self._Document.bind(self._Document, self);
+	self.Document = _getModelDocument(self);
 	
 	// adds _id field
 	self.addField({
@@ -101,7 +111,8 @@ var Model = function(args) {
 		type : "idToString",
 		options : {
 			key : "_id"
-		}
+		},
+		requiredFields : ["_id"]
 	});
 	
 	// adds storage for core functionality in case we need this in the future
@@ -142,15 +153,15 @@ var Model = function(args) {
 }
 
 // re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
-Model.prototype.ensureIndexes = function(cb) {
+Model.prototype.createIndexes = function(cb) {
 	var self = this;
 	
 	var calls = [];
 	
 	self._indexes.forEach(function(val, i) {
 		calls.push(function(cb) {
-			self.collection.ensureIndex(val.keys, val.options, function(err) {
-				if (err) { return cb(new Error(util.format("Unable to ensureIndex on model '%s'. Original: %s", self.name, err.message))); }
+			self.collection.createIndex(val.keys, val.options, function(err) {
+				if (err) { return cb(new Error(util.format("Unable to createIndex on model '%s'. Original: %s", self.name, err.message))); }
 				
 				cb(null);
 			});
@@ -187,8 +198,10 @@ Model.prototype.addField = function(args) {
 	// args.default
 	// args.required
 	// args.persist
+	// args.toJSON
 	// args.validation (jsvalidator syntax)
 	
+	args.toJSON = args.toJSON !== undefined ? args.toJSON : true; // default toJSON to be true
 	self.fields[args.name] = args;
 }
 
@@ -199,6 +212,8 @@ Model.prototype.addVirtual = function(args) {
 	// args.get
 	// args.set
 	// args.enumerable
+	// args.writable
+	// args.requiredFields
 	
 	if (args.type === "idToString") {
 		args.get = function() {
@@ -235,12 +250,43 @@ Model.prototype.addVirtual = function(args) {
 	args.get = args.get || undefined;
 	args.set = args.set || undefined;
 	args.enumerable = args.enumerable !== undefined ? args.enumerable : true;
+	args.cache = args.cache !== undefined ? args.cache : false;
+	args.requiredFields = args.requiredFields || undefined;
+	args.requiredHooks = args.requiredHooks || undefined;
 	
-	Object.defineProperty(self._Document.prototype, args.name, {
-		get : args.get !== undefined ? args.get : undefined,
-		set : args.set !== undefined ? args.set : undefined,
-		enumerable : args.enumerable
-	});
+	var getter = args.get !== undefined ? args.get : undefined;
+	if (args.cache === true && getter !== undefined) {
+		getter = function() {
+			var value = args.get.call(this);
+			
+			Object.defineProperty(this, args.name, {
+				value : value,
+				enumerable : args.enumerable
+			});
+			
+			return value;
+		}
+	}
+	
+	// defineProperty treats passing undefined different than now passing the key at all, so we have to only add the keys if they are not undefined
+	var propDef = {}
+	if (getter !== undefined) {
+		propDef.get = getter;
+	}
+	
+	if (args.set !== undefined) {
+		propDef.set = args.set;
+	}
+	
+	if (args.writable !== undefined) {
+		propDef.writable = args.writable;
+	}
+	
+	if (args.enumerable !== undefined) {
+		propDef.enumerable = args.enumerable;
+	}
+	
+	Object.defineProperty(self.Document.prototype, args.name, propDef);
 	
 	self._virtuals[args.name] = args;
 }
@@ -264,6 +310,7 @@ Model.prototype.addRelationship = function(args) {
 			{ name : "multipleTypes", type : "boolean", default : false },
 			{ name : "required", type : "boolean" },
 			{ name : "hookRequired", type : "boolean" },
+			{ name : "leftKey", type : "string", default : function(args) { return args.current.name + "_" + (args.current.type === "single" ? "id" : "ids") } },
 			{ name : "rightKey", type : "string", default : "_id" },
 			{ name : "rightKeyValidation", type : "object", default : { type : "class", class : mongolayer.ObjectId } }
 		],
@@ -276,12 +323,15 @@ Model.prototype.addRelationship = function(args) {
 	var objectKey = args.name;
 	var modelName = args.modelName;
 	var multipleTypes = args.multipleTypes;
+	var leftKey = args.leftKey;
 	var rightKey = args.rightKey;
 	var rightKeyValidation = args.rightKeyValidation;
 	
-	self.addField({
+	self.addVirtual({
 		name : objectKey,
-		persist : false
+		requiredFields : [args.leftKey],
+		requiredHooks : ["afterFind_" + objectKey],
+		writable : true
 	});
 	
 	if (multipleTypes === true) {
@@ -294,11 +344,41 @@ Model.prototype.addRelationship = function(args) {
 		}
 	}
 	
-	if (type === "single") {
-		originalArgs.idKey = args.name + "_id";
+	var hookHandler = function(args, cb) {
+		var newOptions = {};
+		var hookArgs = extend(true, {}, args.hookArgs || {});
 		
+		// use the hookArgs fields, or cherry-pick the fields that apply to the relationship
+		newOptions.fields = hookArgs.fields !== undefined ? hookArgs.fields : mongolayer._getMyFields(objectKey, args.options.fields || {});
+		// use the hookArgs hooks, or cherry-pick the hooks that apply to the relationship
+		newOptions.hooks = hookArgs.hooks !== undefined ? hookArgs.hooks : mongolayer._getMyHooks(objectKey, args.options.hooks || []);
+		// if we have fields, we pass mapDocs, it will take affect according to the state of castDocs
+		newOptions.mapDocs = hookArgs.fields !== undefined ? true : undefined;
+		newOptions.castDocs = hookArgs.castDocs !== undefined ? hookArgs.castDocs : args.options.castDocs;
+		
+		mongolayer.resolveRelationship({
+			type : type,
+			leftKey : leftKey,
+			rightKey : rightKey,
+			multipleTypes : multipleTypes,
+			modelName : modelName,
+			connection : self.connection,
+			objectKey : objectKey,
+			docs : args.docs,
+			mapDocs : newOptions.mapDocs,
+			castDocs : newOptions.castDocs,
+			hooks : newOptions.hooks,
+			fields : newOptions.fields
+		}, function(err, docs) {
+			if (err) { return cb(err); }
+			
+			cb(null, args);
+		});
+	}
+	
+	if (type === "single") {
 		self.addField({
-			name : originalArgs.idKey,
+			name : leftKey,
 			validation : rightKeyValidation,
 			required : args.required === true
 		});
@@ -306,30 +386,12 @@ Model.prototype.addRelationship = function(args) {
 		self.addHook({
 			name : objectKey,
 			type : "afterFind",
-			handler : function(args, cb) {
-				mongolayer.resolveRelationship({
-					type : type,
-					leftKey : originalArgs.idKey,
-					rightKey : rightKey,
-					multipleTypes : multipleTypes,
-					modelName : modelName,
-					connection : self.connection,
-					objectKey : objectKey,
-					docs : args.docs,
-					hooks : args.options.hooks
-				}, function(err, docs) {
-					if (err) { return cb(err); }
-					
-					cb(null, args);
-				});
-			},
+			handler : hookHandler,
 			required : args.hookRequired === true
 		});
 	} else if (type === "multiple") {
-		originalArgs.idKey = args.name + "_ids";
-		
 		self.addField({
-			name : originalArgs.idKey,
+			name : leftKey,
 			validation : {
 				type : "array",
 				schema : rightKeyValidation
@@ -340,23 +402,7 @@ Model.prototype.addRelationship = function(args) {
 		self.addHook({
 			name : objectKey,
 			type : "afterFind",
-			handler : function(args, cb) {
-				mongolayer.resolveRelationship({
-					type : type,
-					leftKey : originalArgs.idKey,
-					rightKey : rightKey,
-					multipleTypes : multipleTypes,
-					modelName : modelName,
-					connection : self.connection,
-					objectKey : objectKey,
-					docs : args.docs,
-					hooks : args.options.hooks
-				}, function(err, docs) {
-					if (err) { return cb(err); }
-					
-					cb(null, args);
-				});
-			},
+			handler : hookHandler,
 			required : args.hookRequired === true
 		});
 	}
@@ -389,7 +435,7 @@ Model.prototype.addDocumentMethod = function(args) {
 	// args.name
 	// args.handler
 	
-	self._Document.prototype[args.name] = args.handler;
+	self.Document.prototype[args.name] = args.handler;
 	self._documentMethods[args.name] = args;
 }
 
@@ -401,7 +447,7 @@ Model.prototype.addHook = function(args, cb) {
 	// args.handler
 	// args.required
 	
-	self._hooks[args.type][args.name] = args;
+	self.hooks[args.type][args.name] = args;
 }
 
 Model.prototype.insert = function(docs, options, cb) {
@@ -431,12 +477,13 @@ Model.prototype.insert = function(docs, options, cb) {
 		// args.hooks
 		// args.docs
 		// args.type
+		// args.options
 		
 		var calls = [];
 		var newDocs = [];
 		args.docs.forEach(function(val, i) {
 			calls.push(function(cb) {
-				self._executeHooks({ type : args.type, hooks : args.hooks, args : { doc : val } }, function(err, temp) {
+				self._executeHooks({ type : args.type, hooks : args.hooks, args : { doc : val, options : args.options } }, function(err, temp) {
 					if (err) { return cb(err); }
 					
 					newDocs[i] = temp.doc;
@@ -449,18 +496,18 @@ Model.prototype.insert = function(docs, options, cb) {
 		async.parallel(calls, function(err) {
 			if (err) { return cb(err); }
 			
-			cb(null, newDocs);
+			cb(null, { docs : newDocs, options : args.options });
 		});
 	}
 	
 	self._executeHooks({ type : "beforeInsert", hooks : self._getHooksByType("beforeInsert", options.hooks), args : { docs : docs, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		callPutHook({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), docs : args.docs }, function(err, newDocs) {
+		callPutHook({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), docs : args.docs, options : args.options }, function(err, args) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self._processDocs({ data : newDocs, validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
+			self.processDocs({ data : args.docs, validate : true, checkRequired : true, stripEmpty : args.options.stripEmpty }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
 				// insert the data into mongo
@@ -469,10 +516,10 @@ Model.prototype.insert = function(docs, options, cb) {
 					
 					var castedDocs = self._castDocs(cleanDocs);
 					
-					callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs }, function(err, castedDocs) {
+					callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs, options : args.options }, function(err, args) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : castedDocs, options : args.options } }, function(err, args) {
+						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : args.docs, options : args.options } }, function(err, args) {
 							if (err) { return cb(err); }
 							
 							cb(null, isArray ? args.docs : args.docs[0], args.result);
@@ -507,11 +554,11 @@ Model.prototype.save = function(doc, options, cb) {
 	self._executeHooks({ type : "beforeSave", hooks : self._getHooksByType("beforeSave", options.hooks), args : { doc : doc, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), args : { doc : args.doc } }, function(err, tempArgs) {
+		self._executeHooks({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), args : { doc : args.doc, options : args.options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self._processDocs({ data : [tempArgs.doc], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
+			self.processDocs({ data : [args.doc], validate : true, checkRequired : true, stripEmpty : args.options.stripEmpty }, function(err, cleanDocs) {
 				if (err) { return cb(err); }
 				
 				self.collection.save(cleanDocs[0], args.options.options, function(err, result) {
@@ -519,16 +566,55 @@ Model.prototype.save = function(doc, options, cb) {
 					
 					var castedDoc = self._castDocs(cleanDocs)[0];
 					
-					self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc } }, function(err, tempArgs) {
+					self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc, options : args.options } }, function(err, args) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : tempArgs.doc, options : args.options } }, function(err, args) {
+						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : args.doc, options : args.options } }, function(err, args) {
 							if (err) { return cb(err); }
 							
 							cb(null, castedDoc, args.result);
 						});
 					});
 				});
+			});
+		});
+	});
+}
+
+Model.prototype.aggregate = function(pipeline, options, cb) {
+	var self = this;
+	
+	cb = cb || options;
+	options = options === cb ? {} : options;
+	options.castDocs = options.castDocs !== undefined ? options.castDocs : false;
+	options.options = options.options || {};
+	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.aggregate);
+	
+	self._executeHooks({ type : "beforeAggregate", hooks : self._getHooksByType("beforeAggregate", options.hooks), args : { pipeline : pipeline, options : options } }, function(err, args) {
+		if (err) { return cb(err); }
+		
+		self.collection.aggregate(args.pipeline, args.options, function(err, docs) {
+			if (err) { return cb(err); }
+			
+			self._executeHooks({ type : "afterAggregate", hooks : self._getHooksByType("afterAggregate", options.hooks), args : { pipeline : args.pipeline, options : args.options, docs : docs } }, function(err, args) {
+				if (err) { return cb(err); }
+				
+				if (args.options.virtuals !== undefined) {
+					self._executeVirtuals(args.docs, args.options.virtuals);
+				}
+				
+				if (args.options.castDocs === true) {
+					args.docs = self._castDocs(args.docs, { cloneData : false })
+				}
+				
+				if (args.options.maxSize) {
+					var size = JSON.stringify(args.docs).length;
+					if (size > args.options.maxSize) {
+						return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
+					}
+				}
+				
+				cb(null, args.docs);
 			});
 		});
 	});
@@ -557,12 +643,24 @@ Model.prototype.find = function(filter, options, cb) {
 	}
 	
 	options = options === cb ? {} : options;
-	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.find);
-	options.fields = options.fields || null;
+	options.hooks = options.hooks || self.defaultHooks.find.slice(); // clone default hooks so we don't end up with them being affected when items push on to them via fields
+	options.castDocs = options.castDocs !== undefined ? options.castDocs : true;
+	options.mapDocs = options.mapDocs !== undefined ? options.mapDocs : true;
+	options.fields = options.fields || {};
 	options.options = options.options || {};
 	
-	var queryLog = new mongolayer.QueryLog({ type : "find", collection : self.collectionName });
+	var originalFields = Object.assign({}, options.fields);
+	
+	// utilize a mock when logger is disabled for performance reasons
+	var queryLog = self.connection.logger === undefined ? queryLogMock : new mongolayer.QueryLog({ type : "find", collection : self.collectionName, connection : self.connection });
 	queryLog.startTimer("command");
+	
+	var fieldResults;
+	if (Object.keys(options.fields).length > 0) {
+		fieldResults = self._processFields(options);
+	}
+	
+	options.hooks = self._normalizeHooks(options.hooks);
 	
 	self._executeHooks({ type : "beforeFind", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
@@ -570,34 +668,74 @@ Model.prototype.find = function(filter, options, cb) {
 		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
+			var rawFilter = self.connection.logger === undefined ? {} : extend(true, {}, args.filter);
+			var rawOptions = self.connection.logger === undefined ? {} : extend(true, {}, args.options);
 			
-			var rawFilter = extend(true, {}, args.filter);
-			var rawOptions = extend(true, {}, args.options);
+			var findFields = self._getMyFindFields(args.options.fields);
 			
-			var cursor = self.collection.find(args.filter, args.options.fields, args.options.options);
+			var cursor = self.collection.find(args.filter, findFields, args.options.options);
 			if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
 			if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
 			if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
 			
-			queryLog.startTimer("raw");
+			var calls = {};
 			
-			cursor.toArray(function(err, docs) {
-				if (err) { return cb(err); }
-				
-				queryLog.stopTimer("raw");
-				
-				var castedDocs = self._castDocs(docs);
-				
-				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : castedDocs } }, function(err, args) {
+			if (args.options.count === true) {
+				calls.count = function(cb) {
+					cursor.count(false, cb);
+				}
+			}
+			
+			calls.docs = function(cb) {
+				queryLog.startTimer("raw");
+				cursor.toArray(function(err, docs) {
 					if (err) { return cb(err); }
 					
+					queryLog.stopTimer("raw");
+					
+					cb(null, docs);
+				});
+			}
+			
+			async.parallel(calls, function(err, results) {
+				if (err) { return cb(err); }
+				
+				var docs = results.docs;
+				var count = results.count;
+				
+				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : docs, count : count } }, function(err, args) {
+					if (err) { return cb(err); }
+					
+					if (args.options.castDocs === true) {
+						args.docs = self._castDocs(args.docs, { cloneData : false });
+					}
+					
+					if (args.options.castDocs === false && fieldResults !== undefined && fieldResults.virtuals.length > 0) {
+						// if castDocs === false and our fields obj included any virtual fields we need to execute them to ensure they exist in the output
+						self._executeVirtuals(args.docs, fieldResults.virtuals);
+					}
+					
+					if (args.options.mapDocs === true && args.options.castDocs === false && fieldResults !== undefined && fieldResults.fieldsAdded === true) {
+						// if we are in a castDocs === false situation with mapDocs true (not a relationship find()), and we have added fields, we need to map them away
+						args.docs = objectLib.mongoProject(args.docs, originalFields);
+					}
+					
+					if (args.options.maxSize) {
+						var size = JSON.stringify(args.docs).length;
+						if (size > args.options.maxSize) {
+							return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
+						}
+					}
+					
 					queryLog.stopTimer("command");
-					
 					queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
+					queryLog.send();
 					
-					self.connection.logger(queryLog.get());
-					
-					cb(null, args.docs);
+					if (args.count !== undefined) {
+						cb(null, { count : args.count, docs : args.docs });
+					} else {
+						cb(null, args.docs);
+					}
 				});
 			});
 		});
@@ -646,14 +784,14 @@ Model.prototype.update = function(filter, delta, options, cb) {
 	}
 	
 	options = options === cb ? {} : options;
-	options.hooks = self._normalizeHooks(options.beforeHooks || self.defaultHooks.update);
+	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.update);
 	options.options = options.options || {};
 	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
 	self._executeHooks({ type : "beforeUpdate", hooks : self._getHooksByType("beforeUpdate", options.hooks), args : { filter : filter, delta: delta, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } }, function(err, tempArgs) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", options.hooks), args : { filter : filter, options : options } }, function(err, tempArgs) {
 			if (err) { return cb(err); }
 			
 			var calls = [];
@@ -661,7 +799,7 @@ Model.prototype.update = function(filter, delta, options, cb) {
 			if (Object.keys(args.delta).filter(function(val, i) { return val.match(/^\$/) !== null }).length === 0) {
 				// no $ operators at the root level, validate the whole delta
 				calls.push(function(cb) {
-					self._processDocs({ data : [args.delta], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
+					self.processDocs({ data : [args.delta], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
 						if (err) { return cb(err); }
 						
 						args.delta = cleanDocs[0];
@@ -739,6 +877,16 @@ Model.prototype.remove = function(filter, options, cb) {
 	});
 }
 
+Model.prototype.removeAll = function(cb) {
+	var self = this;
+	
+	self.connection.dropCollection({ name : self.collectionName }, function(err) {
+		if (err) { return cb(err); }
+		
+		self.createIndexes(cb);
+	});
+}
+
 Model.prototype.stringConvert = function(data) {
 	var self = this;
 	
@@ -747,17 +895,34 @@ Model.prototype.stringConvert = function(data) {
 	return mongolayer.stringConvert(data, schema);
 }
 
+Model.prototype.stringConvertV2 = function(data) {
+	var self = this;
+
+	var schema = self.getConvertSchemaV2();
+
+	return mongolayer.stringConvertV2(data, schema);
+}
+
+
 Model.prototype.getConvertSchema = function() {
 	var self = this;
+
+	if (self._convertSchema !== undefined) {
+		return self._convertSchema;
+	}
 	
 	var schema = {};
 	
 	var walkField = function(field, chain) {
 		if (field.type === "array") {
 			walkField(field.schema, chain);
-		} else if (field.type === "object") {
+		} else if (field.type === "object" || field.type === "indexObject") {
 			if (field.schema === undefined) {
 				return;
+			}
+			
+			if (field.type === "indexObject") {
+				chain.push("~");
 			}
 			
 			field.schema.forEach(function(val, i) {
@@ -770,6 +935,8 @@ Model.prototype.getConvertSchema = function() {
 				// only class we support is ObjectId
 				schema[chain.join(".")] = "objectid";
 			}
+		} else if (field.type === "any") {
+			return;
 		} else {
 			schema[chain.join(".")] = field.type;
 		}
@@ -794,7 +961,48 @@ Model.prototype.getConvertSchema = function() {
 		walkField(temp, chain);
 	});
 	
-	return schema;
+	self._convertSchema = schema;
+
+	return self.getConvertSchema();
+}
+
+Model.prototype.getConvertSchemaV2 = function() {
+	var self = this;
+	
+	if (self._convertSchemaV2 !== undefined) {
+		return self._convertSchemaV2;
+	}
+	
+	var schema = self.getConvertSchema();
+	
+	var newSchema = {};
+	
+	var schemaKeys = Object.keys(schema);
+	for(var i = 0; i < schemaKeys.length; i++) {
+		var path = schemaKeys[i];
+		var type = schema[path];
+		var pathArr = path.split(".");
+		
+		var current = newSchema;
+		for (var j = 0; j < pathArr.length; j++) {
+			var currentKey = pathArr[j];
+			
+			if (j === pathArr.length - 1) {
+				current[currentKey] = type;
+				break;
+			}
+			
+			if (current[currentKey] === undefined) {
+				current[currentKey] = {};
+			}
+			
+			current = current[currentKey];
+		}
+	}
+	
+	self._convertSchemaV2 = newSchema;
+	
+	return self.getConvertSchemaV2();
 }
 
 Model.prototype._getHooksByType = function(type, hooks) {
@@ -802,9 +1010,13 @@ Model.prototype._getHooksByType = function(type, hooks) {
 	
 	var matcher = new RegExp("^" + type + "_");
 	
-	return hooks.filter(function(val) {
-		return val.name.match(matcher)
-	}).map(function(val) {
+	var returnHooks = [];
+	
+	for(var i = 0; i < hooks.length; i++) {
+		var val = hooks[i];
+		var isMyType = val.name.match(matcher) !== null;
+		if (isMyType === false) { continue; }
+		
 		var temp = {
 			name : val.name.replace(matcher, "")
 		}
@@ -813,8 +1025,10 @@ Model.prototype._getHooksByType = function(type, hooks) {
 			temp.args = val.args;
 		}
 		
-		return temp;
-	});
+		returnHooks.push(temp);
+	}
+	
+	return returnHooks;
 }
 
 Model.prototype._normalizeHooks = function(hooks, cb) {
@@ -823,9 +1037,10 @@ Model.prototype._normalizeHooks = function(hooks, cb) {
 	// args.hooks
 	
 	var newHooks = [];
-	hooks.forEach(function(val, i) {
+	for(var i = 0; i < hooks.length; i++) {
+		var val = hooks[i];
 		newHooks.push(typeof val === "string" ? { name : val } : val);
-	});
+	}
 	
 	return newHooks;
 }
@@ -839,30 +1054,37 @@ Model.prototype._executeHooks = function(args, cb) {
 	// args.args
 	
 	var hooks = [];
+	var state = args.args;
 	
-	args.hooks.forEach(function(val, i) {
+	for(var i = 0; i < args.hooks.length; i++) {
+		var val = args.hooks[i];
 		if (val.name.match(/\./) !== null) {
 			// only execute hooks which are part of my namespace
-			return false;
+			continue;
 		}
 		
-		if (self._hooks[args.type][val.name] === undefined) {
+		if (self.hooks[args.type][val.name] === undefined) {
 			throw new Error(util.format("Hook '%s' of type '%s' was requested but does not exist", val.name, args.type));
 		}
 		
-		hooks.push({ hook : self._hooks[args.type][val.name], requestedHook : val });
-	});
+		hooks.push({ hook : self.hooks[args.type][val.name], requestedHook : val });
+	}
 	
 	var hookIndex = arrayLib.index(hooks, ["hook", "name"]);
 	
-	objectLib.forEach(self._hooks[args.type], function(val, i) {
+	for(var i in self.hooks[args.type]) {
+		var val = self.hooks[args.type][i];
 		if (hookIndex[i] === undefined && val.required === true) {
 			hooks.push({ hook : val, requestedHook : { name : i } });
 		}
-	});
+	}
+	
+	// no hooks to run, short circuit out
+	if (hooks.length === 0) {
+		return cb(null, state);
+	}
 	
 	var calls = [];
-	var state = args.args;
 	hooks.forEach(function(val, i) {
 		calls.push(function(cb) {
 			state.hookArgs = val.requestedHook.args;
@@ -877,29 +1099,66 @@ Model.prototype._executeHooks = function(args, cb) {
 	});
 	
 	async.series(calls, function(err) {
-		cb(err, state);
+		if (err) { return cb(err); }
+		
+		cb(null, state);
 	});
 }
 
-Model.prototype._castDocs = function(docs) {
+var _getMyFindFields_regex = /^(\w+?)\./;
+Model.prototype._getMyFindFields = function(fields) {
 	var self = this;
 	
+	if (fields === null) { return fields };
+	
+	var newFields = {};
+	var hasKeys = false;
+	
+	for(var val in fields) {
+		var temp = val.match(_getMyFindFields_regex);
+		if (temp === null || self.relationships[temp[1]] === undefined) {
+			// if the key either has no root, or it's root is not a known relationship, then include it
+			hasKeys = true;
+			newFields[val] = fields[val];
+		}
+	}
+	
+	if (hasKeys === false) {
+		return null;
+	}
+	
+	return newFields;
+}
+
+Model.prototype._castDocs = function(docs, options) {
+	var self = this;
+	
+	options = options || {};
+	
 	var castedDocs = [];
-	docs.forEach(function(val, i) {
-		castedDocs.push(new self.Document(val, { fillDefaults : false }));
-	});
+	for(var i = 0; i < docs.length; i++) {
+		var val = docs[i];
+		castedDocs.push(new self.Document(val, { fillDefaults : false, cloneData : options.cloneData }));
+	}
 	
 	return castedDocs;
 }
 
 // Validate and fill defaults into an array of documents. If one document fails it will cb an error
-Model.prototype._processDocs = function(args, cb) {
+Model.prototype.processDocs = function(args, cb) {
 	var self = this;
 	
-	// args.data
-	// args.validate
-	// args.checkRequired
-	// args.stripEmpty
+	validator.validate(args, {
+		type : "object",
+		schema : [
+			{ name : "data", type : "array", required : true },
+			{ name : "validate", type : "boolean" },
+			{ name : "checkRequired", type : "boolean" },
+			{ name : "stripEmpty", type : "boolean" }
+		],
+		allowExtraKeys : false,
+		throwOnInvalid : true
+	});
 	
 	var calls = [];
 	var noop = function(cb) { cb(null); }
@@ -947,7 +1206,7 @@ Model.prototype._processDocs = function(args, cb) {
 						return cb(err);
 					}
 					
-					cb(null);
+					setImmediate(cb);
 				});
 			});
 		});
@@ -1000,15 +1259,25 @@ Model.prototype._validateDocData = function(data, cb) {
 			return;
 		}
 		
-		// not a virtual, not a field
-		errs.push(util.format("Cannot save invalid column '%s'. It is not declared in the Model as a field or a virtual.", i));
+		if (self._deleteExtraKeys === true) {
+			delete data[i];
+			return;
+		}
+		
+		if (self._allowExtraKeys === false) {
+			// not a virtual, not a field, not allowing extra keys
+			errs.push(util.format("Cannot save invalid column '%s'. It is not declared in the Model as a field or a virtual.", i));
+			return;
+		}
+		
+		// field is not declared, but the value is still saved because deleteExtrakeys === false && allowExtraKeys === true
 	});
 	
 	if (errs.length > 0) {
 		return cb(new mongolayer.errors.ValidationError("Doc failed validation. " + errs.join(" ")));
 	}
 	
-	cb(null);
+	setImmediate(cb);
 }
 
 Model.prototype._checkRequired = function(data, cb) {
@@ -1026,15 +1295,14 @@ Model.prototype._checkRequired = function(data, cb) {
 		return cb(new mongolayer.errors.ValidationError("Doc failed validation. " + errs.join(" ")));
 	}
 	
-	cb(null);
+	setImmediate(cb);
 }
 
 Model.prototype._fillDocDefaults = function(data) {
 	var self = this;
 	
-	var calls = [];
-	
-	objectLib.forEach(self.fields, function(val, i) {
+	for(var i in self.fields) {
+		var val = self.fields[i];
 		if (val.default !== undefined && data[i] === undefined) {
 			if (typeof val.default === "function") {
 				data[i] = val.default({ raw : data, column : i });
@@ -1042,7 +1310,180 @@ Model.prototype._fillDocDefaults = function(data) {
 				data[i] = val.default;
 			}
 		}
+	}
+}
+
+Model.prototype._processFields = function(options) {
+	var self = this;
+	
+	var returnData = {
+		virtuals : [], // fields which need to be .call() in the return docs
+		fields : options.fields,
+		fieldsAdded : false,
+		hooks : options.hooks
+	}
+	
+	var evaluatedKeys = [];
+	
+	var hookNames = returnData.hooks.map(val => typeof val === "string" ? val : val.name);
+	
+	for(var i in options.fields) {
+		var val = options.fields[i];
+		// we only process truthy fields
+		if (val !== 1 && val !== true) { continue; }
+		
+		// if we have already evaluated this rootKey, such as when { "foo.bar" : 1, "foo.baz" : 1 }, no need to process "foo" twice
+		var rootKey = _getRootKey(i);
+		if (evaluatedKeys.indexOf(rootKey) > -1) { continue; }
+		
+		evaluatedKeys.push(rootKey);
+		
+		var virtual = self._virtuals[rootKey];
+		if (virtual === undefined) { continue; }
+		
+		var temp = self._getFieldDependecies(rootKey);
+		for(var j = 0; j < temp.virtuals.length; j++) {
+			var val = temp.virtuals[j];
+			if (returnData.virtuals.indexOf(val) === -1) {
+				returnData.virtuals.push(val);
+			}
+		}
+		
+		for(var j = 0; j < temp.hooks.length; j++) {
+			var val = temp.hooks[j];
+			if (hookNames.indexOf(val) === -1) {
+				hookNames.push(val);
+				returnData.hooks.push(val);
+			}
+		}
+		
+		temp.fields.forEach(function(val, i) {
+			if (returnData.fields[val] !== undefined) { return; }
+			
+			returnData.fieldsAdded = true;
+			returnData.fields[val] = 1;
+		});
+	}
+	
+	if (options.castDocs === false && evaluatedKeys.length > 0 && returnData.fields._id === undefined) {
+		// if we are in castDocs, and we have at least one truthy key, and no value for _id, then we explicitly exclude it for performance since it's going to be mapped away
+		returnData.fields._id = 0;
+	}
+	
+	return returnData;
+}
+
+Model.prototype._getFieldDependecies = function(name) {
+	var self = this;
+	
+	var returnData = {
+		virtuals : [],
+		fields : [name],
+		hooks : []
+	}
+	
+	var virtual = self._virtuals[name];
+	if (virtual === undefined) { return returnData; }
+	
+	if (virtual.get !== undefined) {
+		returnData.virtuals.push(name);
+	}
+	
+	if (virtual.requiredHooks !== undefined) {
+		returnData.hooks.push.apply(returnData.hooks, virtual.requiredHooks);
+	}
+	
+	if (virtual.requiredFields !== undefined) {
+		virtual.requiredFields.forEach(function(val, i) {
+			var temp = self._getFieldDependecies(val);
+			// push the fields on
+			returnData.fields.push.apply(returnData.fields, temp.fields);
+			// push the required virtuals so they end up before the current virtual
+			returnData.virtuals.splice.apply(returnData.virtuals, [i, 0].concat(temp.virtuals));
+			// push the required hooks so they end up before the current hook
+			returnData.hooks.splice.apply(returnData.hooks, [i, 0].concat(temp.hooks));
+		});
+	}
+	
+	return returnData;
+}
+
+var _getRootKey_re = /^[^\.]*/;
+var _getRootKey = function(str) {
+	return str.match(_getRootKey_re)[0];
+}
+
+Model.prototype._executeVirtuals = function(docs, virtuals) {
+	var self = this;
+	
+	docs.forEach(function(val, i) {
+		virtuals.forEach(function(virtualName) {
+			// check if we have already executed this virtual
+			if (val[virtualName] !== undefined) { return; }
+			
+			// call the virtual
+			val[virtualName] = self._virtuals[virtualName].get.call(val);
+		});
 	});
+	
+	return;
+}
+
+// need a closure to wrap the model reference
+var _getModelDocument = function(model) {
+	var ModelDocument = function(data, options) {
+		var self = this;
+		
+		data = data || {};
+		options = options || {};
+		
+		options.fillDefaults = options.fillDefaults === undefined ? true : options.fillDefaults;
+		options.cloneData = options.cloneData === undefined ? true : options.cloneData;
+		
+		// clone the incoming data
+		var temp = options.cloneData === true ? extend(true, {}, data) : data;
+		
+		// fold in the top level keys, we can't just call extend on self because it will execute getters on "self" even though it should only execute setters
+		for(var i in temp) {
+			self[i] = temp[i];
+		}
+		
+		if (options.fillDefaults) {
+			model._fillDocDefaults(self);
+		}
+		
+		model._onInit.call(self);
+	}
+	
+	// ensure that objects created from model.Document are instanceof mongolayer.Document
+	ModelDocument.prototype = Object.create(mongolayer.Document.prototype);
+
+	ModelDocument.prototype.toJSON = function() {
+		var self = this;
+		
+		var data = {};
+		
+		// copy across the normal keys
+		var keys = Object.keys(self);
+		for(var i = 0; i < keys.length; i++) {
+			var field = model.fields[keys[i]];
+			if (field !== undefined && field.toJSON === false) { continue; }
+			
+			data[keys[i]] = self[keys[i]];
+		}
+		
+		// copy across keys declared as enumerable virtual values
+		var protoKeys = Object.keys(Object.getPrototypeOf(self));
+		for(var i = 0; i < protoKeys.length; i++) {
+			if (protoKeys[i] === "toJSON") { continue; }
+			
+			data[protoKeys[i]] = self[protoKeys[i]];
+		}
+		
+		return data;
+	}
+	
+	return ModelDocument;
 }
 
 module.exports = Model;

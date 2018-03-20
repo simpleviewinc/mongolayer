@@ -2,6 +2,7 @@ var mongodb = require("mongodb");
 var async = require("async");
 var extend = require("extend");
 var util = require("util");
+var typecaster = require("typecaster");
 
 var Connection = require("./Connection.js");
 var Model = require("./Model.js");
@@ -9,6 +10,26 @@ var Document = require("./Document.js");
 var QueryLog = require("./QueryLog.js");
 var objectLib = require("./lib/objectLib.js");
 var arrayLib = require("./lib/arrayLib.js");
+
+var typecasterObjectIdDef = {
+	name : "objectid",
+	handler : function(data, type) {
+		if (data instanceof mongodb.ObjectID) {
+			return data;
+		}
+		
+		try {
+			var temp = new mongodb.ObjectID(data);
+		} catch (e) {
+			throw new Error("Cannot convert '" + data + "' to mongodb.ObjectID, it's value is not a valid objectid");
+		}
+		
+		return temp;
+	}
+}
+
+var caster = new typecaster.TypeCaster();
+caster.addType(typecasterObjectIdDef);
 
 var connect = function(args, cb) {
 	_getDb(args, function(err, db) {
@@ -37,7 +58,6 @@ var _getDb = function(args, cb) {
 		
 		var op;
 		if (args.auth) {
-			args.auth.options = args.auth.options || { authMechanism : "MONGODB-CR" };
 			op = function(cb) {
 				db.authenticate(args.auth.username, args.auth.password, args.auth.options, cb);
 			}
@@ -54,6 +74,11 @@ var _getDb = function(args, cb) {
 }
 
 var _getDbCached = async.memoize(_getDb, function() { return JSON.stringify(arguments) });
+var _clearConnectCache = function() {
+	for(var i in _getDbCached.memo) {
+		delete _getDbCached.memo[i];
+	}
+}
 
 var toPlain = function(data) {
 	if (data instanceof Array) {
@@ -117,6 +142,16 @@ var _prepareInsert = function(data, stripEmpty) {
 // This is required because HTTP transmits as strings, while server-side code needs primitives such as boolean, number, date and mongoid.
 // EXPERIMENTAL!
 var stringConvert = function(data, schema) {
+	// find all of the indexObjects and stash them away based on the chain length, use the regex to check them when evaluating keys of the same chain length
+	var indexObjectIndex = {};
+	objectLib.forEach(schema, function(val, i) {
+		if (i.indexOf("~") > -1) {
+			var count = i.split(".").length;
+			indexObjectIndex[count] = indexObjectIndex[count] || [];
+			indexObjectIndex[count].push({ key : i, regex : new RegExp(i.replace(/\./g, "\\.").replace(/~/, "[^.]+?")) });
+		}
+	});
+	
 	var hasOps = function(data) {
 		var hasOps = false;
 		objectLib.forEach(data, function(val, i) {
@@ -138,7 +173,7 @@ var stringConvert = function(data, schema) {
 			objectLib.forEach(data, function(val, i) {
 				if (i === "$exists") {
 					returnValue[i] = convertValue(val, "boolean");
-				} else if (i === "$in" || i === "$nin") {
+				} else if (i === "$in" || i === "$nin" || i === "$all") {
 					returnValue[i] = [];
 					val.forEach(function(val2, i2) {
 						returnValue[i].push(convertValue(val2, type));
@@ -147,24 +182,13 @@ var stringConvert = function(data, schema) {
 					// fields to convert in-place;
 					returnValue[i] = convertValue(val, type);
 				} else if (i === "$elemMatch") {
-					if (hasOps(data)) {
+					if (hasOps(val)) {
 						// if the item has ops we stay where we are at in the context
-						returnValue[i] = convertObject(data[i], type, chain);
+						returnValue[i] = convertObject(val, type, chain.slice(0));
 					} else {
 						// no operations, then it is a sub-document style
-						returnValue[i] = walk(data, chain.slice(0));
+						returnValue[i] = walk(val, chain.slice(0));
 					}
-				} else if (i === "$all") {
-					returnValue[i] = [];
-					val.forEach(function(val2, i2) {
-						if (hasOps(val2)) {
-							returnValue[i].push(walk(val2.$elemMatch, chain.slice(0)));
-						} else if (typeof val2 === "object") {
-							returnValue[i].push(convertObject(val2, type, chain.slice(0)));
-						} else {
-							returnValue[i].push(convertValue(val2, type));
-						}
-					});
 				} else {
 					throw new Error("Unsupported query operator '" + i + "'");
 				}
@@ -191,9 +215,26 @@ var stringConvert = function(data, schema) {
 				});
 			} else {
 				var newChain = chain.slice(0);
-				newChain.push(i);
+				
+				// $elemMatch and $all both allow nested objects which won't have schema matches until the leaf is hit
+				// for these cases we don't want to push
+				if (i !== "$elemMatch" && i !== "$all") {
+					newChain.push(i);
+				}
 				
 				var key = newChain.join(".");
+				
+				// if there is no match at this key, check for indexObjects of the same chain length "foo.bar.baz" === chain length 3
+				// this way we aren't checking for indexObjects at levels they aren't possible at
+				if (schema[key] === undefined && indexObjectIndex[newChain.length] !== undefined) {
+					indexObjectIndex[newChain.length].some(function(val, i) {
+						if (key.match(val.regex) !== null) {
+							key = val.key;
+							return true;
+						}
+					});
+				}
+				
 				if (schema[key] !== undefined) {
 					if (val instanceof Array) {
 						returnValue = [];
@@ -213,7 +254,7 @@ var stringConvert = function(data, schema) {
 								returnValue.push(val);
 							}
 						});
-					} else if (typeof val === "object") {
+					} else if (val !== null && typeof val === "object" && Object.getPrototypeOf(val) === Object.prototype) {
 						returnValue = walk(val, newChain);
 					} else {
 						// not in schema, and not walkable, just return the value
@@ -234,62 +275,47 @@ var stringConvert = function(data, schema) {
 }
 
 var convertValue = function(data, type) {
-	var val;
+	return caster.convert(data, type);
+}
+
+var stringConvertV2 = function(data, schema) {
+	_stringConvertV2_walk(data, schema);
 	
-	if (type === "boolean") {
-		if (typeof data === "boolean") {
-			return data;
+	return data;
+}
+
+var _stringConvertV2_walk = function(dataObj, schemaObj) {
+	var schemaKeys = Object.keys(schemaObj);
+	for(var i = 0; i < schemaKeys.length; i++) {
+		var key = schemaKeys[i];
+		var val = schemaObj[key];
+		
+		if (key === "~") {
+			var tempKeys = Object.keys(dataObj);
+			for(var j = 0; j < tempKeys.length; j++) {
+				_stringConvertV2_walk(dataObj[tempKeys[j]], val);
+			}
+			
+			continue;
 		}
 		
-		if (["1", 1, "0", 0, "yes", "no", "true", "false"].indexOf(data) === -1) {
-			// ensure boolean is "true" or "false"
-			throw new Error(util.format("Cannot convert '%s' to boolean, it must be 'true' or 'false'", data));
-		}
+		if (dataObj[key] === undefined) { continue; }
 		
-		return data === "true" || data === "1" || data === 1 || data === "yes";
-	} else if (type === "date") {
-		if (data instanceof Date) {
-			return data;
+		if (typeof val === "string") {
+			if (dataObj[key] instanceof Array) {
+				for(var j = 0; j < dataObj[key].length; j++) {
+					dataObj[key][j] = convertValue(dataObj[key][j], val);
+				}
+			} else {
+				dataObj[key] = convertValue(dataObj[key], val);
+			}
+		} else if (dataObj[key] instanceof Array) {
+			for(var j = 0; j < dataObj[key].length; j++) {
+				_stringConvertV2_walk(dataObj[key][j], val);
+			}
+		} else {
+			_stringConvertV2_walk(dataObj[key], val);
 		}
-		
-		if (typeof data === "string" && data.match(/^[\d]+$/)) {
-			// handles Unix Offset passed in string
-			data = parseInt(data, 10);
-		}
-		
-		var temp = new Date(data);
-		if (isNaN(temp)) {
-			throw new Error(util.format("Cannot convert '%s' to date, it's value is not valid in a JS new Date() constructor", data));
-		}
-		
-		return temp;
-	} else if (type === "number") {
-		if (typeof data === "number") {
-			return data;
-		}
-		
-		var temp = Number(data);
-		if (isNaN(temp)) {
-			throw new Error(util.format("Cannot convert '%s' to number, it's value is not a valid number", data));
-		}
-		
-		return temp;
-	} else if (type === "string") {
-		return data;
-	} else if (type === "objectid") {
-		if (data instanceof mongodb.ObjectID) {
-			return data;
-		}
-		
-		try {
-			var temp = new mongodb.ObjectID(data);
-		} catch (e) {
-			throw new Error(util.format("Cannot convert '%s' to mongodb, it's value is not a valid objectid", data));
-		}
-		
-		return temp;
-	} else {
-		throw new Error(util.format("Cannot convert, '%s' is not a supported conversion type", type));
 	}
 }
 
@@ -307,6 +333,19 @@ var _getMyHooks = function(myKey, hooks) {
 	return myHooks;
 }
 
+var _getMyFields = function(myKey, fields) {
+	var myFields = {};
+	var regMatch = new RegExp("^" + myKey + "\\..*");
+	var regReplace = new RegExp("^" + myKey + "\\.");
+	objectLib.forEach(fields, function(val, i) {
+		if (i.match(regMatch) !== null) {
+			myFields[i.replace(regReplace, "")] = val;
+		}
+	});
+	
+	return myFields;
+}
+
 var resolveRelationship = function(args, cb) {
 	// args.type - single or multiple
 	// args.leftKey - The key in our Document that points to an object in the related model
@@ -316,7 +355,13 @@ var resolveRelationship = function(args, cb) {
 	// args.multipleTypes - Boolean whether this supports multiple types
 	// args.objectKey - The key in our Document which will be filled with the found results
 	// args.docs - The array of Documents
+	// args.castDocs - Whether to cast the documents after the find
+	// args.mapDocs - Whether or not to map docs
 	// args.hooks - Any hooks that need to be run
+	// args.fields - Field restriction on the related item
+	
+	var fields = args.fields;
+	args.mapDocs = args.mapDocs !== undefined ? args.mapDocs : false;
 	
 	if (args.docs.length === 0) {
 		return cb(null, args.docs);
@@ -364,10 +409,12 @@ var resolveRelationship = function(args, cb) {
 		return cb(null, args.docs);
 	}
 	
-	// ensure we only pass hooks if we have them allowing defaultHooks on related models to execute
-	var tempHooks = _getMyHooks(args.objectKey, args.hooks);
-	if (tempHooks.length === 0) {
-		tempHooks = undefined;
+	if (fields !== undefined) {
+		// if our fields object contains any truthy keys, then we want to make sure our rightKey is one of them.
+		var hasInclusiveFields = Object.keys(fields).findIndex(function(val) { return fields[val] === 1 || fields[val] === true }) > -1;
+		if (hasInclusiveFields === true) {
+			fields[args.rightKey] = 1; // ensure the right key will be queried
+		}
 	}
 	
 	var calls = [];
@@ -383,7 +430,8 @@ var resolveRelationship = function(args, cb) {
 				return cb(null);
 			}
 			
-			model.find(filter, { hooks : tempHooks }, function(err, docs) {
+			// pass fields, hooks, castDocs, explicitly set mapDocs to false so that relationships don't map data, saving it for the final output map in the main find()
+			model.find(filter, { hooks : args.hooks, fields : fields, castDocs : args.castDocs, mapDocs : args.mapDocs }, function(err, docs) {
 				if (err) { return cb(err); }
 				
 				// stash the result to be used after all queries have finished
@@ -497,8 +545,12 @@ extend(module.exports, {
 	testId : testId,
 	toPlain : toPlain,
 	stringConvert : stringConvert,
+	stringConvertV2 : stringConvertV2,
 	convertValue : convertValue,
 	resolveRelationship : resolveRelationship,
+	typecasterObjectIdDef : typecasterObjectIdDef,
+	_clearConnectCache : _clearConnectCache,
 	_prepareInsert : _prepareInsert,
-	_getMyHooks : _getMyHooks
+	_getMyHooks : _getMyHooks,
+	_getMyFields : _getMyFields
 });

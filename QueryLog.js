@@ -5,6 +5,7 @@ var QueryLog = function(args) {
 	
 	self._type = args.type;
 	self._collection = args.collection;
+	self._connection = args.connection;
 	self._timers = {};
 	self._timersComplete = {};
 	self._start = Date.now();
@@ -41,6 +42,12 @@ QueryLog.prototype.set = function(args) {
 	var self = this;
 	
 	self._args = args;
+}
+
+QueryLog.prototype.send = function() {
+	var self = this;
+	
+	self._connection.logger(self.get());
 }
 
 module.exports = QueryLog;

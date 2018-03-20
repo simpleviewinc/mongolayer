@@ -1,21 +1,32 @@
 var assert = require("assert");
 var domain = require("domain");
+var util = require("util");
+var extend = require("extend");
+var simpleDomain = require("simple-domain");
 var mongolayer = require("../index.js");
 var config = require("./config.js");
+var assertLib = require("../lib/assertLib.js");
 
 var async = require("async");
+
+var mongoId = { type : "object", class : mongolayer.ObjectId };
 
 describe(__filename, function() {
 	var conn;
 	
 	beforeEach(function(done) {
-		mongolayer.connectCached(config, function(err, temp) {
+		mongolayer.connectCached(config(), function(err, temp) {
 			assert.ifError(err);
 			
 			conn = temp;
 			
 			done();
 		});
+	});
+	
+	after(function(done) {
+		mongolayer._clearConnectCache();
+		conn.db.close(done);
 	});
 	
 	it("should create", function(done) {
@@ -223,6 +234,53 @@ describe(__filename, function() {
 		done();
 	});
 	
+	it("should support cached virtuals", function(done) {
+		var called = 0;
+		
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "num", validation : { type : "number" } }
+			],
+			virtuals : [
+				{
+					name : "foo",
+					get : function() {
+						called++;
+						return this.num;
+					},
+					cache : true
+				},
+				{
+					name : "nonenum",
+					get : function() {
+						called++;
+						return this.num;
+					},
+					cache : true,
+					enumerable : false
+				}
+			]
+		});
+		
+		var doc0 = new model.Document({ num : 0 });
+		var doc1 = new model.Document({ num : 1 });
+		
+		assert.deepStrictEqual(Object.keys(doc0), ["num", "_id"]);
+		assert.strictEqual(called, 0);
+		assert.strictEqual(doc0.foo, 0);
+		assert.strictEqual(doc0.foo, 0);
+		assert.strictEqual(doc0.nonenum, 0);
+		assert.strictEqual(doc1.foo, 1);
+		assert.strictEqual(called, 3);
+		
+		assert.deepStrictEqual(Object.keys(doc0), ["num", "_id", "foo"]);
+		var temp = mongolayer._prepareInsert(doc0);
+		assert.deepStrictEqual(Object.keys(temp), ["num", "_id", "foo"]);
+		
+		done();
+	});
+	
 	it("should _validateDocData and fail on invalid type", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
@@ -263,6 +321,42 @@ describe(__filename, function() {
 		
 		model._validateDocData({ foo : "something" }, function(err) {
 			assert.equal(err, null);
+			
+			done();
+		});
+	});
+	
+	it("should _validateDocData and allowExtraKeys", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			allowExtraKeys : true
+		});
+		
+		var data = { fake : "something" };
+		model._validateDocData({ fake : "something" }, function(err) {
+			assert.ifError(err);
+			
+			assert.strictEqual(data.fake, "something");
+			
+			done();
+		});
+	});
+	
+	it("should _validateDocData and deleteExtraKeys", function(done) {
+		var model = new mongolayer.Model({
+			collection : "foo",
+			fields : [
+				{ name : "foo", validation : { type : "string" } }
+			],
+			deleteExtraKeys : true
+		});
+		
+		var data = { foo : "something", fake : "somethingElse" };
+		model._validateDocData(data, function(err) {
+			assert.ifError(err);
+			
+			assert.strictEqual(data.foo, "something");
+			assert.strictEqual(data.fake, undefined);
 			
 			done();
 		});
@@ -315,7 +409,7 @@ describe(__filename, function() {
 		});
 	});
 	
-	it("should _processDocs and run validation and defaults and required", function(done) {
+	it("should processDocs and run validation and defaults and required", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -325,14 +419,14 @@ describe(__filename, function() {
 			]
 		});
 		
-		var args = { validate : true, defaults : true, checkRequired : true };
+		var args = { validate : true, checkRequired : true };
 		
 		async.series([
 			function(cb) {
 				// should fail required
 				args.data = [{ foo : "something" }];
 				
-				model._processDocs(args, function(err, cleanDocs) {
+				model.processDocs(args, function(err, cleanDocs) {
 					assert.equal(err instanceof Error, true);
 					assert.equal(cleanDocs, undefined);
 					
@@ -343,7 +437,7 @@ describe(__filename, function() {
 				// should have default rolled in
 				args.data = [{ foo : "something", bar : true }];
 				
-				model._processDocs(args, function(err, cleanDocs) {
+				model.processDocs(args, function(err, cleanDocs) {
 					assert.ifError(err);
 					
 					assert.equal(cleanDocs[0].baz, 5);
@@ -355,7 +449,7 @@ describe(__filename, function() {
 				// should fail validation
 				args.data = [{ foo : "something", bar : "false" }];
 				
-				model._processDocs(args, function(err, cleanDocs) {
+				model.processDocs(args, function(err, cleanDocs) {
 					assert.equal(err instanceof Error, true);
 					assert.equal(cleanDocs, undefined);
 					
@@ -369,7 +463,7 @@ describe(__filename, function() {
 		});
 	});
 	
-	it("should _processDocs and fail if document errors", function(done) {
+	it("should processDocs and fail if document errors", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -381,7 +475,7 @@ describe(__filename, function() {
 		var test = { foo : 5 };
 		var test2 = { foo : "something" };
 		
-		model._processDocs({ data : [test, test2], validate : true, defaults : true }, function(err, cleanDocs) {
+		model.processDocs({ data : [test, test2], validate : true }, function(err, cleanDocs) {
 			assert.equal(err instanceof Error, true);
 			assert.equal(cleanDocs, undefined);
 			
@@ -492,34 +586,40 @@ describe(__filename, function() {
 			collection : "foo",
 			fields : [
 				{ name : "foo", validation : { type : "string" } },
-				{ name : "array", validation : { type : "array", schema : { type : "object", schema : [{ name : "first", type : "boolean" }] } } }
+				{ name : "array", validation : { type : "array", schema : { type : "object", schema : [{ name : "first", type : "boolean" }] } } },
+				{ name : "toJSONFalse", validation : { type : "string" }, toJSON : false }
 			],
 			virtuals : [
 				{ name : "virtualEnum", get : function() { return "virtualEnumValue" }, enumerable : true },
+				{ name : "virtualNotEnum", get : function() { return "virtualNotEnumValue" }, enumerable : false },
 				{ name : "virtual", get : function() { return "virtualValue" } }
 			]
 		});
 		
-		var doc2 = new model.Document({ foo : "subStringValue" });
-		var doc = new model.Document({ foo : "stringValue", array : [{ first : true }], obj : { subdoc : doc2 } });
+		var doc2 = new model.Document({ foo : "subStringValue", toJSONFalse : "bogusDoc2" });
+		var doc = new model.Document({ foo : "stringValue", array : [{ first : true }], toJSONFalse : "bogusDoc", obj : { subdoc : doc2 } });
 		
 		var temp = JSON.parse(JSON.stringify(doc));
 		
 		// check the state of the primary doc
 		assert.equal(temp.foo, "stringValue");
 		assert.deepEqual(temp.array, [{ first : true }]);
+		assert.strictEqual(temp.toJSONFalse, undefined);
 		assert.equal(temp.virtualEnum, "virtualEnumValue");
+		assert.equal(temp.virtualNotEnum, undefined);
 		assert.equal(temp.virtual, "virtualValue");
 		
 		// ensure the sub document serialized as well
 		assert.equal(temp.obj.subdoc.foo, "subStringValue");
+		assert.strictEqual(temp.obj.toJSONFalse, undefined);
 		assert.equal(temp.obj.subdoc.virtualEnum, "virtualEnumValue");
+		assert.equal(temp.obj.subdoc.virtualNotEnum, undefined);
 		assert.equal(temp.obj.subdoc.virtual, "virtualValue");
 		
 		done();
 	});
 	
-	it("should ensureIndexes", function(done) {
+	it("should createIndexes", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -541,7 +641,7 @@ describe(__filename, function() {
 				model.collection.dropAllIndexes(cb);
 			},
 			function(cb) {
-				model.ensureIndexes(cb);
+				model.createIndexes(cb);
 			},
 			function(cb) {
 				model.collection.indexes(function(err, indexes) {
@@ -560,7 +660,7 @@ describe(__filename, function() {
 		});
 	});
 	
-	it("should provide model name on ensureIndexes error", function(done) {
+	it("should provide model name on createIndexes error", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -589,7 +689,7 @@ describe(__filename, function() {
 				
 				conn.add({ model : model2 }, function(err) {
 					assert.ok(err instanceof Error);
-					assert.ok(err.message.match(/Unable to ensureIndex on model 'foo'./));
+					assert.ok(err.message.match(/Unable to createIndex on model 'foo'./));
 					
 					done();
 				});
@@ -614,13 +714,20 @@ describe(__filename, function() {
 					{ name : "walk7", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "number" }] }] } },
 					{ name : "walk8", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "array", schema : { type : "number" } }] }] } },
 					{ name : "walk9", validation : { type : "object", schema : [{ name : "foo", type : "object", schema : [{ name : "foo", type : "array", schema : { type : "object", schema : [{ name : "foo", type : "number" }] } }] }] } },
+					{ name : "walk10", validation : { type : "indexObject", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }] } },
+					{ name : "walk11", validation : { type : "array", schema : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "obj", type : "object", schema : [{ name : "foo", type : "number" }] }] } } },
 					// test the various primitive types
 					{ name : "boolean", validation : { type : "boolean" } },
 					{ name : "date", validation : { type : "date" } },
 					{ name : "objectid", validation : { type : "class", class : mongolayer.ObjectId } },
 					{ name : "number", validation : { type : "number" } },
 					{ name : "string", validation : { type : "string" } },
-					{ name : "multiKey", validation : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }] } }
+					{ name : "multiKey", validation : { type : "object", schema : [{ name : "foo", type : "number" }, { name : "bar", type : "boolean" }, { name : "baz", type : "any" }] } },
+					{ name : "any", validation : { type : "any" } },
+					{ name : "any_objectid", validation : { type : "any" } },
+					{ name : "any_date", validation : { type : "any" } },
+					{ name : "any_nested", validation : { type : "object", schema : [{ name : "any_date", type : "any" }] } },
+					{ name : "object_noschema", validation : { type : "object" } }
 				]
 			});
 			
@@ -630,110 +737,209 @@ describe(__filename, function() {
 		it("should getConvertSchema", function(done) {
 			var test = model.getConvertSchema();
 			
-			assert.equal(test["walk1"], "number");
-			assert.equal(test["walk2"], "number");
-			assert.equal(test["walk3.foo"], "number");
-			assert.equal(test["walk4.foo"], "number");
-			assert.equal(test["walk5.foo"], "number");
-			assert.equal(test["walk6.foo.foo"], "number");
-			assert.equal(test["walk7.foo.foo"], "number");
-			assert.equal(test["walk8.foo.foo"], "number");
-			assert.equal(test["walk9.foo.foo.foo"], "number");
-			assert.equal(test["multiKey.foo"], "number");
-			assert.equal(test["multiKey.bar"], "boolean");
-			assert.equal(test.boolean, "boolean");
-			assert.equal(test.date, "date");
-			assert.equal(test.objectid, "objectid");
-			assert.equal(test.number, "number");
-			assert.equal(test.string, "string");
+			assert.strictEqual(test["walk1"], "number");
+			assert.strictEqual(test["walk2"], "number");
+			assert.strictEqual(test["walk3.foo"], "number");
+			assert.strictEqual(test["walk4.foo"], "number");
+			assert.strictEqual(test["walk5.foo"], "number");
+			assert.strictEqual(test["walk6.foo.foo"], "number");
+			assert.strictEqual(test["walk7.foo.foo"], "number");
+			assert.strictEqual(test["walk8.foo.foo"], "number");
+			assert.strictEqual(test["walk9.foo.foo.foo"], "number");
+			assert.strictEqual(test["walk10.~.foo"], "number");
+			assert.strictEqual(test["walk11.foo"], "number");
+			assert.strictEqual(test["walk11.obj.foo"], "number");
+			assert.strictEqual(test.boolean, "boolean");
+			assert.strictEqual(test.date, "date");
+			assert.strictEqual(test.objectid, "objectid");
+			assert.strictEqual(test.number, "number");
+			assert.strictEqual(test.string, "string");
+			assert.strictEqual(test["multiKey.foo"], "number");
+			assert.strictEqual(test["multiKey.bar"], "boolean");
+			assert.strictEqual(test["multiKey.baz"], undefined);
+			assert.strictEqual(test.any, undefined);
+			assert.strictEqual(test.any_objectid, undefined);
+			assert.strictEqual(test.any_date, undefined);
+			assert.strictEqual(test.any_nested, undefined);
+			assert.strictEqual(test.object_noschema, undefined);
+			
+			done();
+		});
+		
+		it("should getConvertSchemaV2", function(done) {
+			var test = model.getConvertSchemaV2();
+			
+			assert.strictEqual(JSON.stringify(test), JSON.stringify({
+				_id : "objectid",
+				walk1 : "number",
+				walk2 : "number",
+				walk3 : {
+					foo : "number"
+				},
+				walk4 : {
+					foo : "number"
+				},
+				walk5 : {
+					foo : "number"
+				},
+				walk6 : {
+					foo : {
+						foo : "number"
+					}
+				},
+				walk7 : {
+					foo : {
+						foo : "number"
+					}
+				},
+				walk8 : {
+					foo : {
+						foo : "number"
+					}
+				},
+				walk9 : { foo : { foo : { foo : "number" } } },
+				walk10 : { "~" : { foo : "number", bar : "boolean" } },
+				walk11 : { foo : "number", obj : { foo : "number" } },
+				boolean : "boolean",
+				date : "date",
+				objectid : "objectid",
+				number : "number",
+				string : "string",
+				multiKey : { foo : "number", bar : "boolean" }
+			}));
 			
 			done();
 		});
 		
 		it("should stringConvert data", function(done) {
-			var id = model.ObjectId();
-			var date1 = new Date();
-			
-			var data = {
-				walk1 : "3",
-				walk2 : ["3", "4"],
-				walk3 : [{ foo : "3" }, { foo : "5" }],
-				walk4 : { foo : "5" },
-				walk5 : { foo : ["3", "4"] },
-				walk6 : { foo : [{ foo : "3" }, { foo : "4" }] },
-				walk7 : { foo : { foo : "3" } },
-				walk8 : { foo : { foo : ["3", "4"] } },
-				walk9 : { foo : { foo : [{ foo : "3" }, { foo : "4" }] } },
-				multiKey : { foo : "5", bar : "true" },
-				boolean : "false",
-				date : date1.getTime(),
-				objectid : id.toString(),
-				number : "3",
-				string : "foo",
-				undeclared : "10"
-			}
-			
-			var temp = model.stringConvert(data);
-			
-			// ensure conversion of the deeply nested walk data works
-			assert.equal(temp.walk1, 3);
-			assert.equal(temp.walk2[0], 3);
-			assert.equal(temp.walk2[1], 4);
-			assert.equal(temp.walk3[0].foo, 3);
-			assert.equal(temp.walk3[1].foo, 5);
-			assert.equal(temp.walk4.foo, 5);
-			assert.equal(temp.walk5.foo[0], 3);
-			assert.equal(temp.walk5.foo[1], 4);
-			assert.equal(temp.walk6.foo[0].foo, 3);
-			assert.equal(temp.walk6.foo[1].foo, 4);
-			assert.equal(temp.walk7.foo.foo, 3);
-			assert.equal(temp.walk8.foo.foo[0], 3);
-			assert.equal(temp.walk8.foo.foo[1], 4);
-			assert.equal(temp.walk9.foo.foo[0].foo, 3);
-			assert.equal(temp.walk9.foo.foo[1].foo, 4);
-			assert.equal(temp.undeclared, "10");
-			
-			// check primitive types
-			assert.equal(temp.boolean, false);
-			assert.equal(temp.date.getTime(), date1.getTime());
-			assert.equal(temp.objectid.toString(), id.toString());
-			assert.equal(temp.number, 3);
-			assert.equal(temp.string, "foo");
-			assert.equal(temp.multiKey.foo, 5);
-			assert.equal(temp.multiKey.bar, true);
-			
-			// ensure original data was not changed
-			assert.equal(data.walk1, "3");
-			assert.equal(data.walk2[0], "3");
-			assert.equal(data.walk2[1], "4");
-			assert.equal(data.walk3[0].foo, "3");
-			assert.equal(data.walk3[1].foo, "5");
-			assert.equal(data.walk4.foo, "5");
-			assert.equal(data.walk5.foo[0], "3");
-			assert.equal(data.walk5.foo[1], "4");
-			assert.equal(data.walk6.foo[0].foo, "3");
-			assert.equal(data.walk6.foo[1].foo, "4");
-			assert.equal(data.walk7.foo.foo, "3");
-			assert.equal(data.walk8.foo.foo[0], "3");
-			assert.equal(data.walk8.foo.foo[1], "4");
-			assert.equal(data.walk9.foo.foo[0].foo, "3");
-			assert.equal(data.walk9.foo.foo[1].foo, "4");
+			["stringConvert", "stringConvertV2"].forEach(function(val, i) {
+				var id = model.ObjectId();
+				var date1 = new Date();
+				
+				var data = {
+					walk1 : "3",
+					walk2 : ["3", "4"],
+					walk3 : [{ foo : "3" }, { foo : "5" }],
+					walk4 : { foo : "5" },
+					walk5 : { foo : ["3", "4"] },
+					walk6 : { foo : [{ foo : "3" }, { foo : "4" }] },
+					walk7 : { foo : { foo : "3" } },
+					walk8 : { foo : { foo : ["3", "4"] } },
+					walk9 : { foo : { foo : [{ foo : "3" }, { foo : "4" }] } },
+					// the barefoo test is required for an edge situation that was caught due to poorly written regex
+					walk10 : { "key" : { foo : "5", bar : "true" }, "foo" : { foo : "7", bar : "false" }, "5" : { foo : "9", bar : true }, "barefoo" : { foo : "7", bar : "true" } },
+					walk10akeybfoo : "5", // edge case that shouldn't be converted by the walk10 indexObject
+					walk11 : [{ foo : "5" }, { foo : "6", obj : {} }, { foo : "7", obj : { foo : "10" } }],
+					multiKey : { foo : "5", bar : "true", any : { nested : "something" } },
+					boolean : "false",
+					date : date1.getTime(),
+					objectid : id.toString(),
+					number : "3",
+					string : "foo",
+					any : "anyData",
+					undeclared : "10",
+					object_noschema : { string : "stringValue", nullValue : null }
+				}
+				
+				var temp = model[val](data);
+				
+				// ensure conversion of the deeply nested walk data works
+				assert.strictEqual(temp.walk1, 3);
+				assert.strictEqual(temp.walk2[0], 3);
+				assert.strictEqual(temp.walk2[1], 4);
+				assert.strictEqual(temp.walk3[0].foo, 3);
+				assert.strictEqual(temp.walk3[1].foo, 5);
+				assert.strictEqual(temp.walk4.foo, 5);
+				assert.strictEqual(temp.walk5.foo[0], 3);
+				assert.strictEqual(temp.walk5.foo[1], 4);
+				assert.strictEqual(temp.walk6.foo[0].foo, 3);
+				assert.strictEqual(temp.walk6.foo[1].foo, 4);
+				assert.strictEqual(temp.walk7.foo.foo, 3);
+				assert.strictEqual(temp.walk8.foo.foo[0], 3);
+				assert.strictEqual(temp.walk8.foo.foo[1], 4);
+				assert.strictEqual(temp.walk9.foo.foo[0].foo, 3);
+				assert.strictEqual(temp.walk9.foo.foo[1].foo, 4);
+				assert.strictEqual(temp.walk10.key.foo, 5);
+				assert.strictEqual(temp.walk10.key.bar, true);
+				assert.strictEqual(temp.walk10["5"].foo, 9);
+				assert.strictEqual(temp.walk10["5"].bar, true);
+				assert.strictEqual(temp.walk10.foo.foo, 7);
+				assert.strictEqual(temp.walk10.foo.bar, false);
+				assert.strictEqual(temp.walk10akeybfoo, "5");
+				assert.strictEqual(temp.walk10.barefoo.foo, 7);
+				assert.strictEqual(temp.walk10.barefoo.bar, true);
+				assert.strictEqual(temp.walk11[0].foo, 5);
+				assert.strictEqual(temp.walk11[0].obj, undefined);
+				assert.strictEqual(temp.walk11[1].foo, 6);
+				assert.strictEqual(Object.keys(temp.walk11[1].obj).length, 0);
+				assert.strictEqual(temp.walk11[2].foo, 7);
+				assert.strictEqual(temp.walk11[2].obj.foo, 10);
+				assert.strictEqual(temp.any, "anyData");
+				assert.strictEqual(temp.undeclared, "10");
+				
+				// check primitive types
+				assert.strictEqual(temp.boolean, false);
+				assert.strictEqual(temp.date.getTime(), date1.getTime());
+				assert.strictEqual(temp.objectid.toString(), id.toString());
+				assert.strictEqual(temp.number, 3);
+				assert.strictEqual(temp.string, "foo");
+				assert.strictEqual(temp.multiKey.foo, 5);
+				assert.strictEqual(temp.multiKey.bar, true);
+				assert.strictEqual(temp.multiKey.any.nested, "something");
+				assert.strictEqual(temp.object_noschema.string, "stringValue");
+				assert.strictEqual(temp.object_noschema.nullValue, null);
+				
+				// ensure original data was not changed
+				if (val === "stringConvert") {
+					// stringConvertV2 alters the original data to improve performance
+					assert.strictEqual(data.walk1, "3");
+					assert.strictEqual(data.walk2[0], "3");
+					assert.strictEqual(data.walk2[1], "4");
+					assert.strictEqual(data.walk3[0].foo, "3");
+					assert.strictEqual(data.walk3[1].foo, "5");
+					assert.strictEqual(data.walk4.foo, "5");
+					assert.strictEqual(data.walk5.foo[0], "3");
+					assert.strictEqual(data.walk5.foo[1], "4");
+					assert.strictEqual(data.walk6.foo[0].foo, "3");
+					assert.strictEqual(data.walk6.foo[1].foo, "4");
+					assert.strictEqual(data.walk7.foo.foo, "3");
+					assert.strictEqual(data.walk8.foo.foo[0], "3");
+					assert.strictEqual(data.walk8.foo.foo[1], "4");
+					assert.strictEqual(data.walk9.foo.foo[0].foo, "3");
+					assert.strictEqual(data.walk9.foo.foo[1].foo, "4");
+				}
+			});
 			
 			done();
 		});
 		
 		it("should stringConvert data that is already casted", function(done) {
 			var id = model.ObjectId();
-			var date = new Date();
+			var date = new Date(2013, 0, 1);
 			
 			var data = {
-				objectid : model.ObjectId(),
+				objectid : id,
 				boolean : true,
 				number : 3,
-				date : date
+				date : date,
+				any_objectid : id,
+				any_date : new Date(2012, 1, 1),
+				any_nested : { any_date : new Date(2011, 1, 1) },
+				walk10 : { "key" : { foo : 5, bar : true }, "foo" : { foo : 7, bar : false }, "5" : { foo : 9, bar : true } }
 			}
 			
 			var temp = model.stringConvert(data);
+			
+			assert.strictEqual(temp.objectid instanceof mongolayer.ObjectId, true);
+			assert.strictEqual(temp.objectid.toString(), id.toString());
+			assert.strictEqual(temp.boolean, true);
+			assert.strictEqual(temp.number, 3);
+			assert.strictEqual(temp.date.getTime(), 1356998400000);
+			assert.strictEqual(temp.any_objectid instanceof mongolayer.ObjectId, true);
+			assert.strictEqual(temp.any_objectid.toString(), id.toString());
+			assert.strictEqual(temp.any_date.getTime(), 1328054400000);
+			assert.strictEqual(temp.any_nested.any_date.getTime(), 1296518400000);
+			assert.strictEqual(temp.walk10.key.foo, 5);
 			
 			done();
 		});
@@ -741,7 +947,7 @@ describe(__filename, function() {
 		it("should stringConvert filter", function(done) {
 			// test simple conversion
 			var temp = model.stringConvert({ walk1 : "1" });
-			assert.equal(temp.walk1, 1);
+			assert.strictEqual(temp.walk1, 1);
 			
 			// test all the supported query operators
 			var temp = model.stringConvert({
@@ -757,23 +963,23 @@ describe(__filename, function() {
 				}
 			});
 			
-			assert.equal(temp.walk1.$in[0], 1);
-			assert.equal(temp.walk1.$nin[0], 3);
-			assert.equal(temp.walk1.$nin[1], 4);
-			assert.equal(temp.walk1.$exists, true);
-			assert.equal(temp.walk1.$ne, 12);
-			assert.equal(temp.walk1.$gt, 5);
-			assert.equal(temp.walk1.$lt, 3);
-			assert.equal(temp.walk1.$gte, 10);
-			assert.equal(temp.walk1.$lte, 11);
+			assert.strictEqual(temp.walk1.$in[0], 1);
+			assert.strictEqual(temp.walk1.$nin[0], 3);
+			assert.strictEqual(temp.walk1.$nin[1], 4);
+			assert.strictEqual(temp.walk1.$exists, true);
+			assert.strictEqual(temp.walk1.$ne, 12);
+			assert.strictEqual(temp.walk1.$gt, 5);
+			assert.strictEqual(temp.walk1.$lt, 3);
+			assert.strictEqual(temp.walk1.$gte, 10);
+			assert.strictEqual(temp.walk1.$lte, 11);
 			
 			// test a nested dot key syntax
 			var temp = model.stringConvert({ "walk9.foo.foo.foo" : "4" });
-			assert.equal(temp["walk9.foo.foo.foo"], 4);
+			assert.strictEqual(temp["walk9.foo.foo.foo"], 4);
 			
 			// test a nested obj key syntax
 			var temp = model.stringConvert({ walk9 : { foo : { foo : { foo : "4" } } } });
-			assert.equal(temp.walk9.foo.foo.foo, 4);
+			assert.strictEqual(temp.walk9.foo.foo.foo, 4);
 			
 			// test $and, $or, $nor
 			var temp = model.stringConvert({
@@ -781,12 +987,12 @@ describe(__filename, function() {
 				$or : [{ walk1 : { $in : ["3", "4"] } }],
 				$nor : [{ "walk9.foo.foo.foo" : { $gt : "12" } }]
 			});
-			assert.equal(temp.$and[0].walk1, 3);
-			assert.equal(temp.$and[1].walk1.$ne, 5);
-			assert.equal(temp.$and[2].$and[0].walk1, 10);
-			assert.equal(temp.$or[0].walk1.$in[0], 3);
-			assert.equal(temp.$or[0].walk1.$in[1], 4);
-			assert.equal(temp.$nor[0]["walk9.foo.foo.foo"].$gt, 12);
+			assert.strictEqual(temp.$and[0].walk1, 3);
+			assert.strictEqual(temp.$and[1].walk1.$ne, 5);
+			assert.strictEqual(temp.$and[2].$and[0].walk1, 10);
+			assert.strictEqual(temp.$or[0].walk1.$in[0], 3);
+			assert.strictEqual(temp.$or[0].walk1.$in[1], 4);
+			assert.strictEqual(temp.$nor[0]["walk9.foo.foo.foo"].$gt, 12);
 			
 			// test $elemMatch with sub-document and array of simple
 			var temp = model.stringConvert({
@@ -796,10 +1002,10 @@ describe(__filename, function() {
 					{ walk3 : { $elemMatch : { foo : { $lt : "5" } } } }
 				]
 			});
-			assert.equal(temp.$and[0].walk2.$elemMatch.$gt, 5);
-			assert.equal(temp.$and[0].walk2.$elemMatch.$lt, 10);
-			assert.equal(temp.$and[1].walk3.$elemMatch.foo, 10);
-			assert.equal(temp.$and[2].walk3.$elemMatch.foo.$lt, 5);
+			assert.strictEqual(temp.$and[0].walk2.$elemMatch.$gt, 5);
+			assert.strictEqual(temp.$and[0].walk2.$elemMatch.$lt, 10);
+			assert.strictEqual(temp.$and[1].walk3.$elemMatch.foo, 10);
+			assert.strictEqual(temp.$and[2].walk3.$elemMatch.foo.$lt, 5);
 			
 			// test $all
 			var temp = model.stringConvert({
@@ -809,12 +1015,12 @@ describe(__filename, function() {
 					{ walk3 : { $all : [{ $elemMatch : { foo : "10" } }, { $elemMatch : { foo : { $gt : "2" } } }] } }
 				]
 			});
-			assert.equal(temp.$and[0].walk2.$all[0], 3);
-			assert.equal(temp.$and[0].walk2.$all[1], 5);
-			assert.equal(temp.$and[1].walk3.$all[0].foo, 10);
-			assert.equal(temp.$and[1].walk3.$all[1].foo, 5);
-			assert.equal(temp.$and[2].walk3.$all[0].$elemMatch.foo, 10);
-			assert.equal(temp.$and[2].walk3.$all[1].$elemMatch.foo.$gt, 2);
+			assert.strictEqual(temp.$and[0].walk2.$all[0], 3);
+			assert.strictEqual(temp.$and[0].walk2.$all[1], 5);
+			assert.strictEqual(temp.$and[1].walk3.$all[0].foo, 10);
+			assert.strictEqual(temp.$and[1].walk3.$all[1].foo, 5);
+			assert.strictEqual(temp.$and[2].walk3.$all[0].$elemMatch.foo, 10);
+			assert.strictEqual(temp.$and[2].walk3.$all[1].$elemMatch.foo.$gt, 2);
 			
 			done();
 		});
@@ -922,7 +1128,7 @@ describe(__filename, function() {
 		it("should _executeHooks and not execute after an error", function(done) {
 			model._executeHooks({ type : "beforeFind", hooks : [{ name : "errors" }, { name : "foo" }], args : { filter : {}, data : [] } }, function(err, args) {
 				assert.equal(err instanceof Error, true);
-				assert.equal(args.data.length, 0);
+				assert.equal(args, undefined);
 				
 				done();
 			});
@@ -984,7 +1190,8 @@ describe(__filename, function() {
 				fields : [
 					{ name : "foo", validation : { type : "string" } },
 					{ name : "bar", validation : { type : "string" } },
-					{ name : "baz", default : false, validation : { type : "boolean" } }
+					{ name : "baz", default : false, validation : { type : "boolean" } },
+					{ name : "any", validation : { type : "any" } }
 				],
 				relationships : [
 					{ name : "single", type : "single", modelName : "mongolayer_testRelated" },
@@ -994,15 +1201,112 @@ describe(__filename, function() {
 					{ name : "single_rightKey", type : "single", modelName : "mongolayer_testRelated", rightKey : "title", rightKeyValidation : { type : "string" } },
 					{ name : "multiple_rightKey", type : "multiple", modelName : "mongolayer_testRelated", rightKey : "title", rightKeyValidation : { type : "string" } }
 				],
+				hooks : [
+					{
+						name : "testRequired",
+						type : "beforeFind",
+						handler : function(args, cb) {
+							// allows testing for hook duplication
+							args.options._beforeFind_testRequired = args.options._beforeFind_testRequired || 0;
+							args.options._beforeFind_testRequired++;
+							return cb(null, args);
+						}
+					},
+					{
+						name : "testRequired",
+						type : "afterFind",
+						handler : function(args, cb) {
+							// allows testing for hook duplication
+							args.docs[0].afterFind_testRequired = args.docs[0].afterFind_testRequired || 0;
+							args.docs[0].afterFind_testRequired++;
+							return cb(null, args);
+						}
+					},
+					{
+						name : "testAggregate",
+						type : "beforeAggregate",
+						handler : function(args, cb) {
+							assert.notStrictEqual(args.pipeline, undefined);
+							args.options._beforeAggregate_testAggregate = true;
+							return cb(null, args);
+						}
+					},
+					{
+						name : "testAggregate",
+						type : "afterAggregate",
+						handler : function(args, cb) {
+							args.docs.forEach(function(val, i) {
+								val._afterAggregate_testAggregate = true;
+							});
+							return cb(null, args);
+						}
+					}
+				],
+				virtuals : [
+					{
+						name : "requiresBar",
+						get : function() {
+							return "requiresBar_" + this.bar;
+						},
+						requiredFields : ["bar"]
+					},
+					{
+						name : "requiresHooks",
+						get : function() {
+							return true;
+						},
+						requiredHooks : ["beforeFind_testRequired", "afterFind_testRequired"]
+					},
+					{
+						name : "requiresChained",
+						get : function() {
+							return "requiresChained_" + this.requiresBar;
+						},
+						requiredFields : ["requiresBar", "requiresHooks"]
+					},
+					{
+						name : "requiresBoth",
+						get : function() {
+							return "requiresBoth_" + this.bar;
+						},
+						requiredFields : ["bar"],
+						requiredHooks : ["beforeFind_testRequired", "afterFind_testRequired"]
+					},
+					{
+						name : "counter",
+						get : function() {
+							this._count = this._count || 0;
+							return ++this._count;
+						}
+					},
+					{
+						name : "requiresCount0",
+						get : function() {
+							return this.counter;
+						},
+						requiredFields : ["counter"]
+					},
+					{
+						name : "requiresCount1",
+						get : function() {
+							return this.counter;
+						},
+						requiredFields : ["counter"]
+					}
+				],
 				documentMethods : [
 					{ name : "testMethod", handler : function() { return "testMethodReturn" } }
+				],
+				indexes : [
+					{ keys : { foo : 1 } }
 				]
 			});
 			
 			modelRelated = new mongolayer.Model({
 				collection : "mongolayer_testRelated",
 				fields : [
-					{ name : "title", validation : { type : "string" } }
+					{ name : "title", validation : { type : "string" } },
+					{ name : "extra", validation : { type : "string" } }
 				],
 				relationships : [
 					{ name : "singleSecond", type : "single", modelName : "mongolayer_testRelated2" },
@@ -1013,7 +1317,8 @@ describe(__filename, function() {
 			modelRelated2 = new mongolayer.Model({
 				collection : "mongolayer_testRelated2",
 				fields : [
-					{ name : "title", validation : { type : "string" } }
+					{ name : "title", validation : { type : "string" } },
+					{ name : "extra", validation : { type : "string" } }
 				]
 			});
 			
@@ -1049,6 +1354,21 @@ describe(__filename, function() {
 				
 				done();
 			});
+		});
+		
+		it("should _getMyFindFields", function(done) {
+			var tests = [
+				[null, null],
+				[{ "single.foo" : 1 }, null],
+				[{ "single.foo" : 1, "bar" : 0 }, { "bar" : 0 }],
+				[{ "single.foo" : 1, "single.bogus.foo" : 1, "bar" : true }, { "bar" : true }]
+			];
+			
+			tests.forEach(function(val, i) {
+				assert.deepEqual(model._getMyFindFields(val[0]), val[1]);
+			});
+			
+			done();
 		});
 		
 		describe("insert", function(done) {
@@ -1108,11 +1428,13 @@ describe(__filename, function() {
 				model.insert([
 					{
 						foo : "fooValue1",
-						bar : "barValue1"
+						bar : "barValue1",
+						any : "anyValue"
 					},
 					{
 						foo : "fooValue2",
-						bar : "barValue2"
+						bar : "barValue2",
+						any : 5
 					}
 				], function(err, docs, result) {
 					assert.ifError(err);
@@ -1121,8 +1443,10 @@ describe(__filename, function() {
 					assert.strictEqual(result.result.n, 2);
 					assert.equal(docs[0].foo, "fooValue1");
 					assert.equal(docs[0].bar, "barValue1");
+					assert.strictEqual(docs[0].any, "anyValue");
 					assert.equal(docs[1].foo, "fooValue2");
 					assert.equal(docs[1].bar, "barValue2");
+					assert.strictEqual(docs[1].any, 5);
 					
 					done();
 				});
@@ -1242,6 +1566,12 @@ describe(__filename, function() {
 					type : "beforePut",
 					handler : function(args, cb) {
 						assert.equal(args.doc, data[0]);
+						assert.deepStrictEqual(args.options, {
+							options : { fullResult : true },
+							hooks : [{ name : "beforeInsert_process" }, { name : "afterInsert_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
+						});
+						
+						args.options.custom = { beforePutCalled : true };
 						
 						beforePutCalled = true;
 						
@@ -1255,6 +1585,11 @@ describe(__filename, function() {
 					type : "afterPut",
 					handler : function(args, cb) {
 						assert.ok(args.doc instanceof model.Document);
+						assert.deepStrictEqual(args.options, {
+							options : { fullResult : true },
+							custom : { beforePutCalled : true },
+							hooks : [{ name : "beforeInsert_process" }, { name : "afterInsert_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
+						});
 						
 						afterPutCalled = true;
 						
@@ -1456,6 +1791,55 @@ describe(__filename, function() {
 			});
 		});
 		
+		describe("removeAll", function() {
+			it("should removeAll even if collection doesn't exist", function(done) {
+				async.series([
+					// model with extra indexes
+					model.removeAll.bind(model),
+					model.removeAll.bind(model),
+					// model with no extra indexes
+					modelRelated.removeAll.bind(modelRelated),
+					modelRelated.removeAll.bind(modelRelated)
+				], function(err) {
+					assert.ifError(err);
+					
+					done();
+				});
+			});
+			
+			it("should removeAll", function(done) {
+				async.series([
+					model.insert.bind(model, { foo : "one" }),
+					model.removeAll.bind(model),
+					function(cb) {
+						// ensure all items removed
+						model.count({}, function(err, count) {
+							assert.ifError(err);
+							
+							assert.strictEqual(count, 0);
+							
+							cb(null);
+						});
+					},
+					function(cb) {
+						// ensure that we still have our indexes
+						model.collection.indexes(function(err, indexes) {
+							assert.ifError(err);
+							
+							assert.equal(indexes.length, 2);
+							assert.equal(indexes[1].name, "foo_1");
+							
+							cb(null);
+						});
+					}
+				], function(err) {
+					assert.ifError(err);
+					
+					done();
+				});
+			});
+		});
+		
 		describe("save", function() {
 			it("should save", function(done) {
 				model.save({
@@ -1558,6 +1942,12 @@ describe(__filename, function() {
 					type : "beforePut",
 					handler : function(args, cb) {
 						assert.equal(args.doc, data);
+						assert.deepStrictEqual(args.options, {
+							options : { fullResult : true },
+							hooks : [{ name : "beforeSave_process" }, { name : "afterSave_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
+						});
+						
+						args.options.custom = { beforePutCalled : true }
 						
 						beforePutCalled = true;
 						
@@ -1571,6 +1961,11 @@ describe(__filename, function() {
 					type : "afterPut",
 					handler : function(args, cb) {
 						assert.ok(args.doc instanceof model.Document);
+						assert.deepStrictEqual(args.options, {
+							options : { fullResult : true },
+							custom : { beforePutCalled : true },
+							hooks : [{ name : "beforeSave_process" }, { name : "afterSave_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
+						});
 						
 						afterPutCalled = true;
 						
@@ -1753,8 +2148,9 @@ describe(__filename, function() {
 				});
 			});
 			
-			it("should run beforeUpdate and afterUpdate hooks on update", function(done) {
+			it("should run beforeUpdate, afterUpdate, beforeFilter hooks on update", function(done) {
 				var beforeCalled = false;
+				var beforeFilterCalled = false;
 				var afterCalled = false;
 				
 				model.addHook({
@@ -1788,11 +2184,24 @@ describe(__filename, function() {
 					required : true
 				});
 				
-				model.update({ _id : id1 }, { "$set" : { foo : "change" } }, function(err, count, result) {
+				model.addHook({
+					name : "nonRequired",
+					type : "beforeFilter",
+					handler : function(args, cb) {
+						assert.deepStrictEqual(Object.keys(args), ["filter", "options", "hookArgs"]);
+						
+						beforeFilterCalled = true;
+						
+						cb(null, args);
+					}
+				});
+				
+				model.update({ _id : id1 }, { "$set" : { foo : "change" } }, { hooks : ["beforeFilter_nonRequired"] }, function(err, count, result) {
 					assert.ifError(err);
 					
-					assert.equal(beforeCalled, true);
-					assert.equal(afterCalled, true);
+					assert.strictEqual(beforeCalled, true);
+					assert.strictEqual(beforeFilterCalled, true);
+					assert.strictEqual(afterCalled, true);
 					
 					done();
 				});
@@ -1811,17 +2220,100 @@ describe(__filename, function() {
 			});
 		});
 		
+		describe("aggregate", function(done) {
+			beforeEach(function(done) {
+				model.insert([
+					{
+						foo : "1",
+						bar : "barValue"
+					},
+					{
+						foo : "2"
+					},
+					{
+						foo : "3"
+					}
+				], function(err) {
+					assert.ifError(err);
+					
+					done();
+				});
+			});
+			
+			it("should aggregate", function(done) {
+				model.aggregate([{ $match : { foo : "1" } }], function(err, docs) {
+					assert.ifError(err);
+					
+					assert.strictEqual(docs.length, 1);
+					assert.strictEqual(docs[0].foo, "1");
+					assert.strictEqual(docs[0].bar, "barValue");
+					assert.strictEqual(docs[0].requiresBar, undefined);
+					
+					return done();
+				});
+			});
+			
+			it("should run hooks", function(done) {
+				var options = { hooks : ["beforeAggregate_testAggregate", "afterAggregate_testAggregate"] };
+				model.aggregate([{ $match : { foo : "1" } }], options, function(err, docs) {
+					assert.ifError(err);
+					
+					assert.strictEqual(docs[0]._afterAggregate_testAggregate, true);
+					assert.strictEqual(options._beforeAggregate_testAggregate, true);
+					
+					return done();
+				});
+			});
+			
+			it("should allow execution of virtuals", function(done) {
+				model.aggregate([{ $match : { foo : "1" } }], { virtuals : ["requiresBar"] }, function(err, docs) {
+					assert.ifError(err);
+					
+					assert.strictEqual(docs[0].requiresBar, "requiresBar_barValue");
+					assert.strictEqual(docs[0].bar, "barValue");
+					assert.strictEqual(docs[0].requiresChained, undefined);
+					
+					return done();
+				});
+			});
+			
+			it("should allow castDocs", function(done) {
+				model.aggregate([{ $match : { foo : "1" } }], { castDocs : true }, function(err, docs) {
+					assert.ifError(err);
+					
+					assert.strictEqual(docs[0] instanceof model.Document, true);
+					assert.strictEqual(docs[0].bar, "barValue");
+					assert.strictEqual(docs[0].requiresBar, "requiresBar_barValue");
+					assert.strictEqual(docs[0].requiresChained, "requiresChained_requiresBar_barValue");
+					
+					return done();
+				});
+			});
+			
+			it("should enforce maxSize", function(done) {
+				model.aggregate([{ $match : { foo : "1" } }], { maxSize : 10 }, function(err, docs) {
+					assert.strictEqual(err.message, "Max size of result set '75' exceeds options.maxSize of '10'");
+					
+					return done();
+				});
+			});
+		});
+		
 		describe("find", function() {
 			describe("basic", function(done) {
 				beforeEach(function(done) {
 					model.insert([
 						{
-							foo : "1"
+							_id : mongolayer.testId("basic1"),
+							foo : "1",
+							bar : "barValue"
 						},
 						{
+							_id : mongolayer.testId("basic2"),
 							foo : "2"
 						},
 						{
+							_id : mongolayer.testId("basic3"),
 							foo : "3"
 						}
 					], function(err) {
@@ -1852,6 +2344,38 @@ describe(__filename, function() {
 					model.find({}, { limit : 1, skip : 1 }, function(err, docs) {
 						assert.equal(docs[0].foo, "2");
 						assert.equal(docs.length, 1);
+						
+						done();
+					});
+				});
+				
+				it("should enforce maxSize", function(done) {
+					model.find({}, { maxSize : 10 }, function(err, docs) {
+						assert.strictEqual(err.message, "Max size of result set '903' exceeds options.maxSize of '10'");
+						
+						done();
+					});
+				});
+				
+				it("should enforce castDocs", function(done) {
+					model.find({}, { castDocs : false, limit : 1 }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.strictEqual(docs[0] instanceof model.Document, false);
+						assert.strictEqual(docs[0].id, undefined);
+						assert.strictEqual(docs[0].foo, "1");
+						
+						done();
+					});
+				});
+				
+				it("should find with count", function(done) {
+					model.find({}, { count : true, limit : 1, skip : 1 }, function(err, result) {
+						assert.ifError(err);
+						
+						assert.strictEqual(result.count, 3);
+						assert.strictEqual(result.docs.length, 1);
+						assert.strictEqual(result.docs[0].foo, "2");
 						
 						done();
 					});
@@ -1906,6 +2430,30 @@ describe(__filename, function() {
 							
 							done();
 						});
+					});
+				});
+				
+				it("should find with count and be hookable", function(done) {
+					model.addHook({
+						name : "after",
+						type : "afterFind",
+						handler : function(args, cb) {
+							assert.strictEqual(args.docs.length, 1);
+							assert.strictEqual(args.count, 3);
+							
+							args.count = 1000;
+							
+							cb(null, args);
+						}
+					});
+					
+					model.find({}, { count : true, limit : 1, skip : 1, hooks : ["afterFind_after"] }, function(err, result) {
+						assert.ifError(err);
+						
+						assert.equal(result.count, 1000);
+						assert.equal(result.docs.length, 1);
+						
+						done();
 					});
 				});
 				
@@ -1972,8 +2520,210 @@ describe(__filename, function() {
 						assert.equal(docs[0].foo, "1");
 						assert.equal(docs[0].bar, undefined);
 						assert.equal(docs[0].baz, undefined);
+						assert.equal(docs[0].requiresBar, "requiresBar_undefined");
 						
 						done();
+					});
+				});
+				
+				it("should querying mutate options but not defaultHooks", function(done) {
+					var options = { fields : { foo : 1, requiresHooks : 1, requiresBar : 1 } };
+					model.find({ foo : "1" }, options, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.strictEqual(model.defaultHooks.find.length, 0);
+						assert.strictEqual(options.hooks.length, 2);
+						assert.deepStrictEqual(Object.keys(options.fields), ["foo", "requiresHooks", "requiresBar", "bar"]);
+						
+						return done();
+					});
+				});
+				
+				var tests = [
+					{
+						name : "should find and process virtual requiredFields",
+						filter : { foo : { $in : ["1", "2"] } },
+						options : { fields : { foo : 1, requiresBar : 1 } },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									_id : { type : "object", class : mongolayer.ObjectId },
+									foo : "1",
+									bar : "barValue",
+									requiresBar : "requiresBar_barValue"
+								}
+							},
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									_id : { type : "object", class : mongolayer.ObjectId },
+									foo : "2",
+									requiresBar : "requiresBar_undefined"
+								}
+							}
+						]
+					},
+					{
+						name : "should find and process virtual requiredHooks",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1, requiresHooks : 1 } },
+						results : [
+							{
+								afterFind_testRequired : 1
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : 1
+						}
+					},
+					{
+						name : "should require both requiredFields",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1, requiresBoth : 1 } },
+						results : [
+							{
+								requiresBoth : "requiresBoth_barValue",
+								afterFind_testRequired : 1
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : 1
+						}
+					},
+					{
+						name : "should chain virtuals recursively",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1, requiresChained : 1 } },
+						results : [
+							{
+								foo : "1",
+								requiresChained : "requiresChained_requiresBar_barValue",
+								requiresBar : "requiresBar_barValue",
+								afterFind_testRequired : 1
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : 1
+						}
+					},
+					{
+						name : "castDocs false and not including virtuals",
+						filter : { foo : "1" },
+						options : { fields : { _id : 0, bar : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									bar : "barValue"
+								}
+							}
+						]
+					},
+					{
+						name : "castDocs false should only return requested fields even when using virtuals",
+						filter : { foo : "1" },
+						options : { fields : { requiresBar : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									requiresBar : "requiresBar_barValue"
+								}
+							}
+						]
+					},
+					{
+						name : "castDocs false should allow multi-step virtual chaining",
+						filter : { foo : "1" },
+						options : { fields : { requiresChained : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									requiresChained : "requiresChained_requiresBar_barValue"
+								}
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : 1
+						}
+					},
+					{
+						name : "castDocs false should only execute each virtual once",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1, requiresCount0 : 1, requiresCount1 : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									foo : "1",
+									requiresCount0 : 1,
+									requiresCount1 : 1
+								}
+							}
+						]
+					},
+					{
+						name : "castDocs false should allow querying just id",
+						filter : { foo : "1" },
+						options : { fields : { id : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									id : mongolayer.testId("basic1").toString()
+								}
+							}
+						]
+					},
+					{
+						name : "should not push the same hook multiple times",
+						filter : { foo : "1" },
+						options : { fields : { requiresHooks : 1, requiresChained : 1 } },
+						results : [
+							{
+								afterFind_testRequired : 1
+							}
+						],
+						optionsCheck : {
+							_beforeFind_testRequired : 1
+						}
+					},
+					{
+						name : "should use hook multiple if requested multiple",
+						filter : { foo : "1" },
+						options : { fields : { foo : 1 }, hooks : ["afterFind_testRequired", "afterFind_testRequired"] },
+						results : [
+							{
+								afterFind_testRequired : 2
+							}
+						]
+					}
+				]
+				
+				tests.forEach(function(test) {
+					(test.only ? it.only : it)(test.name, function(done) {
+						model.find(test.filter, test.options, function(err, docs) {
+							assert.ifError(err);
+							
+							if (test.results !== undefined) {
+								assertLib.deepCheck(docs, test.results);
+							}
+							
+							if (test.optionsCheck !== undefined) {
+								assertLib.deepCheck(test.options, test.optionsCheck);
+							}
+							
+							return done();
+						});
 					});
 				});
 			});
@@ -2019,6 +2769,7 @@ describe(__filename, function() {
 								{
 									_id : root4,
 									foo : "foo4",
+									bar : "bar4",
 									single_id : related1_2,
 									multiple_ids : [related1_1]
 								},
@@ -2086,6 +2837,7 @@ describe(__filename, function() {
 								{
 									_id : related1_2,
 									title : "title1_2",
+									extra : "extra1_2",
 									singleSecond_id : related2_1,
 									singleRequired_id : related2_1
 								},
@@ -2106,7 +2858,8 @@ describe(__filename, function() {
 							modelRelated2.insert([
 								{
 									_id : related2_1,
-									title : "title2_1"
+									title : "title2_1",
+									extra : "extra2_1"
 								},
 								{
 									_id : related2_2,
@@ -2217,6 +2970,48 @@ describe(__filename, function() {
 					});
 				});
 				
+				it("should populate with fields recursively on single", function(done) {
+					async.parallel([
+						function(cb) {
+							model.findById(root4, {
+								hooks : ["afterFind_single", "single.afterFind_singleSecond"]
+							}, function(err, doc) {
+								assert.ifError(err);
+								
+								assert.strictEqual(doc.foo, "foo4");
+								assert.strictEqual(doc.bar, "bar4");
+								assert.strictEqual(doc.single.title, "title1_2");
+								assert.strictEqual(doc.single.extra, "extra1_2");
+								assert.strictEqual(doc.single.singleSecond.title, "title2_1");
+								assert.strictEqual(doc.single.singleSecond.extra, "extra2_1");
+								
+								cb(null);
+							});
+						},
+						function(cb) {
+							model.findById(root4, {
+								hooks : ["afterFind_single", "single.afterFind_singleSecond"],
+								fields : { bar : 0, "single.extra" : 0, "single.singleSecond.title" : 0 }
+							}, function(err, doc) {
+								assert.ifError(err);
+								
+								assert.strictEqual(doc.foo, "foo4");
+								assert.strictEqual(doc.bar, undefined);
+								assert.strictEqual(doc.single.title, "title1_2");
+								assert.strictEqual(doc.single.extra, undefined);
+								assert.strictEqual(doc.single.singleSecond.title, undefined);
+								assert.strictEqual(doc.single.singleSecond.extra, "extra2_1");
+								
+								cb(null);
+							});
+						}
+					], function(err) {
+						assert.ifError(err);
+						
+						done();
+					});
+				});
+				
 				it("should populate with recursive hooks on multiple", function(done) {
 					model.find({ _id : root3 }, { hooks : ["afterFind_multiple", "multiple.afterFind_singleRequired"] }, function(err, docs) {
 						assert.ifError(err);
@@ -2237,6 +3032,222 @@ describe(__filename, function() {
 						assert.ok(err.message.match(/is required/));
 						
 						done();
+					});
+				});
+				
+				it("should not alter relationship hookArgs fields when calling", function(done) {
+					var fields = { title : 1, "singleSecond.title" : 1 };
+					var hooks = [];
+					model.find({ _id : root4 }, { hooks : [{ name : "afterFind_single", args : { fields : fields, castDocs : false, hooks : [] } }] }, function(err, docs) {
+						assert.ifError(err);
+						
+						assert.deepStrictEqual(hooks, []);
+						assert.deepStrictEqual(fields, {
+							title : 1,
+							"singleSecond.title" : 1
+						});
+						
+						return done();
+					});
+				});
+				
+				var tests = [
+					{
+						name : "should populate relationship via field key",
+						filter : { _id : root3 },
+						options : { fields : { foo : 1, single_rightKey : 1 } },
+						results : [
+							{
+								foo : "foo3",
+								single_rightKey : {
+									type : "object",
+									class : mongolayer.Document,
+									data : {
+										title : "title1_2",
+										extra : "extra1_2"
+									}
+								}
+							}
+						]
+					},
+					{
+						name : "should populate relationship via field key and pass castDocs",
+						filter : { _id : root3 },
+						options : { fields : { foo : 1, single_rightKey : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									foo : "foo3",
+									single_rightKey : {
+										type : "object",
+										allowExtraKeys : false,
+										data : {
+											_id : { type : "object", class : mongolayer.ObjectId },
+											title : "title1_2",
+											extra : "extra1_2",
+											singleSecond_id : { type : "object", class : mongolayer.ObjectId },
+											singleRequired_id : { type : "object", class : mongolayer.ObjectId },
+										}
+									}
+								}
+							}
+						]
+					},
+					{
+						name : "should populate recursively with castDocs returning fields required for processing the virtuals",
+						filter : { _id : root3 },
+						options : { fields : { "single_rightKey.singleSecond.extra" : 1 } },
+						results : [
+							{
+								_id : mongoId,
+								single_rightKey_id : "title1_2",
+								single_rightKey : {
+									_id : mongoId,
+									title : "title1_2",
+									singleSecond_id : mongoId,
+									singleSecond : {
+										_id : mongoId,
+										extra : "extra2_1",
+										title : undefined
+									}
+								},
+								requiresBar : "requiresBar_undefined",
+								requiresHooks : true
+							}
+						]
+					},
+					{
+						name : "should populate recursively with castDocs only returning required fields",
+						filter : { _id : root3 },
+						options : { fields : { "single_rightKey.singleSecond.extra" : 1 }, castDocs : false },
+						results : [
+							{
+								type : "object",
+								allowExtraKeys : false,
+								data : {
+									single_rightKey : {
+										type : "object",
+										allowExtraKeys : false,
+										data : {
+											singleSecond : {
+												type : "object",
+												allowExtraKeys : false,
+												data : {
+													extra : "extra2_1"
+												}
+											}
+										}
+									}
+								}
+							}
+						]
+					},
+					{
+						name : "should pull down extra key if not overwritten",
+						filter : { _id : root4 },
+						options : {
+							fields : {
+								foo : 1,
+								"single.extra" : 1
+							}
+						},
+						results : [
+							{
+								foo : "foo4",
+								single : {
+									extra : "extra1_2"
+								}
+							}
+						]
+					},
+					{
+						name : "should allow overwrite passed in fields with hookArgs",
+						filter : { _id : root4 },
+						options : {
+							fields : {
+								"foo" : 1,
+								"single.extra" : 1
+							},
+							hooks : [
+								{ name : "afterFind_single", args : { fields : { title : 1 } } }
+							]
+						},
+						results : [
+							{
+								foo : "foo4",
+								single : {
+									_id : related1_2,
+									id : related1_2.toString(),
+									title : "title1_2",
+									extra : undefined
+								}
+							}
+						]
+					},
+					{
+						name : "should allow overwrite of castDocs with hookArgs",
+						filter : { _id : root4 },
+						options : {
+							fields : {
+								foo : 1,
+								"single.extra" : 1
+							},
+							hooks : [
+								{ name : "afterFind_single", args : { fields : { title : 1, "singleSecond.title" : 1 }, castDocs : false } }
+							]
+						},
+						results : [
+							{
+								foo : "foo4",
+								single : {
+									_id : related1_2, // despite not being in fields, this comes back because the parent join requires it
+									id : undefined,
+									title : "title1_2",
+									extra : undefined,
+									singleSecond : {
+										_id : undefined,
+										title : "title2_1"
+									}
+								}
+							}
+						]
+					},
+					{
+						name : "should allow overwrite of hooks with hookArgs",
+						filter : { _id : root4 },
+						options : {
+							hooks : [{ name : "afterFind_single", args : { hooks : ["afterFind_singleRequired"] } }, "single.afterFind_singleSecond"]
+						},
+						results : [
+							{
+								foo : "foo4",
+								single : {
+									_id : related1_2,
+									title : "title1_2",
+									extra : "extra1_2",
+									singleSecond : undefined,
+									singleRequired : {
+										title : "title2_1"
+									}
+								}
+							}
+						]
+					}
+				]
+				
+				tests.forEach(function(test) {
+					(test.only ? it.only : it)(test.name, function(done) {
+						model.find(test.filter, test.options, function(err, docs) {
+							assert.ifError(err);
+							
+							if (test.results !== undefined) {
+								assertLib.deepCheck(docs, test.results);
+							}
+							
+							return done();
+						});
 					});
 				});
 			});
@@ -2318,6 +3329,107 @@ describe(__filename, function() {
 						done();
 					});
 				});
+			});
+		});
+	});
+	
+	describe("domains", function() {
+		var conn;
+		var model;
+		
+		before(function(done) {
+			var domainConfig = extend(true, {}, config());
+			domainConfig.options = {
+				domainsEnabled : true
+			}
+			
+			model = new mongolayer.Model({
+				collection : "domainTest",
+				fields : [
+					{ name : "string", validation : { type : "string", required : true } }
+				]
+			});
+			
+			async.series({
+				connect : function(cb) {
+					mongolayer.connectCached(domainConfig, function(err, temp) {
+						assert.ifError(err);
+						
+						conn = temp;
+						
+						cb(null);
+					});
+				},
+				add : function(cb) {
+					conn.add({ model : model }, cb);
+				},
+				remove : function(cb) {
+					model.remove({}, cb);
+				}
+			}, done);
+		});
+		
+		after(function(done) {
+			conn.db.close(done);
+		});
+		
+		it("should maintain domain on insert", function(done) {
+			async.parallel([
+				function(cb) {
+					simpleDomain.run(function(cb) {
+						model.insert({ string : "test1" }, cb);
+					}, cb);
+				},
+				function(cb) {
+					simpleDomain.run(function(cb) {
+						model.insert({ string : "test2" }, function(err) {
+							throw new Error("intentional");
+						});
+					}, function(err) {
+						assert.strictEqual(err.message, "intentional");
+						
+						cb(null);
+					});
+				},
+				function(cb) {
+					simpleDomain.run(function(cb) {
+						model.insert({ string : "test3" }, cb);
+					}, cb);
+				},
+			], done);
+		});
+		
+		it("should maintain domain on find", function(done) {
+			model.insert([
+				{ string : "test1" },
+				{ string : "test2" },
+				{ string : "test3" }
+			], function(err) {
+				assert.ifError(err);
+				
+				async.parallel([
+					function(cb) {
+						simpleDomain.run(function(cb) {
+							model.find({ string : "test1" }, cb);
+						}, cb);
+					},
+					function(cb) {
+						simpleDomain.run(function(cb) {
+							model.find({ string : "test2" }, function(err) {
+								throw new Error("intentional");
+							});
+						}, function(err) {
+							assert.strictEqual(err.message, "intentional");
+							
+							cb(null);
+						});
+					},
+					function(cb) {
+						simpleDomain.run(function(cb) {
+							model.find({ string : "test3" }, cb);
+						}, cb);
+					},
+				], done);
 			});
 		});
 	});

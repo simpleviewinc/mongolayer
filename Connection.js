@@ -10,21 +10,26 @@ var Connection = function(args) {
 	
 	self.models = {}; // store public facing models
 	self._models = {}; // store arguments of Connection.add()
-	self.logger = args.logger || function() {}; // stores method to be called on query execution with log information
+	self.logger = args.logger; // stores method to be called on query execution with log information
 }
 
 Connection.prototype.add = function(args, cb) {
 	var self = this;
 	
 	// args.model
+	// args.createIndexes
 	
+	args.createIndexes = args.createIndexes === undefined ? true : args.createIndexes;
 	args.model._setConnection({ connection : self });
 	
 	var calls = [];
 	
-	calls.push(function(cb) {
-		args.model.ensureIndexes(cb);
-	});
+	// allow option to disable createIndexes on add for performance
+	if (args.createIndexes === true) {
+		calls.push(function(cb) {
+			args.model.createIndexes(cb);
+		});
+	}
 	
 	async.series(calls, function(err) {
 		if (err) { return cb(err); }
