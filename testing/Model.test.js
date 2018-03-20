@@ -1319,7 +1319,29 @@ describe(__filename, function() {
 				fields : [
 					{ name : "title", validation : { type : "string" } },
 					{ name : "extra", validation : { type : "string" } }
-				]
+				],
+				virtuals : [
+					{ name : "foo", writable : true, requiredFields : ["extra"], requiredHooks : ["afterFind_foo"] }
+				],
+				hooks : [
+					// for preventing resolveRelationship -> find regression
+					{
+						name : "foo",
+						type : "afterFind",
+						required : false,
+						handler : function(args, cb) {
+							args.docs.forEach(function(doc, i) {
+								doc.foo = `foo_hook_${doc.extra}`;
+							});
+							
+							return cb(null, args);
+						}
+					}
+				],
+				defaultHooks : {
+					// for preventing resolveRelationship -> find regression
+					find : ["afterFind_foo"]
+				}
 			});
 			
 			async.series([
@@ -3096,7 +3118,7 @@ describe(__filename, function() {
 						]
 					},
 					{
-						name : "should populate recursively with castDocs returning fields required for processing the virtuals",
+						name : "should populate recursively with castDocs true, returning fields required for processing the virtuals",
 						filter : { _id : root3 },
 						options : { fields : { "single_rightKey.singleSecond.extra" : 1 } },
 						results : [
@@ -3110,7 +3132,9 @@ describe(__filename, function() {
 									singleSecond : {
 										_id : mongoId,
 										extra : "extra2_1",
-										title : undefined
+										title : undefined,
+										// "foo" gets added by defaultHooks
+										foo : "foo_hook_extra2_1"
 									}
 								},
 								requiresBar : "requiresBar_undefined",
@@ -3119,9 +3143,9 @@ describe(__filename, function() {
 						]
 					},
 					{
-						name : "should populate recursively with castDocs only returning required fields",
+						name : "should populate recursively with castDocs false, only returning required fields",
 						filter : { _id : root3 },
-						options : { fields : { "single_rightKey.singleSecond.extra" : 1 }, castDocs : false },
+						options : { fields : { "single_rightKey.singleSecond.extra" : 1, "single_rightKey.singleSecond.foo" : 1 }, castDocs : false },
 						results : [
 							{
 								type : "object",
@@ -3135,7 +3159,8 @@ describe(__filename, function() {
 												type : "object",
 												allowExtraKeys : false,
 												data : {
-													extra : "extra2_1"
+													extra : "extra2_1",
+													foo : "foo_hook_extra2_1"
 												}
 											}
 										}
