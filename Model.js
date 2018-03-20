@@ -349,13 +349,13 @@ Model.prototype.addRelationship = function(args) {
 		var hookArgs = extend(true, {}, args.hookArgs || {});
 		
 		// use the hookArgs fields, or cherry-pick the fields that apply to the relationship
-		newOptions.fields = hookArgs.fields !== undefined ? hookArgs.fields : mongolayer._getMyFields(objectKey, args.options.fields || {});
+		newOptions.fields = hookArgs.fields !== undefined ? hookArgs.fields : mongolayer._getMyFields(objectKey, args.options.fields);
 		// use the hookArgs hooks, or cherry-pick the hooks that apply to the relationship
-		newOptions.hooks = hookArgs.hooks !== undefined ? hookArgs.hooks : mongolayer._getMyHooks(objectKey, args.options.hooks || []);
+		newOptions.hooks = hookArgs.hooks !== undefined ? hookArgs.hooks : mongolayer._getMyHooks(objectKey, args.options.hooks);
 		// if we have fields, we pass mapDocs, it will take affect according to the state of castDocs
 		newOptions.mapDocs = hookArgs.fields !== undefined ? true : undefined;
 		newOptions.castDocs = hookArgs.castDocs !== undefined ? hookArgs.castDocs : args.options.castDocs;
-		
+
 		mongolayer.resolveRelationship({
 			type : type,
 			leftKey : leftKey,
@@ -367,8 +367,8 @@ Model.prototype.addRelationship = function(args) {
 			docs : args.docs,
 			mapDocs : newOptions.mapDocs,
 			castDocs : newOptions.castDocs,
-			hooks : newOptions.hooks,
-			fields : newOptions.fields
+			hooks : (newOptions.hooks.length > 0) ? newOptions.hooks : undefined,
+			fields : (Object.keys(newOptions.fields).length > 0) ? newOptions.fields : undefined
 		}, function(err, docs) {
 			if (err) { return cb(err); }
 			
