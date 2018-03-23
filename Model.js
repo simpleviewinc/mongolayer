@@ -1385,24 +1385,24 @@ Model.prototype._getFieldDependecies = function(name) {
 	var virtual = self._virtuals[name];
 	if (virtual === undefined) { return returnData; }
 	
+	if (virtual.requiredFields !== undefined) {
+		virtual.requiredFields.forEach(function(val) {
+			var temp = self._getFieldDependecies(val);
+			// push the fields on
+			returnData.fields.push(...temp.fields);
+			// the required virtuals should be pushed before the current virtuals
+			returnData.virtuals.push(...temp.virtuals);
+			// the required hooks should be pushed before the current hooks
+			returnData.hooks.push(...temp.hooks);
+		});
+	}
+
 	if (virtual.get !== undefined) {
 		returnData.virtuals.push(name);
 	}
-	
+
 	if (virtual.requiredHooks !== undefined) {
-		returnData.hooks.push.apply(returnData.hooks, virtual.requiredHooks);
-	}
-	
-	if (virtual.requiredFields !== undefined) {
-		virtual.requiredFields.forEach(function(val, i) {
-			var temp = self._getFieldDependecies(val);
-			// push the fields on
-			returnData.fields.push.apply(returnData.fields, temp.fields);
-			// push the required virtuals so they end up before the current virtual
-			returnData.virtuals.splice.apply(returnData.virtuals, [i, 0].concat(temp.virtuals));
-			// push the required hooks so they end up before the current hook
-			returnData.hooks.splice.apply(returnData.hooks, [i, 0].concat(temp.hooks));
-		});
+		returnData.hooks.push(...virtual.requiredHooks);
 	}
 	
 	return returnData;
