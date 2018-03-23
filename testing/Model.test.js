@@ -1243,12 +1243,21 @@ describe(__filename, function() {
 					}
 				],
 				virtuals : [
+					{ name : "baz_1", get : function() { return "baz_1"; } },
+					{ name : "baz_2", get : function() { return "baz_2"; } },
 					{
-						name : "requiresBar",
+						name : "requiresBaz",
 						get : function() {
-							return "requiresBar_" + this.bar;
+							return "requiresBaz_" + this.baz_1 + "_" + this.baz + "_" + this.baz_2;
 						},
-						requiredFields : ["bar"]
+						requiredFields : ["baz_1", "baz", "baz_2"]
+					},
+					{
+						name : "requiresBazBarId",
+						get : function() {
+							return this.requiresBaz + "_Bar_" + this.bar + (this.id !== undefined ? "_hasId" : "_noId");
+						},
+						requiredFields : ["requiresBaz", "bar", "id"]
 					},
 					{
 						name : "requiresHooks",
@@ -1260,9 +1269,9 @@ describe(__filename, function() {
 					{
 						name : "requiresChained",
 						get : function() {
-							return "requiresChained_" + this.requiresBar;
+							return "requiresChained_" + this.requiresBazBarId;
 						},
-						requiredFields : ["requiresBar", "requiresHooks"]
+						requiredFields : ["requiresBazBarId", "requiresHooks"]
 					},
 					{
 						name : "requiresBoth",
@@ -2247,7 +2256,7 @@ describe(__filename, function() {
 					assert.strictEqual(docs.length, 1);
 					assert.strictEqual(docs[0].foo, "1");
 					assert.strictEqual(docs[0].bar, "barValue");
-					assert.strictEqual(docs[0].requiresBar, undefined);
+					assert.strictEqual(docs[0].requiresBazBarId, undefined);
 					
 					return done();
 				});
@@ -2266,11 +2275,20 @@ describe(__filename, function() {
 			});
 			
 			it("should allow execution of virtuals", function(done) {
-				model.aggregate([{ $match : { foo : "1" } }], { virtuals : ["requiresBar"] }, function(err, docs) {
+				model.aggregate([{ $match : { foo : "1" } }], { virtuals : ["requiresBazBarId"] }, function(err, docs) {
 					assert.ifError(err);
-					
-					assert.strictEqual(docs[0].requiresBar, "requiresBar_barValue");
+
+					// no "id", no "requiresBaz", because aggregate does not process requiredFields
+					assert.deepStrictEqual(Object.keys(docs[0]), [
+						"_id", "foo", "bar", "baz", "requiresBazBarId"
+					]);
+
+					assert.strictEqual(docs[0] instanceof model.Document, false);
+					assert.strictEqual(docs[0].baz, false);
 					assert.strictEqual(docs[0].bar, "barValue");
+					assert.strictEqual(docs[0].foo, "1");
+					// undefined and noId because aggregate does not process requiredFields
+					assert.strictEqual(docs[0].requiresBazBarId, "undefined_Bar_barValue_noId");
 					assert.strictEqual(docs[0].requiresChained, undefined);
 					
 					return done();
@@ -2280,11 +2298,20 @@ describe(__filename, function() {
 			it("should allow castDocs", function(done) {
 				model.aggregate([{ $match : { foo : "1" } }], { castDocs : true }, function(err, docs) {
 					assert.ifError(err);
+
+					assert.deepStrictEqual(Object.keys(docs[0]), [
+						// only these keys are enumerable
+						"_id", "foo", "bar", "baz"
+					]);
 					
 					assert.strictEqual(docs[0] instanceof model.Document, true);
+					assert.strictEqual(docs[0].baz, false);
 					assert.strictEqual(docs[0].bar, "barValue");
-					assert.strictEqual(docs[0].requiresBar, "requiresBar_barValue");
-					assert.strictEqual(docs[0].requiresChained, "requiresChained_requiresBar_barValue");
+					assert.strictEqual(docs[0].foo, "1");
+
+					// these do not exist in Object.keys, but these getters work
+					assert.strictEqual(docs[0].requiresBazBarId, "requiresBaz_baz_1_false_baz_2_Bar_barValue_hasId");
+					assert.strictEqual(docs[0].requiresChained, "requiresChained_requiresBaz_baz_1_false_baz_2_Bar_barValue_hasId");
 					
 					return done();
 				});
@@ -2351,7 +2378,7 @@ describe(__filename, function() {
 				
 				it("should enforce maxSize", function(done) {
 					model.find({}, { maxSize : 10 }, function(err, docs) {
-						assert.strictEqual(err.message, "Max size of result set '903' exceeds options.maxSize of '10'");
+						assert.strictEqual(err.message, "Max size of result set '1320' exceeds options.maxSize of '10'");
 						
 						done();
 					});
@@ -2516,24 +2543,28 @@ describe(__filename, function() {
 				it("should find and restrict by fields", function(done) {
 					model.find({ foo : "1" }, { fields : { foo : 1 } }, function(err, docs) {
 						assert.ifError(err);
+
+						assert.deepStrictEqual(Object.keys(docs[0]), [
+							"_id", "foo"
+						]);
 						
 						assert.equal(docs[0].foo, "1");
 						assert.equal(docs[0].bar, undefined);
 						assert.equal(docs[0].baz, undefined);
-						assert.equal(docs[0].requiresBar, "requiresBar_undefined");
+						assert.equal(docs[0].requiresBazBarId, "requiresBaz_baz_1_undefined_baz_2_Bar_undefined_hasId");
 						
 						done();
 					});
 				});
 				
-				it("should querying mutate options but not defaultHooks", function(done) {
-					var options = { fields : { foo : 1, requiresHooks : 1, requiresBar : 1 } };
+				it("should querying mutate options but not defaultHooks. Do not request virtual fields from mongodb", function(done) {
+					var options = { fields : { foo : 1, requiresHooks : 1, requiresBazBarId : 1 } };
 					model.find({ foo : "1" }, options, function(err, docs) {
 						assert.ifError(err);
 						
 						assert.strictEqual(model.defaultHooks.find.length, 0);
 						assert.strictEqual(options.hooks.length, 2);
-						assert.deepStrictEqual(Object.keys(options.fields), ["foo", "requiresHooks", "requiresBar", "bar"]);
+						assert.deepStrictEqual(Object.keys(options.fields), ["foo", "requiresHooks", "requiresBazBarId", "requiresBaz", "baz_1", "baz", "baz_2", "bar", "id", "_id"]);
 						
 						return done();
 					});
@@ -2543,7 +2574,7 @@ describe(__filename, function() {
 					{
 						name : "should find and process virtual requiredFields",
 						filter : { foo : { $in : ["1", "2"] } },
-						options : { fields : { foo : 1, requiresBar : 1 } },
+						options : { fields : { foo : 1, requiresBazBarId : 1 } },
 						results : [
 							{
 								type : "object",
@@ -2551,8 +2582,9 @@ describe(__filename, function() {
 								data : {
 									_id : { type : "object", class : mongolayer.ObjectId },
 									foo : "1",
+									baz : false,
 									bar : "barValue",
-									requiresBar : "requiresBar_barValue"
+									requiresBazBarId : "requiresBaz_baz_1_false_baz_2_Bar_barValue_hasId"
 								}
 							},
 							{
@@ -2561,7 +2593,8 @@ describe(__filename, function() {
 								data : {
 									_id : { type : "object", class : mongolayer.ObjectId },
 									foo : "2",
-									requiresBar : "requiresBar_undefined"
+									baz : false,
+									requiresBazBarId : "requiresBaz_baz_1_false_baz_2_Bar_undefined_hasId"
 								}
 							}
 						]
@@ -2600,8 +2633,8 @@ describe(__filename, function() {
 						results : [
 							{
 								foo : "1",
-								requiresChained : "requiresChained_requiresBar_barValue",
-								requiresBar : "requiresBar_barValue",
+								requiresChained : "requiresChained_requiresBaz_baz_1_false_baz_2_Bar_barValue_hasId",
+								requiresBazBarId : "requiresBaz_baz_1_false_baz_2_Bar_barValue_hasId",
 								afterFind_testRequired : 1
 							}
 						],
@@ -2626,13 +2659,13 @@ describe(__filename, function() {
 					{
 						name : "castDocs false should only return requested fields even when using virtuals",
 						filter : { foo : "1" },
-						options : { fields : { requiresBar : 1 }, castDocs : false },
+						options : { fields : { requiresBazBarId : 1 }, castDocs : false },
 						results : [
 							{
 								type : "object",
 								allowExtraKeys : false,
 								data : {
-									requiresBar : "requiresBar_barValue"
+									requiresBazBarId : "requiresBaz_baz_1_false_baz_2_Bar_barValue_hasId"
 								}
 							}
 						]
@@ -2646,7 +2679,7 @@ describe(__filename, function() {
 								type : "object",
 								allowExtraKeys : false,
 								data : {
-									requiresChained : "requiresChained_requiresBar_barValue"
+									requiresChained : "requiresChained_requiresBaz_baz_1_false_baz_2_Bar_barValue_hasId"
 								}
 							}
 						],
@@ -3113,7 +3146,7 @@ describe(__filename, function() {
 										title : undefined
 									}
 								},
-								requiresBar : "requiresBar_undefined",
+								requiresBazBarId : "requiresBaz_baz_1_undefined_baz_2_Bar_undefined_hasId",
 								requiresHooks : true
 							}
 						]

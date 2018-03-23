@@ -1,9 +1,10 @@
 sudo: false
 language: node_js
 node_js:
-  - "6.11.1"
+  - "6.13.1"
   - "7.10.1"
-  - "8.2.1"
+  - "8.9.4"
+  - "9.9.0"
 services:
   - mongodb
 addons:
