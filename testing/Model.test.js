@@ -2526,14 +2526,14 @@ describe(__filename, function() {
 					});
 				});
 				
-				it("should querying mutate options but not defaultHooks", function(done) {
+				it("should querying mutate options but not defaultHooks. Do not request virtual fields from mongodb", function(done) {
 					var options = { fields : { foo : 1, requiresHooks : 1, requiresBar : 1 } };
 					model.find({ foo : "1" }, options, function(err, docs) {
 						assert.ifError(err);
 						
 						assert.strictEqual(model.defaultHooks.find.length, 0);
 						assert.strictEqual(options.hooks.length, 2);
-						assert.deepStrictEqual(Object.keys(options.fields), ["foo", "requiresHooks", "requiresBar", "bar"]);
+						assert.deepStrictEqual(Object.keys(options.fields), ["foo", "bar"]);
 						
 						return done();
 					});

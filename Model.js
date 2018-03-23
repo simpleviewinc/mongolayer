@@ -705,6 +705,9 @@ Model.prototype.find = function(filter, options, cb) {
 				
 				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : docs, count : count } }, function(err, args) {
 					if (err) { return cb(err); }
+
+					// we set this back to what actually got sent, so that we can verify in unit tests what was sent to mongo
+					args.options.fields = findFields;
 					
 					if (args.options.castDocs === true) {
 						args.docs = self._castDocs(args.docs, { cloneData : false });
@@ -1114,7 +1117,10 @@ Model.prototype._getMyFindFields = function(fields) {
 	var newFields = {};
 	var hasKeys = false;
 	
-	for(var val in fields) {
+	for (var val in fields) {
+		// we do not want to include virtuals in the fields object sent to mongo
+		if (self._virtuals[val] !== undefined) { continue; }
+
 		var temp = val.match(_getMyFindFields_regex);
 		if (temp === null || self.relationships[temp[1]] === undefined) {
 			// if the key either has no root, or it's root is not a known relationship, then include it
