@@ -1,7 +1,6 @@
 var mongodb = require("mongodb");
 var async = require("async");
 var extend = require("extend");
-var util = require("util");
 var typecaster = require("typecaster");
 
 var Connection = require("./Connection.js");
@@ -321,6 +320,8 @@ var _stringConvertV2_walk = function(dataObj, schemaObj) {
 
 // gets only hooks which apply to a specific model and de-namespaces them
 var _getMyHooks = function(myKey, hooks) {
+	if (hooks === undefined || hooks.length === 0) { return []; }
+
 	var myHooks = [];
 	var regMatch = new RegExp("^" + myKey + "\\..*");
 	var regReplace = new RegExp("^" + myKey + "\\.");
@@ -334,6 +335,8 @@ var _getMyHooks = function(myKey, hooks) {
 }
 
 var _getMyFields = function(myKey, fields) {
+	if (fields === undefined || Object.keys(fields).length === 0) { return {}; }
+
 	var myFields = {};
 	var regMatch = new RegExp("^" + myKey + "\\..*");
 	var regReplace = new RegExp("^" + myKey + "\\.");
