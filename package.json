@@ -1,27 +1,30 @@
 {
-	"name" : "mongolayer",
-	"description" : "MongoDB model layer with validation and hooks, similar to Mongoose but thinner.",
-	"author" : "Owen Allen <owenallenaz@gmail.com>",
-	"version" : "1.4.4",
-	"devDependencies" : {
-		"mocha" : "*",
-		"request" : "*"
+	"name": "mongolayer",
+	"description": "MongoDB model layer with validation and hooks, similar to Mongoose but thinner.",
+	"author": "Owen Allen <owenallenaz@gmail.com>",
+	"version": "1.4.4",
+	"devDependencies": {
+		"mocha": "^5.0.5",
+		"cheerio": "*",
+		"request": "*"
 	},
-	"dependencies" : {
-		"async" : "*",
-		"extend" : "*",
-		"jsvalidator" : "*",
-		"mongodb" : "*",
-		"typecaster" : "*",
-		"simple-domain" : "*"
+	"dependencies": {
+		"async": "*",
+		"extend": "*",
+		"jsvalidator": "*",
+		"mongodb": "2.2",
+		"typecaster": "*",
+		"simple-domain": "*"
 	},
-	"engines" : { "node" : ">=0.10.x" },
-	"scripts" : {
-		"test" : "./node_modules/mocha/bin/mocha $(find testing/ -name *.test.js) -R spec --colors --check-leaks --globals Promise"
+	"engines": {
+		"node": ">=8.10.0"
 	},
-	"repository" : {
-		"type" : "git",
-		"url" : "https://github.com/simpleviewinc/mongolayer.git"
+	"scripts": {
+		"test": "./node_modules/mocha/bin/mocha $(find testing/ -name *.test.js) -R spec --colors --check-leaks --globals Promise"
 	},
-	"license" : "MIT"
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/simpleviewinc/mongolayer.git"
+	},
+	"license": "MIT"
 }

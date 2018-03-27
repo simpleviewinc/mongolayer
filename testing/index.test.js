@@ -367,10 +367,23 @@ describe(__filename, function() {
 	
 	it("should _getMyHooks", function(done) {
 		var test = mongolayer._getMyHooks("foo", [{ name : "nuts" }, { name : "foo" }, { name : "foo.bar" }, { name : "foo.bar.baz" }]);
+		assert.deepStrictEqual(test, [
+			{ name : "bar" },
+			{ name : "bar.baz" }
+		]);
+
+		var test = mongolayer._getMyHooks("foo", []);
+		assert.deepStrictEqual(test, []);
 		
-		assert.equal(test.length, 2);
-		assert.equal(test[0].name, "bar");
-		assert.equal(test[1].name, "bar.baz");
+		done();
+	});
+
+	it("should _getMyFields", function(done) {
+		var test = mongolayer._getMyFields("foo", { "nuts" : 1, "foo" : 1, "foo.bar" : 1, "foo.bar.baz" : 1 });
+		assert.deepStrictEqual(test, { "bar" : 1, "bar.baz" : 1 });
+
+		var test = mongolayer._getMyFields("foo", {});
+		assert.deepStrictEqual(test, {});
 		
 		done();
 	});

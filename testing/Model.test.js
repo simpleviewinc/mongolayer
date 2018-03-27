@@ -1319,7 +1319,41 @@ describe(__filename, function() {
 				fields : [
 					{ name : "title", validation : { type : "string" } },
 					{ name : "extra", validation : { type : "string" } }
-				]
+				],
+				virtuals : [
+					{ name : "virtual", writable : true, requiredFields : ["extra"], requiredHooks : ["afterFind_virtualOverwrite"] }
+				],
+				hooks : [
+					// for preventing resolveRelationship -> find regression
+					{
+						name : "default",
+						type : "afterFind",
+						required : false,
+						handler : function(args, cb) {
+							args.docs.forEach(function(doc, i) {
+								doc.defaultHook = `default_hook_${doc.extra}`;
+							});
+							
+							return cb(null, args);
+						}
+					},
+					{
+						name : "virtualOverwrite",
+						type : "afterFind",
+						required : false,
+						handler : function(args, cb) {
+							args.docs.forEach(function(doc, i) {
+								doc.virtual = `overwrite_${doc.extra}`;
+							});
+							
+							return cb(null, args);
+						}
+					}
+				],
+				defaultHooks : {
+					// for preventing resolveRelationship -> find regression
+					find : ["afterFind_default"]
+				}
 			});
 			
 			async.series([
@@ -3096,7 +3130,7 @@ describe(__filename, function() {
 						]
 					},
 					{
-						name : "should populate recursively with castDocs returning fields required for processing the virtuals",
+						name : "should populate recursively with castDocs true, returning fields required for processing the virtuals",
 						filter : { _id : root3 },
 						options : { fields : { "single_rightKey.singleSecond.extra" : 1 } },
 						results : [
@@ -3110,7 +3144,9 @@ describe(__filename, function() {
 									singleSecond : {
 										_id : mongoId,
 										extra : "extra2_1",
-										title : undefined
+										title : undefined,
+										// "defaultHook" gets added by defaultHooks
+										defaultHook : "default_hook_extra2_1"
 									}
 								},
 								requiresBar : "requiresBar_undefined",
@@ -3119,7 +3155,7 @@ describe(__filename, function() {
 						]
 					},
 					{
-						name : "should populate recursively with castDocs only returning required fields",
+						name : "should populate recursively with castDocs false, only returning required fields",
 						filter : { _id : root3 },
 						options : { fields : { "single_rightKey.singleSecond.extra" : 1 }, castDocs : false },
 						results : [
@@ -3139,6 +3175,29 @@ describe(__filename, function() {
 												}
 											}
 										}
+									}
+								}
+							}
+						]
+					},
+					{
+						name : "should populate virtual with requiredHook and requiredField recursively",
+						filter : { _id : root3 },
+						options : {
+							fields : {
+								"single_rightKey.singleSecond.virtual" : 1
+							},
+							hooks : [],
+							castDocs : false
+						},
+						results : [
+							{
+								_deepCheck_allowExtraKeys : false,
+								single_rightKey : {
+									_deepCheck_allowExtraKeys : false,
+									singleSecond : {
+										_deepCheck_allowExtraKeys : false,
+										virtual : "overwrite_extra2_1"
 									}
 								}
 							}

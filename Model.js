@@ -367,8 +367,8 @@ Model.prototype.addRelationship = function(args) {
 			docs : args.docs,
 			mapDocs : newOptions.mapDocs,
 			castDocs : newOptions.castDocs,
-			hooks : newOptions.hooks,
-			fields : newOptions.fields
+			hooks : (newOptions.hooks.length > 0) ? newOptions.hooks : undefined,
+			fields : (Object.keys(newOptions.fields).length > 0) ? newOptions.fields : undefined
 		}, function(err, docs) {
 			if (err) { return cb(err); }
 			
