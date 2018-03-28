@@ -6,6 +6,7 @@ var simpleDomain = require("simple-domain");
 var mongolayer = require("../index.js");
 var config = require("./config.js");
 var assertLib = require("../lib/assertLib.js");
+var mochaLib = require("../lib/mochaLib.js");
 
 var async = require("async");
 
@@ -1292,7 +1293,12 @@ describe(__filename, function() {
 							return this.counter;
 						},
 						requiredFields : ["counter"]
-					}
+					},
+					{ name : "v_1", get : function() { return `v_1_${this.foo}` }, requiredFields : ["foo"] },
+					{ name : "v_2", get : function() { return `v_2_${this.bar}` }, requiredFields : ["bar"] },
+					{ name : "v_3", get : function() { return `v_3_${this.v_1}` }, requiredFields : ["v_1"] },
+					{ name : "v_4", get : function() { return `v_4_${this.v_2}` }, requiredFields : ["v_2"] },
+					{ name : "v_5", get : function() { return `v_5_${this.v_3}_${this.v_4}` }, requiredFields : ["any", "v_3", "v_4"] }
 				],
 				documentMethods : [
 					{ name : "testMethod", handler : function() { return "testMethodReturn" } }
@@ -2316,7 +2322,9 @@ describe(__filename, function() {
 					assert.ifError(err);
 					
 					assert.strictEqual(docs[0] instanceof model.Document, true);
+					assert.strictEqual(docs[0].baz, false);
 					assert.strictEqual(docs[0].bar, "barValue");
+					assert.strictEqual(docs[0].foo, "1");
 					assert.strictEqual(docs[0].requiresBar, "requiresBar_barValue");
 					assert.strictEqual(docs[0].requiresChained, "requiresChained_requiresBar_barValue");
 					
@@ -2384,8 +2392,8 @@ describe(__filename, function() {
 				});
 				
 				it("should enforce maxSize", function(done) {
-					model.find({}, { maxSize : 10 }, function(err, docs) {
-						assert.strictEqual(err.message, "Max size of result set '903' exceeds options.maxSize of '10'");
+					model.find({}, { fields : { _id : 1 }, limit : 1, maxSize : 10, castDocs : false }, function(err, docs) {
+						assert.strictEqual(err.message, "Max size of result set '36' exceeds options.maxSize of '10'");
 						
 						done();
 					});
@@ -2551,10 +2559,28 @@ describe(__filename, function() {
 					model.find({ foo : "1" }, { fields : { foo : 1 } }, function(err, docs) {
 						assert.ifError(err);
 						
-						assert.equal(docs[0].foo, "1");
-						assert.equal(docs[0].bar, undefined);
-						assert.equal(docs[0].baz, undefined);
-						assert.equal(docs[0].requiresBar, "requiresBar_undefined");
+						// ensure it pulls down only the one data field, but that the virtuals still execute and are often left empty
+						assertLib.deepCheck(docs, [
+							{
+								_id : mongolayer.testId("basic1"),
+								foo : "1",
+								bar : undefined,
+								baz : undefined,
+								any : undefined,
+								requiresBar : "requiresBar_undefined",
+								requiresHooks : true,
+								requiresChained : "requiresChained_requiresBar_undefined",
+								requiresBoth : "requiresBoth_undefined",
+								counter : 1,
+								requiresCount0 : 2,
+								requiresCount1 : 3,
+								v_1 : "v_1_1",
+								v_2 : "v_2_undefined",
+								v_3 : "v_3_v_1_1",
+								v_4 : "v_4_v_2_undefined",
+								v_5 : "v_5_v_3_v_1_1_v_4_v_2_undefined"
+							}
+						]);
 						
 						done();
 					});
@@ -2738,6 +2764,16 @@ describe(__filename, function() {
 						results : [
 							{
 								afterFind_testRequired : 2
+							}
+						]
+					},
+					{
+						name : "castDocs should ensure that virtuals are executed in the proper order",
+						filter : { foo : "1" },
+						options : { fields : { v_5 : 1 }, castDocs : false },
+						results : [
+							{
+								v_5 : "v_5_v_3_v_1_1_v_4_v_2_barValue"
 							}
 						]
 					}
@@ -3388,6 +3424,86 @@ describe(__filename, function() {
 						done();
 					});
 				});
+			});
+		});
+		
+		describe("_processFields", function() {
+			var tests = [
+				{
+					name : "simple",
+					defer : () => ({
+						options : {
+							fields : { _id : 1 },
+							hooks : []
+						},
+						result : {
+							_deepCheck_allowExtraKeys : false,
+							virtuals : [],
+							fields : {
+								_deepCheck_allowExtraKeys : false,
+								_id : 1
+							},
+							fieldsAdded : false,
+							hooks : []
+						}
+					})
+				},
+				{
+					name : "requires hooks",
+					defer : () => ({
+						options : {
+							fields : {
+								_id : 1,
+								requiresHooks : 1
+							},
+							hooks : []
+						},
+						result : {
+							_deepCheck_allowExtraKeys : false,
+							virtuals : ["requiresHooks"],
+							fields : {
+								_id : 1,
+								requiresHooks : 1
+							},
+							fieldsAdded : false,
+							hooks : ["beforeFind_testRequired", "afterFind_testRequired"]
+						}
+					})
+				},
+				{
+					name : "multiple chained dependencies",
+					defer : () => ({
+						options : {
+							fields : {
+								v_5 : 1
+							},
+							hooks : []
+						},
+						result : {
+							_deepCheck_allowExtraKeys : false,
+							virtuals : ["v_1", "v_3", "v_2", "v_4", "v_5"],
+							fields : {
+								_deepCheck_allowExtraKeys : false,
+								v_5 : 1,
+								any : 1,
+								v_3 : 1,
+								v_1 : 1,
+								foo : 1,
+								v_4 : 1,
+								v_2 : 1,
+								bar : 1
+							},
+							fieldsAdded : true,
+							hooks : []
+						}
+					})
+				}
+			]
+			
+			mochaLib.testArray(tests, function(test, done) {
+				var result = model._processFields(test.options);
+				assertLib.deepCheck(result, test.result);
+				return done();
 			});
 		});
 	});
