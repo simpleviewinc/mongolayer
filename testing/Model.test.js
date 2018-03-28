@@ -1396,19 +1396,57 @@ describe(__filename, function() {
 			});
 		});
 		
-		it("should _getMyFindFields", function(done) {
+		describe("should _getMyFindFields", function() {
 			var tests = [
-				[null, null],
-				[{ "single.foo" : 1 }, null],
-				[{ "single.foo" : 1, "bar" : 0 }, { "bar" : 0 }],
-				[{ "single.foo" : 1, "single.bogus.foo" : 1, "bar" : true }, { "bar" : true }]
-			];
+				{
+					name : "null",
+					defer : () => ({
+						args : null,
+						result : null
+					})
+				},
+				{
+					name : "single relationship",
+					defer : () => ({
+						args : { "single.foo" : 1 },
+						result : null
+					})
+				},
+				{
+					name : "relationship and key",
+					defer : () => ({
+						args : { "single.foo" : 1, "bar" : 0 },
+						result : { "bar" : 0 }
+					})
+				},
+				{
+					name : "two relationship and key",
+					defer : () => ({
+						args : { "single.foo" : 1, "single.bogus.foo" : 1, "bar" : true },
+						result : { "bar" : true }
+					})
+				},
+				{
+					name : "virtual",
+					defer : () => ({
+						args : { "v_1" : 1 },
+						result : null
+					})
+				},
+				{
+					name : "virtual and key",
+					defer : () => ({
+						args : { "v_1" : 1, foo : 1 },
+						result : { foo : 1 }
+					})
+				}
+			]
 			
-			tests.forEach(function(val, i) {
-				assert.deepEqual(model._getMyFindFields(val[0]), val[1]);
+			mochaLib.testArray(tests, function(test, done) {
+				var result = model._getMyFindFields(test.args);
+				assert.deepStrictEqual(result, test.result);
+				return done();
 			});
-			
-			done();
 		});
 		
 		describe("insert", function(done) {
@@ -3444,6 +3482,31 @@ describe(__filename, function() {
 								_id : 1
 							},
 							fieldsAdded : false,
+							virtualsAdded : false,
+							hooks : []
+						}
+					})
+				},
+				{
+					name : "excludes id",
+					defer : () => ({
+						options : {
+							fields : {
+								foo : 1
+							},
+							hooks : [],
+							castDocs : false
+						},
+						result : {
+							_deepCheck_allowExtraKeys : false,
+							virtuals : [],
+							fields : {
+								_deepCheck_allowExtraKeys : false,
+								foo : 1,
+								_id : 0
+							},
+							fieldsAdded : false,
+							virtualsAdded : false,
 							hooks : []
 						}
 					})
@@ -3466,6 +3529,7 @@ describe(__filename, function() {
 								requiresHooks : 1
 							},
 							fieldsAdded : false,
+							virtualsAdded : true,
 							hooks : ["beforeFind_testRequired", "afterFind_testRequired"]
 						}
 					})
@@ -3486,14 +3550,11 @@ describe(__filename, function() {
 								_deepCheck_allowExtraKeys : false,
 								v_5 : 1,
 								any : 1,
-								v_3 : 1,
-								v_1 : 1,
 								foo : 1,
-								v_4 : 1,
-								v_2 : 1,
 								bar : 1
 							},
 							fieldsAdded : true,
+							virtualsAdded : true,
 							hooks : []
 						}
 					})

@@ -715,7 +715,7 @@ Model.prototype.find = function(filter, options, cb) {
 						self._executeVirtuals(args.docs, fieldResults.virtuals);
 					}
 					
-					if (args.options.mapDocs === true && args.options.castDocs === false && fieldResults !== undefined && fieldResults.fieldsAdded === true) {
+					if (args.options.mapDocs === true && args.options.castDocs === false && fieldResults !== undefined && (fieldResults.fieldsAdded === true || fieldResults.virtualsAdded === true)) {
 						// if we are in a castDocs === false situation with mapDocs true (not a relationship find()), and we have added fields, we need to map them away
 						args.docs = objectLib.mongoProject(args.docs, originalFields);
 					}
@@ -1115,6 +1115,8 @@ Model.prototype._getMyFindFields = function(fields) {
 	var hasKeys = false;
 	
 	for(var val in fields) {
+		if (self._virtuals[val] !== undefined) { continue; }
+		
 		var temp = val.match(_getMyFindFields_regex);
 		if (temp === null || self.relationships[temp[1]] === undefined) {
 			// if the key either has no root, or it's root is not a known relationship, then include it
@@ -1320,6 +1322,7 @@ Model.prototype._processFields = function(options) {
 		virtuals : [], // fields which need to be .call() in the return docs
 		fields : options.fields,
 		fieldsAdded : false,
+		virtualsAdded : false,
 		hooks : options.hooks
 	}
 	
@@ -1345,6 +1348,7 @@ Model.prototype._processFields = function(options) {
 		for(var j = 0; j < temp.virtuals.length; j++) {
 			var val = temp.virtuals[j];
 			if (returnData.virtuals.indexOf(val) === -1) {
+				returnData.virtualsAdded = true;
 				returnData.virtuals.push(val);
 			}
 		}
@@ -1378,8 +1382,12 @@ Model.prototype._getFieldDependecies = function(name) {
 	
 	var returnData = {
 		virtuals : [],
-		fields : [name],
+		fields : [],
 		hooks : []
+	}
+	
+	if (self.fields[name] !== undefined) {
+		returnData.fields.push(name);
 	}
 	
 	var virtual = self._virtuals[name];
