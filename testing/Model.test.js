@@ -27,7 +27,7 @@ describe(__filename, function() {
 	
 	after(function(done) {
 		mongolayer._clearConnectCache();
-		conn.db.close(done);
+		conn.close(done);
 	});
 	
 	it("should create", function(done) {
@@ -3606,7 +3606,7 @@ describe(__filename, function() {
 		});
 		
 		after(function(done) {
-			conn.db.close(done);
+			conn.close(done);
 		});
 		
 		it("should maintain domain on insert", function(done) {

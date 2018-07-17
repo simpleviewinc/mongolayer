@@ -30,52 +30,43 @@ var typecasterObjectIdDef = {
 var caster = new typecaster.TypeCaster();
 caster.addType(typecasterObjectIdDef);
 
-var connect = function(args, cb) {
-	_getDb(args, function(err, db) {
+var connect = _connect.bind(null, false);
+var connectCached = _connect.bind(null, true);
+
+function _connect(cached, args, cb) {
+	var method = cached === true ? _getClientCached : _getClient;
+	
+	method(args, function(err, client) {
 		if (err) { return cb(err); }
 		
-		cb(null, new Connection({ db : db, logger : args.logger }));
+		// parsed the connectionString to detect a dbName
+		var parsed = args.connectionString.match(/mongodb:\/\/.*\/([^?]+)/);
+		var db;
+		
+		if (parsed) {
+			db = client.db(parsed[1]);
+		}
+		
+		var connection = new Connection({ db : db, logger : args.logger, client : client });
+		
+		return cb(null, connection);
 	});
 }
 
-var connectCached = function(args, cb) {
-	_getDbCached(args, function(err, db) {
-		if (err) { return cb(err); }
-		
-		cb(null, new Connection({ db : db, logger : args.logger }));
-	});
-}
-
-var _getDb = function(args, cb) {
+var _getClient = function(args, cb) {
 	// args.connectionString
 	// args.options
 	
 	args.options = args.options || {};
+	args.options.useNewUrlParser = true;
 	
-	mongodb.MongoClient.connect(args.connectionString, args.options, function(err, db) {
-		if (err) { return cb(err); }
-		
-		var op;
-		if (args.auth) {
-			op = function(cb) {
-				db.authenticate(args.auth.username, args.auth.password, args.auth.options, cb);
-			}
-		} else {
-			var op = function(cb) { cb(null); }
-		}
-		
-		op(function(err) {
-			if (err) { return cb(err); }
-			
-			cb(null, db);
-		});
-	});
+	mongodb.MongoClient.connect(args.connectionString, args.options, cb);
 }
 
-var _getDbCached = async.memoize(_getDb, function() { return JSON.stringify(arguments) });
+var _getClientCached = async.memoize(_getClient, function() { return JSON.stringify(arguments) });
 var _clearConnectCache = function() {
-	for(var i in _getDbCached.memo) {
-		delete _getDbCached.memo[i];
+	for(var i in _getClientCached.memo) {
+		delete _getClientCached.memo[i];
 	}
 }
 

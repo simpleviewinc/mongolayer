@@ -15,7 +15,7 @@ describe(__filename, function() {
 			assert.ifError(err);
 			assert.equal(conn instanceof mongolayer.Connection, true);
 			
-			conn.db.close(done);
+			conn.close(done);
 		});
 	});
 	
@@ -69,10 +69,10 @@ describe(__filename, function() {
 			assert.notEqual(conn3, conn4);
 			
 			async.series([
-				(cb) => conn1.db.close(cb),
-				(cb) => conn2.db.close(cb),
-				(cb) => conn3.db.close(cb),
-				(cb) => conn4.db.close(cb)
+				(cb) => conn1.close(cb),
+				(cb) => conn2.close(cb),
+				(cb) => conn3.close(cb),
+				(cb) => conn4.close(cb)
 			], done);
 		});
 	});

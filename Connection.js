@@ -7,10 +7,15 @@ var Connection = function(args) {
 	args = args || {};
 	
 	self.db = args.db;
-	
 	self.models = {}; // store public facing models
-	self._models = {}; // store arguments of Connection.add()
 	self.logger = args.logger; // stores method to be called on query execution with log information
+	
+	self._models = {}; // store arguments of Connection.add()
+	self._client = args.client;
+}
+
+Connection.prototype.setDb = function(name) {
+	self.db = self._client.db(name);
 }
 
 Connection.prototype.add = function(args, cb) {
@@ -88,6 +93,12 @@ Connection.prototype.dropCollection = function(args, cb) {
 		
 		cb(null);
 	});
+}
+
+Connection.prototype.close = function(cb) {
+	var self = this;
+	
+	self._client.close(false, cb);
 }
 
 module.exports = Connection;

@@ -12,7 +12,7 @@
 		"async": "*",
 		"extend": "*",
 		"jsvalidator": "*",
-		"mongodb": "2.2",
+		"mongodb": "3.1",
 		"typecaster": "*",
 		"simple-domain": "*"
 	},

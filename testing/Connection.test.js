@@ -20,7 +20,7 @@ describe(__filename, function() {
 	
 	after(function(done) {
 		mongolayer._clearConnectCache();
-		conn.db.close(done);
+		conn.close(done);
 	});
 	
 	it("should add", function(done) {

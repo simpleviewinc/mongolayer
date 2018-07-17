@@ -593,8 +593,14 @@ Model.prototype.aggregate = function(pipeline, options, cb) {
 	self._executeHooks({ type : "beforeAggregate", hooks : self._getHooksByType("beforeAggregate", options.hooks), args : { pipeline : pipeline, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self.collection.aggregate(args.pipeline, args.options, function(err, docs) {
+		self.collection.aggregate(args.pipeline, args.options, async function(err, cursor) {
 			if (err) { return cb(err); }
+			
+			try {
+				var docs = await cursor.toArray();
+			} catch(e) {
+				return cb(e);
+			}
 			
 			self._executeHooks({ type : "afterAggregate", hooks : self._getHooksByType("afterAggregate", options.hooks), args : { pipeline : args.pipeline, options : args.options, docs : docs } }, function(err, args) {
 				if (err) { return cb(err); }
@@ -673,7 +679,8 @@ Model.prototype.find = function(filter, options, cb) {
 			
 			var findFields = self._getMyFindFields(args.options.fields);
 			
-			var cursor = self.collection.find(args.filter, findFields, args.options.options);
+			var cursor = self.collection.find(args.filter, args.options.options);
+			if (findFields) { cursor = cursor.project(findFields); }
 			if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
 			if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
 			if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
