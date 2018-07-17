@@ -3,6 +3,7 @@ var mongolayer = require("../index.js");
 var config = require("./config.js");
 var mongodb = require("mongodb");
 var async = require("async");
+var mochaLib = require("../lib/mochaLib.js");
 
 describe(__filename, function() {
 	after(function(done) {
@@ -10,12 +11,57 @@ describe(__filename, function() {
 		return done();
 	});
 	
-	it("should connect", function(done) {
-		mongolayer.connect(config(), function(err, conn) {
-			assert.ifError(err);
-			assert.equal(conn instanceof mongolayer.Connection, true);
-			
-			conn.close(done);
+	describe("connect", function() {
+		var tests = [
+			{
+				name : "connect without a db without trailing slash",
+				defer : () => ({
+					args : {
+						connectionString : "mongodb://127.0.0.1:27017"
+					},
+					error : /You must specify a database in your connectionString\./
+				})
+			},
+			{
+				name : "connect without a db, trailing slash",
+				defer : () => ({
+					args : {
+						connectionString : "mongodb://127.0.0.1:27017/"
+					},
+					error : /You must specify a database in your connectionString\./
+				})
+			},
+			{
+				name : "connect with a db",
+				defer : () => ({
+					args : {
+						connectionString : "mongodb://127.0.0.1:27017/mongolayer"
+					},
+					dbName : "mongolayer"
+				})
+			}
+		]
+		
+		mochaLib.testArray(tests, function(test, done) {
+			mongolayer.connect(test.args, function(err, conn) {
+				if (test.error) {
+					assert.ok(err.message.match(test.error));
+					return done();
+				}
+				
+				assert.ifError(err);
+				
+				if (test.dbName) {
+					assert.strictEqual(conn.db.databaseName, test.dbName);
+				} else {
+					assert.strictEqual(conn.db, undefined);
+				}
+				
+				assert.strictEqual(conn._client instanceof mongodb.MongoClient, true);
+				assert.strictEqual(conn._client.isConnected(), true);
+				
+				return conn.close(done);
+			});
 		});
 	});
 	

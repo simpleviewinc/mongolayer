@@ -36,16 +36,18 @@ var connectCached = _connect.bind(null, true);
 function _connect(cached, args, cb) {
 	var method = cached === true ? _getClientCached : _getClient;
 	
+	// parse the connectionString to detect a dbName
+	var parsed = args.connectionString.match(/mongodb:\/\/.*\/([^?]+)/);
+	if (parsed === null) {
+		return cb(new Error("You must specify a database in your connectionString."));
+	}
+	
+	var dbName = parsed[1];
+	
 	method(args, function(err, client) {
 		if (err) { return cb(err); }
 		
-		// parsed the connectionString to detect a dbName
-		var parsed = args.connectionString.match(/mongodb:\/\/.*\/([^?]+)/);
-		var db;
-		
-		if (parsed) {
-			db = client.db(parsed[1]);
-		}
+		var db = client.db(dbName);
 		
 		var connection = new Connection({ db : db, logger : args.logger, client : client });
 		

@@ -592,7 +592,7 @@ postModel.find({}, { fields : { title : 1, description : 1, author : 1 } }, func
 });
 ```
 
-- If you want to pull in the authors image, you can do that as well. As with MongoDB native behavior, by specifying a descendent key on a nested key, you will now only returned the queried keys. This means the query below will no longer return "author.name", because "author.image" was specified in the query, thus making the author find() no longer a SELECT *. This the query below is no different than `{ title : 1, description : 1, "author.image" : 1 }`
+- If you want to pull in the authors image, you can do that as well. As with MongoDB native behavior, by specifying a descendent key on a nested key, you will now only returned the queried keys. This means the query below will no longer return "author.name", because "author.image" was specified in the query, thus making the author find() no longer a SELECT \*. This the query below is no different than `{ title : 1, description : 1, "author.image" : 1 }`
 ```js
 postModel.find({}, { fields : { title : 1, description : 1, author : 1, "author.image" : 1 } }, function(err, docs) {
 	// returned docs will have the structure
@@ -740,9 +740,8 @@ Connect to a mongolayer database. If a call to `mongolayer.connectCached` is mad
 **This is the recommended method for connecting through `mongolayer` especially if you connect in unit tests.**
 
 * `options`
-	* `connectionString` - `string`- `required` - Connection string formatted like `node-mongodb-native` uses. Example: `mongodb://127.0.0.1/mongolayer"`
-	* `options` - `object` - `optional` - Connection options used by `node-mongodb-native`. Example: `{ server : { poolSize : 10 } }`
-	* `auth` - `object` - `optional` - Object with `username` and `password` key to use when authenticating. Example: `{ username : "foo", password : "bar" }`
+	* `connectionString` - `string`- `required` - Official `mongodb` [connection string](https://docs.mongodb.com/manual/reference/connection-string/). You must specify a database name in your connectionString. Example: `mongodb://127.0.0.1/mongolayer"`.
+	* `options` - `object` - `optional` - Connection options used by `node-mongodb-native`. Example: `{ poolSize : 10 } }`
 * `callback`
 	* `Error` or null
 	* `mongolayer.Connection`
@@ -753,6 +752,22 @@ Example:
 mongolayer.connectCached({ connectionString : "mongodb://127.0.0.1/mongolayer" }, function(err, conn) {
 	
 });
+
+// connect with auth
+mongolayer.connectCached({
+	connectionString : "mongodb://127.0.0.1/mongolayer",
+	options : {
+		auth : {
+			user : "username",
+			password : "password"
+		}
+	}
+}, cb);
+
+// connect to a replSet
+mongolayer.connectCached({
+	connectionString : "mongodb://repl1:27017,repl2:27017,repl3:27017/dbName",
+}, cb);
 ```
 
 ### mongolayer.connect(options, callback)
@@ -840,6 +855,13 @@ Removes all **Models** from a **Connection**. This does not remove data or remov
 
 * `args`
 	* `name` - `string` - `required` - The name of the collection to remove
+* `callback`
+	* `Error` or null
+
+### connection.close(cb)
+
+Closes the underlying `node-mongodb-native` connection.
+
 * `callback`
 	* `Error` or null
 

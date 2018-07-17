@@ -14,10 +14,6 @@ var Connection = function(args) {
 	self._client = args.client;
 }
 
-Connection.prototype.setDb = function(name) {
-	self.db = self._client.db(name);
-}
-
 Connection.prototype.add = function(args, cb) {
 	var self = this;
 	
