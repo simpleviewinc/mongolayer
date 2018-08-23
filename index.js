@@ -170,7 +170,7 @@ var stringConvert = function(data, schema) {
 					val.forEach(function(val2, i2) {
 						returnValue[i].push(convertValue(val2, type));
 					});
-				} else if (["$ne", "$gt", "$lt", "$gte", "$lte", "$not"].indexOf(i) !== -1) {
+				} else if (["$eq", "$ne", "$gt", "$lt", "$gte", "$lte", "$not"].indexOf(i) !== -1) {
 					// fields to convert in-place;
 					returnValue[i] = convertValue(val, type);
 				} else if (i === "$elemMatch") {
