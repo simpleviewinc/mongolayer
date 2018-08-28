@@ -2637,6 +2637,36 @@ describe(__filename, function() {
 					});
 				});
 				
+				it("should have working promise", async function() {
+					var result = await model.promises.find({ foo : "1" });
+					assertLib.deepCheck(result, [
+						{
+							_id : mongolayer.testId("basic1"),
+							foo : "1",
+							bar : "barValue",
+							baz : false
+						}
+					]);
+					
+					result = await model.promises.findById(mongolayer.testId("basic1"));
+					assertLib.deepCheck(result, {
+						_id : mongolayer.testId("basic1"),
+						foo : "1",
+						bar : "barValue",
+						baz : false
+					});
+					
+					result = await model.promises.aggregate([{ $match : { _id : mongolayer.testId("basic1") } }]);
+					assertLib.deepCheck(result, [
+						{
+							_id : mongolayer.testId("basic1"),
+							foo : "1",
+							bar : "barValue",
+							baz : false
+						}
+					]);
+				});
+				
 				var tests = [
 					{
 						name : "should find and process virtual requiredFields",

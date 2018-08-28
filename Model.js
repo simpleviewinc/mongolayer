@@ -150,6 +150,12 @@ var Model = function(args) {
 	args.indexes.forEach(function(val, i) {
 		self.addIndex(val);
 	});
+	
+	self.promises = {
+		find : util.promisify(self.find.bind(self)),
+		findById : util.promisify(self.findById.bind(self)),
+		aggregate : util.promisify(self.aggregate.bind(self))
+	}
 }
 
 // re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
