@@ -1000,10 +1000,10 @@ This documents the addRelationship call, for specific use cases and examples ple
 These can also be specified by passing a `relationships` array to a `mongolayer.Model` constructor.
 
 * `args`
-	* `name` - `string` - `required` - The name of key where the related record will be populated and the name given to the hook created to populate the records. If type is 'single', then the id for the record is stored at [name]_id. If the type is 'multipled', then an array of ids is stored at [name]_ids.
+	* `name` - `string` - `required` - The name of key where the related record will be populated and the name given to the hook created to populate the records. If type is 'single', then the id for the record is stored at `[name]_id`. If the type is 'multipled', then an array of ids is stored at `[name]_ids`.
 	* `type` - `string` - `required` - Possible values are 'single' and 'multiple'. If `single` then each row can only have a single related record. If `multiple` then the related records will be an array.
 	* `modelName` - `string` - `required` - The name of the model that this relates to. If no name is passed when initializing the `mongolayer.Model` then modelName will be the name of the collection.
-	* `required` - boolean` - `optional` - If required then records cannot be saved unless they have an associated record(s).
+	* `required` - `boolean` - `optional` - If required then records cannot be saved unless they have an associated record(s).
 
 Example:
 
@@ -1190,7 +1190,7 @@ model.addIndex({
 
 ## Querying
 
-### model.aggregate(pipeline, options, cb
+### model.aggregate(pipeline, options, cb)
 
 Runs a aggregation query on a mongoDB collection and returns an array of objects.
 
@@ -1220,6 +1220,10 @@ model.aggregate([
 	
 });
 ```
+
+### model.promises.aggregate(filter, options)
+
+Returns a promise. Same arguments as `model.aggregate`.
 
 ### model.find(filter, options, cb)
 
@@ -1265,6 +1269,10 @@ model.find({}, { castDocs : false, fields : { _id : 1, title : 1, description : 
 });
 ```
 
+### model.promises.find(filter, options)
+
+Returns a promise. Same arguments as `model.find`.
+
 ### model.findById(id, options, cb)
 
 A shortcut for pulling down a specific document from the database.
@@ -1294,6 +1302,10 @@ model.findByid(doc._id, function(err, doc) {
 	
 });
 ```
+
+### model.promises.findById(id, options)
+
+Returns a promise. Same arguments as `model.findById`.
 
 ### model.insert(docs, options, cb)
 
