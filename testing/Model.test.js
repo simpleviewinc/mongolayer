@@ -2627,7 +2627,7 @@ describe(__filename, function() {
 				});
 				
 				it("should have working promise", async function() {
-					var result = await model.promises.find({ foo : "1" });
+					var result = await model.find({ foo : "1" });
 					assertLib.deepCheck(result, [
 						{
 							_id : mongolayer.testId("basic1"),
@@ -2637,7 +2637,7 @@ describe(__filename, function() {
 						}
 					]);
 					
-					result = await model.promises.findById(mongolayer.testId("basic1"));
+					result = await model.findById(mongolayer.testId("basic1"));
 					assertLib.deepCheck(result, {
 						_id : mongolayer.testId("basic1"),
 						foo : "1",
@@ -2645,7 +2645,7 @@ describe(__filename, function() {
 						baz : false
 					});
 					
-					result = await model.promises.aggregate([{ $match : { _id : mongolayer.testId("basic1") } }]);
+					result = await model.aggregate([{ $match : { _id : mongolayer.testId("basic1") } }]);
 					assertLib.deepCheck(result, [
 						{
 							_id : mongolayer.testId("basic1"),

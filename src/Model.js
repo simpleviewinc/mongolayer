@@ -23,6 +23,16 @@ const {
 const Document = require("./Document.js");
 const QueryLog = require("./QueryLog.js");
 
+const promiseProxy = function(cbVariant, promiseVariant) {
+	return function(...args) {
+		if (args[args.length - 1] instanceof Function) {
+			return cbVariant.apply(this, args);
+		} else {
+			return promiseVariant.apply(this, args);
+		}
+	}
+}
+
 var queryLogMock = {
 	startTimer : function() {},
 	stopTimer : function() {},
@@ -166,12 +176,6 @@ var Model = function(args) {
 	args.indexes.forEach(function(val, i) {
 		self.addIndex(val);
 	});
-	
-	self.promises = {
-		find : find.bind(self),
-		findById : util.promisify(self.findById.bind(self)),
-		aggregate : util.promisify(self.aggregate.bind(self))
-	}
 }
 
 // re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
@@ -601,63 +605,51 @@ Model.prototype.save = function(doc, options, cb) {
 	});
 }
 
-Model.prototype.aggregate = function(pipeline, options, cb) {
+async function aggregate(pipeline, options = {}) {
 	var self = this;
 	
-	cb = cb || options;
-	options = options === cb ? {} : options;
 	options.castDocs = options.castDocs !== undefined ? options.castDocs : false;
 	options.options = options.options || {};
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.aggregate);
 	
-	self._executeHooks({ type : "beforeAggregate", hooks : self._getHooksByType("beforeAggregate", options.hooks), args : { pipeline : pipeline, options : options } }, function(err, args) {
-		if (err) { return cb(err); }
-		
-		self.collection.aggregate(args.pipeline, args.options, async function(err, cursor) {
-			if (err) { return cb(err); }
-			
-			try {
-				var docs = await cursor.toArray();
-			} catch(e) {
-				return cb(e);
-			}
-			
-			self._executeHooks({ type : "afterAggregate", hooks : self._getHooksByType("afterAggregate", options.hooks), args : { pipeline : args.pipeline, options : args.options, docs : docs } }, function(err, args) {
-				if (err) { return cb(err); }
-				
-				if (args.options.virtuals !== undefined) {
-					self._executeVirtuals(args.docs, args.options.virtuals);
-				}
-				
-				if (args.options.castDocs === true) {
-					args.docs = self._castDocs(args.docs, { cloneData : false })
-				}
-				
-				if (args.options.maxSize) {
-					var size = JSON.stringify(args.docs).length;
-					if (size > args.options.maxSize) {
-						return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
-					}
-				}
-				
-				cb(null, args.docs);
-			});
-		});
-	});
+	let args;
+	args = await self._executeHooksP({ type : "beforeAggregate", hooks : self._getHooksByType("beforeAggregate", options.hooks), args : { pipeline : pipeline, options : options } });
+	
+	const cursor = self.collection.aggregate(args.pipeline, args.options);
+	const docs = await cursor.toArray();
+	
+	args = await self._executeHooksP({ type : "afterAggregate", hooks : self._getHooksByType("afterAggregate", options.hooks), args : { pipeline : args.pipeline, options : args.options, docs : docs } });
+	
+	if (args.options.virtuals !== undefined) {
+		self._executeVirtuals(args.docs, args.options.virtuals);
+	}
+	
+	if (args.options.castDocs === true) {
+		args.docs = self._castDocs(args.docs, { cloneData : false })
+	}
+	
+	if (args.options.maxSize) {
+		var size = JSON.stringify(args.docs).length;
+		if (size > args.options.maxSize) {
+			throw new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'");
+		}
+	}
+	
+	return args.docs;
 }
 
-Model.prototype.findById = function(id, options, cb) {
+const aggregateCb = util.callbackify(aggregate);
+Model.prototype.aggregate = promiseProxy(aggregateCb, aggregate);
+
+async function findById(id, options = {}) {
 	var self = this;
 	
-	cb = cb || options;
-	options = options === cb ? {} : options;
-	
-	self.find({ _id : id instanceof ObjectID ? id : new ObjectID(id) }, options, function(err, docs) {
-		if (err) { return cb(err); }
-		
-		cb(null, docs.length === 0 ? null : docs[0]);
-	});
+	const docs = await self.find({ _id : id instanceof ObjectID ? id : new ObjectID(id) }, options);
+	return docs.length === 0 ? null : docs[0];
 }
+
+const findByIdCb = util.callbackify(findById);
+Model.prototype.findById = promiseProxy(findByIdCb, findById);
 
 async function find(filter, options = {}) {
 	var self = this;
@@ -758,7 +750,8 @@ async function find(filter, options = {}) {
 	}
 }
 
-Model.prototype.find = util.callbackify(find);
+const findCb = util.callbackify(find);
+Model.prototype.find = promiseProxy(findCb, find);
 
 Model.prototype.count = function(filter, options, cb) {
 	var self = this;

@@ -10,6 +10,11 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 
 # Changelog
 
+## 5/14/2019 - 1.5
+- Updates to mongodb 3.2.4
+- `find`, `findById`, `aggregate` updated so that if you execute them without passing a callback they will now return a promise, allowing them to executed via await.
+- Removes the `promises` object, it's better when we can utilize the methods without the verbosity of having to go to `promises.method`.
+
 ## 7/21/2017 - 1.4
 - Virtuals have become a whole smarter. You can now specify a virtual field as having requiredFields and requiredHooks. If you reference that field in a find() fields obj, it will automatically include the requiredFields and hooks. This makes working with relationships and virtuals much simpler.
 - Relationships can now be executed simply by adding the field to your fields obj, without needing to ask for dependent keys and the hook. See Populating Relationships for more info.
