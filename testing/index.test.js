@@ -1,9 +1,18 @@
 var assert = require("assert");
-var mongolayer = require("../index.js");
+var mongolayer = require("../src/index.js");
 var config = require("./config.js");
 var mongodb = require("mongodb");
 var async = require("async");
-var mochaLib = require("../lib/mochaLib.js");
+const { testArray } = require("@simpleview/mochalib");
+
+const {
+	_newErrorType,
+	convertValue,
+	errors,
+	getMyHooks,
+	getMyFields,
+	prepareInsert
+} = require("../src/utils.js");
 
 describe(__filename, function() {
 	after(function(done) {
@@ -15,7 +24,7 @@ describe(__filename, function() {
 		var tests = [
 			{
 				name : "connect without a db without trailing slash",
-				defer : () => ({
+				args : () => ({
 					args : {
 						connectionString : "mongodb://127.0.0.1:27017"
 					},
@@ -24,7 +33,7 @@ describe(__filename, function() {
 			},
 			{
 				name : "connect without a db, trailing slash",
-				defer : () => ({
+				args : () => ({
 					args : {
 						connectionString : "mongodb://127.0.0.1:27017/"
 					},
@@ -33,7 +42,7 @@ describe(__filename, function() {
 			},
 			{
 				name : "connect with a db",
-				defer : () => ({
+				args : () => ({
 					args : {
 						connectionString : "mongodb://127.0.0.1:27017/mongolayer"
 					},
@@ -42,25 +51,27 @@ describe(__filename, function() {
 			}
 		]
 		
-		mochaLib.testArray(tests, function(test, done) {
-			mongolayer.connect(test.args, function(err, conn) {
-				if (test.error) {
-					assert.ok(err.message.match(test.error));
-					return done();
-				}
-				
-				assert.ifError(err);
-				
-				if (test.dbName) {
-					assert.strictEqual(conn.db.databaseName, test.dbName);
-				} else {
-					assert.strictEqual(conn.db, undefined);
-				}
-				
-				assert.strictEqual(conn._client instanceof mongodb.MongoClient, true);
-				assert.strictEqual(conn._client.isConnected(), true);
-				
-				return conn.close(done);
+		testArray(tests, function(test) {
+			return new Promise(function(resolve) {
+				mongolayer.connect(test.args, function(err, conn) {
+					if (test.error) {
+						assert.ok(err.message.match(test.error));
+						return resolve();
+					}
+					
+					assert.ifError(err);
+					
+					if (test.dbName) {
+						assert.strictEqual(conn.db.databaseName, test.dbName);
+					} else {
+						assert.strictEqual(conn.db, undefined);
+					}
+					
+					assert.strictEqual(conn._client instanceof mongodb.MongoClient, true);
+					assert.strictEqual(conn._client.isConnected(), true);
+					
+					return conn.close(resolve);
+				});
 			});
 		});
 	});
@@ -124,7 +135,7 @@ describe(__filename, function() {
 	});
 	
 	it("should _newErrorType", function(done) {
-		var NewErrorType = mongolayer._newErrorType("MyName");
+		var NewErrorType = _newErrorType("MyName");
 		
 		var err = new NewErrorType();
 		assert.ok(err instanceof Error);
@@ -141,39 +152,39 @@ describe(__filename, function() {
 	});
 	
 	it("should have errors.ValidationError", function(done) {
-		var err = new mongolayer.errors.ValidationError();
+		var err = new errors.ValidationError();
 		assert.ok(err instanceof Error);
-		assert.ok(err instanceof mongolayer.errors.ValidationError);
+		assert.ok(err instanceof errors.ValidationError);
 		done();
 	});
 	
-	describe("_prepareInsert", function() {
+	describe("prepareInsert", function() {
 		it("should pass through simple", function() {
-			assert.strictEqual(mongolayer._prepareInsert("foo"), "foo");
-			assert.strictEqual(mongolayer._prepareInsert(5), 5);
-			assert.strictEqual(mongolayer._prepareInsert(null), null);
-			assert.strictEqual(mongolayer._prepareInsert(true), true);
-			assert.strictEqual(mongolayer._prepareInsert(new Date(2001, 9, 11)).getTime(), (new Date(2001, 9, 11)).getTime());
+			assert.strictEqual(prepareInsert("foo"), "foo");
+			assert.strictEqual(prepareInsert(5), 5);
+			assert.strictEqual(prepareInsert(null), null);
+			assert.strictEqual(prepareInsert(true), true);
+			assert.strictEqual(prepareInsert(new Date(2001, 9, 11)).getTime(), (new Date(2001, 9, 11)).getTime());
 			var id = new mongolayer.ObjectId();
-			assert.strictEqual(mongolayer._prepareInsert(id).toString(), id.toString());
+			assert.strictEqual(prepareInsert(id).toString(), id.toString());
 			
 			// ensure that arrays stay as arrays and objects as objects, deepEqual cannot be relied on for this check
-			var temp = mongolayer._prepareInsert({ foo : { something : "yes" }, baz : [1,2,3] });
+			var temp = prepareInsert({ foo : { something : "yes" }, baz : [1,2,3] });
 			assert.equal(temp.baz instanceof Array, true);
 			assert.equal(temp.foo.constructor === ({}).constructor, true);
 		});
 		
 		it("should walk objects", function() {
-			assert.deepEqual(mongolayer._prepareInsert({ foo : "something", bar : "another" }), { foo : "something", bar : "another" })
-			assert.deepEqual(mongolayer._prepareInsert({ foo : "something", bar : { inner : true } }), { foo : "something", bar : { inner : true } });
+			assert.deepEqual(prepareInsert({ foo : "something", bar : "another" }), { foo : "something", bar : "another" })
+			assert.deepEqual(prepareInsert({ foo : "something", bar : { inner : true } }), { foo : "something", bar : { inner : true } });
 		});
 		
 		it("should clone objects", function() {
 			var temp = {};
-			assert.notEqual(mongolayer._prepareInsert(temp), temp);
+			assert.notEqual(prepareInsert(temp), temp);
 			
 			var full = { foo : { more : true } };
-			var temp = mongolayer._prepareInsert(full);
+			var temp = prepareInsert(full);
 			assert.notEqual(temp, full);
 			assert.notEqual(temp.foo, full.foo);
 			// proof of concept
@@ -182,34 +193,34 @@ describe(__filename, function() {
 		
 		it("should clone arrays", function() {
 			var temp = [];
-			assert.notEqual(mongolayer._prepareInsert(temp), temp);
+			assert.notEqual(prepareInsert(temp), temp);
 			
 			var full = [1,2,3];
-			var temp = mongolayer._prepareInsert(full);
+			var temp = prepareInsert(full);
 			assert.notEqual(temp, full);
 		});
 		
 		it("should 'empty' data such as empty array/object/string", function() {
-			assert.strictEqual(mongolayer._prepareInsert({}), undefined);
-			assert.strictEqual(mongolayer._prepareInsert(""), undefined);
-			assert.strictEqual(mongolayer._prepareInsert([]), undefined);
-			assert.strictEqual(mongolayer._prepareInsert({ foo : "" }), undefined);
+			assert.strictEqual(prepareInsert({}), undefined);
+			assert.strictEqual(prepareInsert(""), undefined);
+			assert.strictEqual(prepareInsert([]), undefined);
+			assert.strictEqual(prepareInsert({ foo : "" }), undefined);
 			// test a deeply nested structure which should be entirely trimmed
-			assert.strictEqual(mongolayer._prepareInsert({ foo : { bar : [{ baz : [undefined] }] }, undef : undefined }), undefined);
+			assert.strictEqual(prepareInsert({ foo : { bar : [{ baz : [undefined] }] }, undef : undefined }), undefined);
 			// test removal of array elements based on same "non-existent" idea
-			assert.deepEqual(mongolayer._prepareInsert({ foo : [1,""] }), { foo : [1] });
+			assert.deepEqual(prepareInsert({ foo : [1,""] }), { foo : [1] });
 		});
 		
 		it("should not 'empty' data such as empty array/object/string", function() {
-			assert.deepEqual(mongolayer._prepareInsert({}, false), {});
-			assert.deepEqual(mongolayer._prepareInsert([], false), []);
-			assert.strictEqual(mongolayer._prepareInsert("", false), "");
+			assert.deepEqual(prepareInsert({}, false), {});
+			assert.deepEqual(prepareInsert([], false), []);
+			assert.strictEqual(prepareInsert("", false), "");
 			
-			assert.deepEqual(mongolayer._prepareInsert({ foo : "" }, false), { foo : "" });
+			assert.deepEqual(prepareInsert({ foo : "" }, false), { foo : "" });
 			// test a deeply nested structure
-			assert.deepEqual(mongolayer._prepareInsert({ foo : { bar : [{ baz : [undefined] }] }, undef : undefined }, false), { foo : { bar : [{ baz : [] }] } });
+			assert.deepEqual(prepareInsert({ foo : { bar : [{ baz : [undefined] }] }, undef : undefined }, false), { foo : { bar : [{ baz : [] }] } });
 			// test array elements
-			assert.deepEqual(mongolayer._prepareInsert({ foo : [1,""] }, false), { foo : [1,""] });
+			assert.deepEqual(prepareInsert({ foo : [1,""] }, false), { foo : [1,""] });
 		});
 		
 		it("should not run getters or functions", function() {
@@ -224,7 +235,7 @@ describe(__filename, function() {
 				enumerable : true
 			});
 			
-			var result = mongolayer._prepareInsert(temp);
+			var result = prepareInsert(temp);
 			assert.equal(result.valid, true);
 			assert.equal(result.foo, undefined);
 			assert.equal(result.func, undefined);
@@ -250,7 +261,7 @@ describe(__filename, function() {
 			});
 			
 			var test = new Test();
-			var result = mongolayer._prepareInsert(test);
+			var result = prepareInsert(test);
 			assert.equal(result.foo, "something");
 			assert.equal(result instanceof Test, false);
 			assert.equal(result instanceof Object, true);
@@ -320,115 +331,115 @@ describe(__filename, function() {
 	
 	describe("conversion", function() {
 		it("should convertValue", function(done) {
-			var temp = mongolayer.convertValue("true", "boolean");
+			var temp = convertValue("true", "boolean");
 			assert.equal(temp, true);
 			
-			var temp = mongolayer.convertValue("false", "boolean");
+			var temp = convertValue("false", "boolean");
 			assert.equal(temp, false);
 			
-			var temp = mongolayer.convertValue("1", "boolean");
+			var temp = convertValue("1", "boolean");
 			assert.equal(temp, true);
 			
-			var temp = mongolayer.convertValue(1, "boolean");
+			var temp = convertValue(1, "boolean");
 			assert.equal(temp, true);
 			
-			var temp = mongolayer.convertValue("0", "boolean");
+			var temp = convertValue("0", "boolean");
 			assert.equal(temp, false);
 			
-			var temp = mongolayer.convertValue(0, "boolean");
+			var temp = convertValue(0, "boolean");
 			assert.equal(temp, false);
 			
-			var temp = mongolayer.convertValue("yes", "boolean");
+			var temp = convertValue("yes", "boolean");
 			assert.equal(temp, true);
 			
-			var temp = mongolayer.convertValue("no", "boolean");
+			var temp = convertValue("no", "boolean");
 			assert.equal(temp, false);
 			
-			var temp = mongolayer.convertValue("10", "number");
+			var temp = convertValue("10", "number");
 			assert.equal(temp, 10);
 			
-			var temp = mongolayer.convertValue("10.5", "number");
+			var temp = convertValue("10.5", "number");
 			assert.equal(temp, 10.5);
 			
-			var temp = mongolayer.convertValue("-100", "number");
+			var temp = convertValue("-100", "number");
 			assert.equal(temp, -100);
 			
 			var date = new Date();
-			var temp = mongolayer.convertValue(date.getTime(), "date");
+			var temp = convertValue(date.getTime(), "date");
 			assert.equal(temp.getTime(), date.getTime());
 			
-			var temp = mongolayer.convertValue(date.getTime().toString(), "date");
+			var temp = convertValue(date.getTime().toString(), "date");
 			assert.equal(temp.getTime(), date.getTime());
 			
 			var id = mongolayer.ObjectId();
 			
-			var temp = mongolayer.convertValue(id.toString(), "objectid");
+			var temp = convertValue(id.toString(), "objectid");
 			assert.equal(temp.toString(), id.toString());
 			
-			var temp = mongolayer.convertValue("foo", "string");
+			var temp = convertValue("foo", "string");
 			assert.equal(temp, "foo");
 			
-			var temp = mongolayer.convertValue("foo", "any");
+			var temp = convertValue("foo", "any");
 			assert.strictEqual(temp, "foo");
 			
-			var temp = mongolayer.convertValue(5, "any");
+			var temp = convertValue(5, "any");
 			assert.strictEqual(temp, 5);
 			
 			// ensure items which are already converted work
-			var temp = mongolayer.convertValue(5, "number");
+			var temp = convertValue(5, "number");
 			assert.equal(temp, 5);
 			
 			var tempVal = new Date();
-			var temp = mongolayer.convertValue(tempVal, "date");
+			var temp = convertValue(tempVal, "date");
 			assert.equal(temp, tempVal);
 			
 			var tempVal = new mongolayer.ObjectId();
-			var temp = mongolayer.convertValue(tempVal, "objectid");
+			var temp = convertValue(tempVal, "objectid");
 			assert.equal(temp, tempVal);
 			
 			// ensure various conditions throw errors
 			assert.throws(function() {
-				var temp = mongolayer.convertValue("foo", "fakeType");
+				var temp = convertValue("foo", "fakeType");
 			}, Error);
 			
 			assert.throws(function() {
-				var temp = mongolayer.convertValue("foo", "number");
+				var temp = convertValue("foo", "number");
 			}, Error);
 			
 			assert.throws(function() {
-				var temp = mongolayer.convertValue("foo", "date");
+				var temp = convertValue("foo", "date");
 			}, Error);
 			
 			assert.throws(function() {
-				var temp = mongolayer.convertValue("notBool", "boolean");
+				var temp = convertValue("notBool", "boolean");
 			}, Error);
 			
 			assert.throws(function() {
-				var temp = mongolayer.convertValue("foo", "objectid");
+				var temp = convertValue("foo", "objectid");
 			}, Error);
 			
 			done();
 		});
 	});
 	
-	it("should _getMyHooks", function(done) {
-		var test = mongolayer._getMyHooks("foo", [{ name : "nuts" }, { name : "foo" }, { name : "foo.bar" }, { name : "foo.bar.baz" }]);
+	it("should getMyHooks", function(done) {
+		var test = getMyHooks("foo", [{ name : "nuts" }, { name : "foo" }, { name : "foo.bar" }, { name : "foo.bar.baz" }]);
 		assert.deepStrictEqual(test, [
 			{ name : "bar" },
 			{ name : "bar.baz" }
 		]);
 
-		var test = mongolayer._getMyHooks("foo", []);
+		var test = getMyHooks("foo", []);
 		assert.deepStrictEqual(test, []);
 		
 		done();
 	});
 
-	it("should _getMyFields", function(done) {
-		var test = mongolayer._getMyFields("foo", { "nuts" : 1, "foo" : 1, "foo.bar" : 1, "foo.bar.baz" : 1 });
+	it("should getMyFields", function(done) {
+		var test = getMyFields("foo", { "nuts" : 1, "foo" : 1, "foo.bar" : 1, "foo.bar.baz" : 1 });
 		assert.deepStrictEqual(test, { "bar" : 1, "bar.baz" : 1 });
 
-		var test = mongolayer._getMyFields("foo", {});
+		var test = getMyFields("foo", {});
 		assert.deepStrictEqual(test, {});
 		
 		done();

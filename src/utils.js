@@ -1,134 +1,30 @@
-var mongodb = require("mongodb");
-var async = require("async");
-var extend = require("extend");
-var typecaster = require("typecaster");
+const { ObjectID } = require("mongodb");
+const typecaster = require("typecaster");
+const extend = require("extend");
+const async = require("async");
 
-var Connection = require("./src/Connection.js");
-var Model = require("./src/Model.js");
-var Document = require("./src/Document.js");
-var QueryLog = require("./src/QueryLog.js");
-var objectLib = require("./src/lib/objectLib.js");
-var arrayLib = require("./src/lib/arrayLib.js");
+const objectLib = require("./lib/objectLib.js");
+const arrayLib = require("./lib/arrayLib.js");
 
-var typecasterObjectIdDef = {
+const typecasterObjectIdDef = {
 	name : "objectid",
 	handler : function(data, type) {
-		if (data instanceof mongodb.ObjectID) {
+		if (data instanceof ObjectID) {
 			return data;
 		}
 		
 		try {
-			var temp = new mongodb.ObjectID(data);
+			var temp = new ObjectID(data);
 		} catch (e) {
-			throw new Error("Cannot convert '" + data + "' to mongodb.ObjectID, it's value is not a valid objectid");
+			throw new Error("Cannot convert '" + data + "' to ObjectID, it's value is not a valid objectid");
 		}
 		
 		return temp;
 	}
 }
 
-var caster = new typecaster.TypeCaster();
+const caster = new typecaster.TypeCaster();
 caster.addType(typecasterObjectIdDef);
-
-var connect = _connect.bind(null, false);
-var connectCached = _connect.bind(null, true);
-
-function _connect(cached, args, cb) {
-	var method = cached === true ? _getClientCached : _getClient;
-	
-	// parse the connectionString to detect a dbName
-	var parsed = args.connectionString.match(/mongodb:\/\/.*\/([^?]+)/);
-	if (parsed === null) {
-		return cb(new Error("You must specify a database in your connectionString."));
-	}
-	
-	var dbName = parsed[1];
-	
-	method(args, function(err, client) {
-		if (err) { return cb(err); }
-		
-		var db = client.db(dbName);
-		
-		var connection = new Connection({ db : db, logger : args.logger, client : client });
-		
-		return cb(null, connection);
-	});
-}
-
-var _getClient = function(args, cb) {
-	// args.connectionString
-	// args.options
-	
-	args.options = args.options || {};
-	args.options.useNewUrlParser = true;
-	
-	mongodb.MongoClient.connect(args.connectionString, args.options, cb);
-}
-
-var _getClientCached = async.memoize(_getClient, function() { return JSON.stringify(arguments) });
-var _clearConnectCache = function() {
-	for(var i in _getClientCached.memo) {
-		delete _getClientCached.memo[i];
-	}
-}
-
-var toPlain = function(data) {
-	if (data instanceof Array) {
-		return data.map(function(val, i) {
-			return toPlain(val);
-		});
-	}
-	
-	return extend(true, {}, data);
-}
-
-// converts incoming data to simple object literals
-// strips out {}, [], "" and undefined
-var _prepareInsert = function(data, stripEmpty) {
-	var returnData = data;
-	
-	stripEmpty = (stripEmpty === undefined) ? true : stripEmpty;
-	
-	if (data instanceof Date || data instanceof mongodb.ObjectID) {
-		// certain types are passed straight in without being unfolded
-	} else if (data instanceof Function) {
-		// Function instanceof Object so have to catch it prior to checking for Object
-		returnData = undefined;
-	} else if (data instanceof Array) {
-		returnData = data.map(function(val, i) {
-			return _prepareInsert(val, stripEmpty);
-		}).filter(function(val, i) {
-			return val !== undefined;
-		});
-		
-		if (stripEmpty && returnData.length === 0) {
-			// remove empty arrays
-			returnData = undefined;
-		}
-	} else if (data instanceof Object && data !== null) {
-		// at this point we know it's not a Date, Function, Array, ObjectId, so lets walk it
-		returnData = {};
-		Object.keys(data).forEach(function(i) {
-			// only run keys which do not have a "getter" declared
-			if (Object.getOwnPropertyDescriptor(data, i).get === undefined) {
-				var temp = _prepareInsert(data[i], stripEmpty);
-				if (temp !== undefined) {
-					returnData[i] = temp;
-				}
-			}
-		});
-		
-		if (stripEmpty && Object.keys(returnData).length === 0) {
-			// remove empty objects
-			returnData = undefined;
-		}
-	} else if (typeof data === "string" && data === "" && stripEmpty) {
-		// remove empty strings
-		returnData = undefined;
-	}
-	
-	return returnData;
-}
 
 // Converts structured data of arrays, objects of strings into meaningful primitives
 // This is required because HTTP transmits as strings, while server-side code needs primitives such as boolean, number, date and mongoid.
@@ -311,8 +207,9 @@ var _stringConvertV2_walk = function(dataObj, schemaObj) {
 	}
 }
 
+
 // gets only hooks which apply to a specific model and de-namespaces them
-var _getMyHooks = function(myKey, hooks) {
+function getMyHooks(myKey, hooks) {
 	if (hooks.length === 0) { return []; }
 	
 	var myHooks = [];
@@ -327,7 +224,7 @@ var _getMyHooks = function(myKey, hooks) {
 	return myHooks;
 }
 
-var _getMyFields = function(myKey, fields) {
+function getMyFields(myKey, fields) {
 	if (Object.keys(fields).length === 0) { return {}; }
 	
 	var myFields = {};
@@ -342,7 +239,55 @@ var _getMyFields = function(myKey, fields) {
 	return myFields;
 }
 
-var resolveRelationship = function(args, cb) {
+// converts incoming data to simple object literals
+// strips out {}, [], "" and undefined
+function prepareInsert(data, stripEmpty) {
+	var returnData = data;
+	
+	stripEmpty = (stripEmpty === undefined) ? true : stripEmpty;
+	
+	if (data instanceof Date || data instanceof ObjectID) {
+		// certain types are passed straight in without being unfolded
+	} else if (data instanceof Function) {
+		// Function instanceof Object so have to catch it prior to checking for Object
+		returnData = undefined;
+	} else if (data instanceof Array) {
+		returnData = data.map(function(val, i) {
+			return prepareInsert(val, stripEmpty);
+		}).filter(function(val, i) {
+			return val !== undefined;
+		});
+		
+		if (stripEmpty && returnData.length === 0) {
+			// remove empty arrays
+			returnData = undefined;
+		}
+	} else if (data instanceof Object && data !== null) {
+		// at this point we know it's not a Date, Function, Array, ObjectId, so lets walk it
+		returnData = {};
+		Object.keys(data).forEach(function(i) {
+			// only run keys which do not have a "getter" declared
+			if (Object.getOwnPropertyDescriptor(data, i).get === undefined) {
+				var temp = prepareInsert(data[i], stripEmpty);
+				if (temp !== undefined) {
+					returnData[i] = temp;
+				}
+			}
+		});
+		
+		if (stripEmpty && Object.keys(returnData).length === 0) {
+			// remove empty objects
+			returnData = undefined;
+		}
+	} else if (typeof data === "string" && data === "" && stripEmpty) {
+		// remove empty strings
+		returnData = undefined;
+	}
+	
+	return returnData;
+}
+
+function resolveRelationship(args, cb) {
 	// args.type - single or multiple
 	// args.leftKey - The key in our Document that points to an object in the related model
 	// args.rightKey - The key in the related model that the leftKey points to
@@ -490,7 +435,7 @@ var resolveRelationship = function(args, cb) {
 	});
 }
 
-var _newErrorType = function(name) {
+function _newErrorType(name) {
 	var CustomErrorType = function(message) {
 		if (Object.defineProperty) {
 			Object.defineProperty(this, "message", {
@@ -512,41 +457,17 @@ var _newErrorType = function(name) {
 	return CustomErrorType;
 }
 
-var errors = {
-	ValidationError : _newErrorType("ValidationError")
+module.exports = {
+	_newErrorType,
+	convertValue,
+	errors : {
+		ValidationError : _newErrorType("ValidationError")
+	},
+	getMyHooks,
+	getMyFields,
+	prepareInsert,
+	resolveRelationship,
+	stringConvert,
+	stringConvertV2,
+	typecasterObjectIdDef,
 }
-
-var testId = function(str) {
-	if (str.length > 12) { throw new Error("String must be 12 or less characters long") }
-	
-	var encoded = (new Buffer(str)).toString("hex");
-	
-	while(encoded.length < 24) {
-		encoded += "0";
-	}
-	
-	return new mongodb.ObjectID(encoded);
-}
-
-extend(module.exports, {
-	connect : connect,
-	connectCached : connectCached,
-	errors : errors,
-	_newErrorType : _newErrorType,
-	Model : Model,
-	Document : Document,
-	Connection : Connection,
-	QueryLog : QueryLog,
-	ObjectId : mongodb.ObjectID,
-	testId : testId,
-	toPlain : toPlain,
-	stringConvert : stringConvert,
-	stringConvertV2 : stringConvertV2,
-	convertValue : convertValue,
-	resolveRelationship : resolveRelationship,
-	typecasterObjectIdDef : typecasterObjectIdDef,
-	_clearConnectCache : _clearConnectCache,
-	_prepareInsert : _prepareInsert,
-	_getMyHooks : _getMyHooks,
-	_getMyFields : _getMyFields
-});

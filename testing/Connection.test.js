@@ -1,5 +1,5 @@
 var assert = require("assert");
-var mongolayer = require("../index.js");
+var mongolayer = require("../src/index.js");
 var config = require("./config.js");
 var async = require("async");
 

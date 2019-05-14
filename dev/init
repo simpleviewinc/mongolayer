@@ -1,0 +1,4 @@
+#!/bin/sh
+# start mongodb in the background
+mkdir -p /data/db
+mongod --fork --logpath /var/log/mongodb.log

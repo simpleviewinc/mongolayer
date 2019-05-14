@@ -3,14 +3,19 @@ var domain = require("domain");
 var util = require("util");
 var extend = require("extend");
 var simpleDomain = require("simple-domain");
-var mongolayer = require("../index.js");
+var mongolayer = require("../src/index.js");
 var config = require("./config.js");
-var assertLib = require("../lib/assertLib.js");
-var mochaLib = require("../lib/mochaLib.js");
+var assertLib = require("@simpleview/assertlib");
+const { testArray } = require("@simpleview/mochalib");
 
 var async = require("async");
 
 var mongoId = { type : "object", class : mongolayer.ObjectId };
+
+const {
+	errors,
+	prepareInsert
+} = require("../src/utils.js");
 
 describe(__filename, function() {
 	var conn;
@@ -276,7 +281,7 @@ describe(__filename, function() {
 		assert.strictEqual(called, 3);
 		
 		assert.deepStrictEqual(Object.keys(doc0), ["num", "_id", "foo"]);
-		var temp = mongolayer._prepareInsert(doc0);
+		var temp = prepareInsert(doc0);
 		assert.deepStrictEqual(Object.keys(temp), ["num", "_id", "foo"]);
 		
 		done();
@@ -291,7 +296,7 @@ describe(__filename, function() {
 		});
 		
 		model._validateDocData({ foo : 5 }, function(err) {
-			assert.equal(err instanceof mongolayer.errors.ValidationError, true);
+			assert.equal(err instanceof errors.ValidationError, true);
 			
 			done();
 		});
@@ -306,7 +311,7 @@ describe(__filename, function() {
 		});
 		
 		model._validateDocData({ bar : "test" }, function(err) {
-			assert.equal(err instanceof mongolayer.errors.ValidationError, true);
+			assert.equal(err instanceof errors.ValidationError, true);
 			
 			done();
 		});
@@ -572,7 +577,7 @@ describe(__filename, function() {
 		});
 		
 		var doc = new model.Document({ virtual : "virtualValue" });
-		var temp = mongolayer._prepareInsert(doc);
+		var temp = prepareInsert(doc);
 		assert.equal(temp instanceof model.Document, false);
 		// ensure the setter fired
 		assert.equal(temp.foo, "virtualValue");
@@ -1400,52 +1405,51 @@ describe(__filename, function() {
 			var tests = [
 				{
 					name : "null",
-					defer : () => ({
+					args : () => ({
 						args : null,
 						result : null
 					})
 				},
 				{
 					name : "single relationship",
-					defer : () => ({
+					args : () => ({
 						args : { "single.foo" : 1 },
 						result : null
 					})
 				},
 				{
 					name : "relationship and key",
-					defer : () => ({
+					args : () => ({
 						args : { "single.foo" : 1, "bar" : 0 },
 						result : { "bar" : 0 }
 					})
 				},
 				{
 					name : "two relationship and key",
-					defer : () => ({
+					args : () => ({
 						args : { "single.foo" : 1, "single.bogus.foo" : 1, "bar" : true },
 						result : { "bar" : true }
 					})
 				},
 				{
 					name : "virtual",
-					defer : () => ({
+					args : () => ({
 						args : { "v_1" : 1 },
 						result : null
 					})
 				},
 				{
 					name : "virtual and key",
-					defer : () => ({
+					args : () => ({
 						args : { "v_1" : 1, foo : 1 },
 						result : { foo : 1 }
 					})
 				}
 			]
 			
-			mochaLib.testArray(tests, function(test, done) {
+			testArray(tests, function(test) {
 				var result = model._getMyFindFields(test.args);
 				assert.deepStrictEqual(result, test.result);
-				return done();
 			});
 		});
 		
@@ -1645,7 +1649,7 @@ describe(__filename, function() {
 					handler : function(args, cb) {
 						assert.equal(args.doc, data[0]);
 						assert.deepStrictEqual(args.options, {
-							options : { fullResult : true },
+							options : {},
 							hooks : [{ name : "beforeInsert_process" }, { name : "afterInsert_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
 						});
 						
@@ -1664,7 +1668,7 @@ describe(__filename, function() {
 					handler : function(args, cb) {
 						assert.ok(args.doc instanceof model.Document);
 						assert.deepStrictEqual(args.options, {
-							options : { fullResult : true },
+							options : {},
 							custom : { beforePutCalled : true },
 							hooks : [{ name : "beforeInsert_process" }, { name : "afterInsert_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
 						});
@@ -2021,7 +2025,7 @@ describe(__filename, function() {
 					handler : function(args, cb) {
 						assert.equal(args.doc, data);
 						assert.deepStrictEqual(args.options, {
-							options : { fullResult : true },
+							options : {},
 							hooks : [{ name : "beforeSave_process" }, { name : "afterSave_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
 						});
 						
@@ -2040,7 +2044,7 @@ describe(__filename, function() {
 					handler : function(args, cb) {
 						assert.ok(args.doc instanceof model.Document);
 						assert.deepStrictEqual(args.options, {
-							options : { fullResult : true },
+							options : {},
 							custom : { beforePutCalled : true },
 							hooks : [{ name : "beforeSave_process" }, { name : "afterSave_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
 						});
@@ -3499,7 +3503,7 @@ describe(__filename, function() {
 			var tests = [
 				{
 					name : "simple",
-					defer : () => ({
+					args : () => ({
 						options : {
 							fields : { _id : 1 },
 							hooks : []
@@ -3519,7 +3523,7 @@ describe(__filename, function() {
 				},
 				{
 					name : "excludes id",
-					defer : () => ({
+					args : () => ({
 						options : {
 							fields : {
 								foo : 1
@@ -3543,7 +3547,7 @@ describe(__filename, function() {
 				},
 				{
 					name : "requires hooks",
-					defer : () => ({
+					args : () => ({
 						options : {
 							fields : {
 								_id : 1,
@@ -3566,7 +3570,7 @@ describe(__filename, function() {
 				},
 				{
 					name : "multiple chained dependencies",
-					defer : () => ({
+					args : () => ({
 						options : {
 							fields : {
 								v_5 : 1
@@ -3591,10 +3595,9 @@ describe(__filename, function() {
 				}
 			]
 			
-			mochaLib.testArray(tests, function(test, done) {
+			testArray(tests, function(test) {
 				var result = model._processFields(test.options);
 				assertLib.deepCheck(result, test.result);
-				return done();
 			});
 		});
 	});

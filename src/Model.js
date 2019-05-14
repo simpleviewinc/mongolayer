@@ -1,4 +1,3 @@
-var mongolayer = require("./index.js");
 var objectLib = require("./lib/objectLib.js");
 var arrayLib = require("./lib/arrayLib.js");
 
@@ -6,6 +5,23 @@ var validator = require("jsvalidator");
 var extend = require("extend");
 var async = require("async");
 var util = require("util");
+
+const {
+	ObjectID
+} = require("mongodb");
+
+const {
+	errors,
+	getMyHooks,
+	getMyFields,
+	prepareInsert,
+	resolveRelationship,
+	stringConvert,
+	stringConvertV2,
+} = require("./utils.js");
+
+const Document = require("./Document.js");
+const QueryLog = require("./QueryLog.js");
 
 var queryLogMock = {
 	startTimer : function() {},
@@ -45,7 +61,7 @@ var Model = function(args) {
 	self.collectionName = args.collection;
 	self.connected = false;
 	self.collection = null; // stores reference to MongoClient.Db.collection()
-	self.ObjectId = mongolayer.ObjectId;
+	self.ObjectId = ObjectID;
 	self.fields = {};
 	self.relationships = {};
 	self.methods = {};
@@ -97,11 +113,11 @@ var Model = function(args) {
 	self.addField({
 		name : "_id",
 		default : function(args, cb) {
-			return new mongolayer.ObjectId();
+			return new ObjectID();
 		},
 		validation : {
 			type : "class",
-			class : mongolayer.ObjectId
+			class : ObjectID
 		}
 	});
 	
@@ -234,7 +250,7 @@ Model.prototype.addVirtual = function(args) {
 				return;
 			}
 			
-			this[args.options.key] = new mongolayer.ObjectId(val);
+			this[args.options.key] = new ObjectID(val);
 		};
 	} else if (args.type === "jsonToObject") {
 		args.get = function() {
@@ -318,7 +334,7 @@ Model.prototype.addRelationship = function(args) {
 			{ name : "hookRequired", type : "boolean" },
 			{ name : "leftKey", type : "string", default : function(args) { return args.current.name + "_" + (args.current.type === "single" ? "id" : "ids") } },
 			{ name : "rightKey", type : "string", default : "_id" },
-			{ name : "rightKeyValidation", type : "object", default : { type : "class", class : mongolayer.ObjectId } }
+			{ name : "rightKeyValidation", type : "object", default : { type : "class", class : ObjectID } }
 		],
 		throwOnInvalid : true,
 		allowExtraKeys : false
@@ -355,14 +371,14 @@ Model.prototype.addRelationship = function(args) {
 		var hookArgs = extend(true, {}, args.hookArgs || {});
 		
 		// use the hookArgs fields, or cherry-pick the fields that apply to the relationship
-		newOptions.fields = hookArgs.fields !== undefined ? hookArgs.fields : mongolayer._getMyFields(objectKey, args.options.fields || {});
+		newOptions.fields = hookArgs.fields !== undefined ? hookArgs.fields : getMyFields(objectKey, args.options.fields || {});
 		// use the hookArgs hooks, or cherry-pick the hooks that apply to the relationship
-		newOptions.hooks = hookArgs.hooks !== undefined ? hookArgs.hooks : mongolayer._getMyHooks(objectKey, args.options.hooks || []);
+		newOptions.hooks = hookArgs.hooks !== undefined ? hookArgs.hooks : getMyHooks(objectKey, args.options.hooks || []);
 		// if we have fields, we pass mapDocs, it will take affect according to the state of castDocs
 		newOptions.mapDocs = hookArgs.fields !== undefined ? true : undefined;
 		newOptions.castDocs = hookArgs.castDocs !== undefined ? hookArgs.castDocs : args.options.castDocs;
 		
-		mongolayer.resolveRelationship({
+		resolveRelationship({
 			type : type,
 			leftKey : leftKey,
 			rightKey : rightKey,
@@ -476,7 +492,6 @@ Model.prototype.insert = function(docs, options, cb) {
 	
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.insert);
 	options.options = options.options || {};
-	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
 	// used in beforePut and afterPut because that hook takes a single document while insert could work on bulk
 	var callPutHook = function(args, cb) {
@@ -517,7 +532,7 @@ Model.prototype.insert = function(docs, options, cb) {
 				if (err) { return cb(err); }
 				
 				// insert the data into mongo
-				self.collection.insert(cleanDocs, args.options.options, function(err, result) {
+				self.collection.insertMany(cleanDocs, args.options.options, function(err, result) {
 					if (err) { return cb(err); }
 					
 					var castedDocs = self._castDocs(cleanDocs);
@@ -555,7 +570,6 @@ Model.prototype.save = function(doc, options, cb) {
 	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.save);
 	options.options = options.options || {};
-	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
 	self._executeHooks({ type : "beforeSave", hooks : self._getHooksByType("beforeSave", options.hooks), args : { doc : doc, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
@@ -638,7 +652,7 @@ Model.prototype.findById = function(id, options, cb) {
 	cb = cb || options;
 	options = options === cb ? {} : options;
 	
-	self.find({ _id : id instanceof mongolayer.ObjectId ? id : new mongolayer.ObjectId(id) }, options, function(err, docs) {
+	self.find({ _id : id instanceof ObjectID ? id : new ObjectID(id) }, options, function(err, docs) {
 		if (err) { return cb(err); }
 		
 		cb(null, docs.length === 0 ? null : docs[0]);
@@ -664,7 +678,7 @@ Model.prototype.find = function(filter, options, cb) {
 	var originalFields = Object.assign({}, options.fields);
 	
 	// utilize a mock when logger is disabled for performance reasons
-	var queryLog = self.connection.logger === undefined ? queryLogMock : new mongolayer.QueryLog({ type : "find", collection : self.collectionName, connection : self.connection });
+	var queryLog = self.connection.logger === undefined ? queryLogMock : new QueryLog({ type : "find", collection : self.collectionName, connection : self.connection });
 	queryLog.startTimer("command");
 	
 	var fieldResults;
@@ -799,7 +813,6 @@ Model.prototype.update = function(filter, delta, options, cb) {
 	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.update);
 	options.options = options.options || {};
-	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
 	self._executeHooks({ type : "beforeUpdate", hooks : self._getHooksByType("beforeUpdate", options.hooks), args : { filter : filter, delta: delta, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
@@ -869,7 +882,6 @@ Model.prototype.remove = function(filter, options, cb) {
 	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.remove);
 	options.options = options.options || {};
-	options.options.fullResult = true; // this option needed by mongolayer, but we wash it away so the downstream result is the same
 	
 	self._executeHooks({ type : "beforeRemove", hooks : self._getHooksByType("beforeRemove", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
@@ -877,7 +889,7 @@ Model.prototype.remove = function(filter, options, cb) {
 		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
-			self.collection.remove(args.filter, args.options.options, function(err, result) {
+			self.collection.deleteMany(args.filter, args.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
 				self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, result : result } }, function(err, args) {
@@ -905,7 +917,7 @@ Model.prototype.stringConvert = function(data) {
 	
 	var schema = self.getConvertSchema();
 	
-	return mongolayer.stringConvert(data, schema);
+	return stringConvert(data, schema);
 }
 
 Model.prototype.stringConvertV2 = function(data) {
@@ -913,7 +925,7 @@ Model.prototype.stringConvertV2 = function(data) {
 
 	var schema = self.getConvertSchemaV2();
 
-	return mongolayer.stringConvertV2(data, schema);
+	return stringConvertV2(data, schema);
 }
 
 
@@ -1183,11 +1195,11 @@ Model.prototype.processDocs = function(args, cb) {
 		// convert data to Document and back to plain to ensure virtual setters are ran and we know "simple" data is being passed to the DB
 		// this step also removes all "undefined"-y values such as [], {}, undefined, and ""
 		if (val instanceof self.Document) {
-			newData.push(mongolayer._prepareInsert(val, args.stripEmpty));
+			newData.push(prepareInsert(val, args.stripEmpty));
 		} else {
 			var temp = new self.Document(val);
 			
-			newData.push(mongolayer._prepareInsert(temp, args.stripEmpty));
+			newData.push(prepareInsert(temp, args.stripEmpty));
 		}
 	});
 	
@@ -1289,7 +1301,7 @@ Model.prototype._validateDocData = function(data, cb) {
 	});
 	
 	if (errs.length > 0) {
-		return cb(new mongolayer.errors.ValidationError("Doc failed validation. " + errs.join(" ")));
+		return cb(new errors.ValidationError("Doc failed validation. " + errs.join(" ")));
 	}
 	
 	setImmediate(cb);
@@ -1307,7 +1319,7 @@ Model.prototype._checkRequired = function(data, cb) {
 	});
 	
 	if (errs.length > 0) {
-		return cb(new mongolayer.errors.ValidationError("Doc failed validation. " + errs.join(" ")));
+		return cb(new errors.ValidationError("Doc failed validation. " + errs.join(" ")));
 	}
 	
 	setImmediate(cb);
@@ -1476,8 +1488,8 @@ var _getModelDocument = function(model) {
 		model._onInit.call(self);
 	}
 	
-	// ensure that objects created from model.Document are instanceof mongolayer.Document
-	ModelDocument.prototype = Object.create(mongolayer.Document.prototype);
+	// ensure that objects created from model.Document are instanceof Document
+	ModelDocument.prototype = Object.create(Document.prototype);
 
 	ModelDocument.prototype.toJSON = function() {
 		var self = this;
