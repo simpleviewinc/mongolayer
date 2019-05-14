@@ -3,12 +3,12 @@ var async = require("async");
 var extend = require("extend");
 var typecaster = require("typecaster");
 
-var Connection = require("./Connection.js");
-var Model = require("./Model.js");
-var Document = require("./Document.js");
-var QueryLog = require("./QueryLog.js");
-var objectLib = require("./lib/objectLib.js");
-var arrayLib = require("./lib/arrayLib.js");
+var Connection = require("./src/Connection.js");
+var Model = require("./src/Model.js");
+var Document = require("./src/Document.js");
+var QueryLog = require("./src/QueryLog.js");
+var objectLib = require("./src/lib/objectLib.js");
+var arrayLib = require("./src/lib/arrayLib.js");
 
 var typecasterObjectIdDef = {
 	name : "objectid",

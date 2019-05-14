@@ -12,7 +12,7 @@
 		"async": "*",
 		"extend": "*",
 		"jsvalidator": "*",
-		"mongodb": "3.1",
+		"mongodb": "3.2.4",
 		"typecaster": "*",
 		"simple-domain": "*"
 	},
@@ -20,7 +20,8 @@
 		"node": ">=8.10.0"
 	},
 	"scripts": {
-		"test": "./node_modules/mocha/bin/mocha $(find testing/ -name *.test.js) -R spec --colors --check-leaks --globals Promise"
+		"test": "./node_modules/mocha/bin/mocha $(find testing/ -name *.test.js) -R spec --colors --check-leaks --globals Promise",
+		"docker": "./dev/build && ./dev/run || true"
 	},
 	"repository": {
 		"type": "git",

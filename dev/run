@@ -1,0 +1,7 @@
+#!/bin/bash
+docker run --rm -it \
+	-v $PWD/src:/app/src \
+	-v $PWD/testing:/app/testing \
+	-v $PWD/package.json:/app/package.json \
+	--net="host"
+	mongolayer:local /bin/sh

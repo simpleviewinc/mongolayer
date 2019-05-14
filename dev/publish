@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+npm version $1
+npm publish --access public
