@@ -168,7 +168,7 @@ var Model = function(args) {
 	});
 	
 	self.promises = {
-		find : util.promisify(self.find.bind(self)),
+		find : find.bind(self),
 		findById : util.promisify(self.findById.bind(self)),
 		aggregate : util.promisify(self.aggregate.bind(self))
 	}
@@ -659,16 +659,13 @@ Model.prototype.findById = function(id, options, cb) {
 	});
 }
 
-Model.prototype.find = function(filter, options, cb) {
+async function find(filter, options = {}) {
 	var self = this;
 	
-	cb = cb || options;
-	
 	if (self.connected === false) {
-		return cb(new Error("Model not connected to a MongoDB database"));
+		throw new Error("Model not connected to a MongoDB database");
 	}
 	
-	options = options === cb ? {} : options;
 	options.hooks = options.hooks || self.defaultHooks.find.slice(); // clone default hooks so we don't end up with them being affected when items push on to them via fields
 	options.castDocs = options.castDocs !== undefined ? options.castDocs : true;
 	options.mapDocs = options.mapDocs !== undefined ? options.mapDocs : true;
@@ -688,86 +685,80 @@ Model.prototype.find = function(filter, options, cb) {
 	
 	options.hooks = self._normalizeHooks(options.hooks);
 	
-	self._executeHooks({ type : "beforeFind", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
-		if (err) { return cb(err); }
+	let args;
+	
+	args = await self._executeHooksP({ type : "beforeFind", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } });
+	args = await self._executeHooksP({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } });
+	
+	var rawFilter = self.connection.logger === undefined ? {} : extend(true, {}, args.filter);
+	var rawOptions = self.connection.logger === undefined ? {} : extend(true, {}, args.options);
+	
+	var findFields = self._getMyFindFields(args.options.fields);
+	
+	var cursor = self.collection.find(args.filter, args.options.options);
+	if (findFields) { cursor = cursor.project(findFields); }
+	if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
+	if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
+	if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
+	
+	const calls = [];
+	
+	const getDocsFn = async function() {
+		queryLog.startTimer("raw");
+		const docs = await cursor.toArray();
+		queryLog.stopTimer("raw");
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, function(err, args) {
-			if (err) { return cb(err); }
-			
-			var rawFilter = self.connection.logger === undefined ? {} : extend(true, {}, args.filter);
-			var rawOptions = self.connection.logger === undefined ? {} : extend(true, {}, args.options);
-			
-			var findFields = self._getMyFindFields(args.options.fields);
-			
-			var cursor = self.collection.find(args.filter, args.options.options);
-			if (findFields) { cursor = cursor.project(findFields); }
-			if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
-			if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
-			if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
-			
-			var calls = {};
-			
-			if (args.options.count === true) {
-				calls.count = function(cb) {
-					cursor.count(false, cb);
-				}
-			}
-			
-			calls.docs = function(cb) {
-				queryLog.startTimer("raw");
-				cursor.toArray(function(err, docs) {
-					if (err) { return cb(err); }
-					
-					queryLog.stopTimer("raw");
-					
-					cb(null, docs);
-				});
-			}
-			
-			async.parallel(calls, function(err, results) {
-				if (err) { return cb(err); }
-				
-				var docs = results.docs;
-				var count = results.count;
-				
-				self._executeHooks({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : docs, count : count } }, function(err, args) {
-					if (err) { return cb(err); }
-					
-					if (args.options.castDocs === true) {
-						args.docs = self._castDocs(args.docs, { cloneData : false });
-					}
-					
-					if (args.options.castDocs === false && fieldResults !== undefined && fieldResults.virtuals.length > 0) {
-						// if castDocs === false and our fields obj included any virtual fields we need to execute them to ensure they exist in the output
-						self._executeVirtuals(args.docs, fieldResults.virtuals);
-					}
-					
-					if (args.options.mapDocs === true && args.options.castDocs === false && fieldResults !== undefined && (fieldResults.fieldsAdded === true || fieldResults.virtualsAdded === true)) {
-						// if we are in a castDocs === false situation with mapDocs true (not a relationship find()), and we have added fields, we need to map them away
-						args.docs = objectLib.mongoProject(args.docs, originalFields);
-					}
-					
-					if (args.options.maxSize) {
-						var size = JSON.stringify(args.docs).length;
-						if (size > args.options.maxSize) {
-							return cb(new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'"));
-						}
-					}
-					
-					queryLog.stopTimer("command");
-					queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
-					queryLog.send();
-					
-					if (args.count !== undefined) {
-						cb(null, { count : args.count, docs : args.docs });
-					} else {
-						cb(null, args.docs);
-					}
-				});
-			});
-		});
-	});
+		return docs;
+	}
+	
+	const countFn = async function() {
+		if (args.options.count !== true) {
+			return;
+		}
+		
+		return await cursor.count(false);
+	}
+	
+	const [docs, count] = await Promise.all([
+		getDocsFn(),
+		countFn()
+	]);
+	
+	args = await self._executeHooksP({ type : "afterFind", hooks : self._getHooksByType("afterFind", args.options.hooks), args : { filter : args.filter, options : args.options, docs : docs, count : count } });
+	
+	if (args.options.castDocs === true) {
+		args.docs = self._castDocs(args.docs, { cloneData : false });
+	}
+	
+	if (args.options.castDocs === false && fieldResults !== undefined && fieldResults.virtuals.length > 0) {
+		// if castDocs === false and our fields obj included any virtual fields we need to execute them to ensure they exist in the output
+		self._executeVirtuals(args.docs, fieldResults.virtuals);
+	}
+	
+	if (args.options.mapDocs === true && args.options.castDocs === false && fieldResults !== undefined && (fieldResults.fieldsAdded === true || fieldResults.virtualsAdded === true)) {
+		// if we are in a castDocs === false situation with mapDocs true (not a relationship find()), and we have added fields, we need to map them away
+		args.docs = objectLib.mongoProject(args.docs, originalFields);
+	}
+	
+	if (args.options.maxSize) {
+		var size = JSON.stringify(args.docs).length;
+		if (size > args.options.maxSize) {
+			throw new Error("Max size of result set '" + size + "' exceeds options.maxSize of '" + args.options.maxSize + "'");
+		}
+	}
+	
+	queryLog.stopTimer("command");
+	queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
+	queryLog.send();
+	
+	if (args.count !== undefined) {
+		return { count : args.count, docs : args.docs };
+	} else {
+		return args.docs;
+	}
 }
+
+Model.prototype.find = util.callbackify(find);
 
 Model.prototype.count = function(filter, options, cb) {
 	var self = this;
@@ -1070,8 +1061,7 @@ Model.prototype._normalizeHooks = function(hooks, cb) {
 	return newHooks;
 }
 
-
-Model.prototype._executeHooks = function(args, cb) {
+async function _executeHooks(args) {
 	var self = this;
 	
 	// args.hooks
@@ -1106,29 +1096,29 @@ Model.prototype._executeHooks = function(args, cb) {
 	
 	// no hooks to run, short circuit out
 	if (hooks.length === 0) {
-		return cb(null, state);
+		return state;
 	}
 	
 	var calls = [];
-	hooks.forEach(function(val, i) {
-		calls.push(function(cb) {
+	for(let [key, val] of Object.entries(hooks)) {
+		await new Promise(function(resolve, reject) {
 			state.hookArgs = val.requestedHook.args;
 			val.hook.handler(state, function(err, temp) {
-				if (err) { return cb(err); }
+				if (err) { return reject(err); }
 				
 				state = temp;
 				
-				cb(null);
+				resolve();
 			});
 		});
-	});
+	}
 	
-	async.series(calls, function(err) {
-		if (err) { return cb(err); }
-		
-		cb(null, state);
-	});
+	return state;
 }
+
+Model.prototype._executeHooksP = _executeHooks;
+
+Model.prototype._executeHooks = util.callbackify(_executeHooks);
 
 var _getMyFindFields_regex = /^(\w+?)\./;
 Model.prototype._getMyFindFields = function(fields) {

@@ -1163,24 +1163,9 @@ describe(__filename, function() {
 		});
 		
 		it("should _executeHooks and throw if hook doesn't exist", function(done) {
-			var d = domain.create();
-			
-			d.on("error", function(err) {
+			model._executeHooks({ type : "beforeFind", hooks : [{ name : "bogus" }], args : { data : [] } }, function(err, args) {
 				assert.ok(err.message.match(/Hook 'bogus' of type 'beforeFind' was requested but does not exist/));
-				
-				d.exit();
-				
-				process.nextTick(function() {
-					done();
-				});
-			});
-			
-			d.run(function() {
-				process.nextTick(function() {
-					model._executeHooks({ type : "beforeFind", hooks : [{ name : "bogus" }], args : { data : [] } }, function(err, args) {
-						throw new Error("Should never get here");
-					});
-				});
+				return done();
 			});
 		});
 	});
