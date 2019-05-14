@@ -2,10 +2,10 @@
 	"name": "mongolayer",
 	"description": "MongoDB model layer with validation and hooks, similar to Mongoose but thinner.",
 	"author": "Owen Allen <owenallenaz@gmail.com>",
-	"version": "1.4.6",
+	"version": "1.5.0",
 	"devDependencies": {
-		"@simpleview/assertlib" : "^1.0.1",
-		"@simpleview/mochalib" : "^1.0.1",
+		"@simpleview/assertlib": "^1.0.1",
+		"@simpleview/mochalib": "^1.0.1",
 		"mocha": "^6.1.4",
 		"simple-domain": "*"
 	},
