@@ -75,7 +75,7 @@ var toPlain = function(data) {
 var testId = function(str) {
 	if (str.length > 12) { throw new Error("String must be 12 or less characters long") }
 	
-	var encoded = (new Buffer(str)).toString("hex");
+	var encoded = Buffer.from(str).toString("hex");
 	
 	while(encoded.length < 24) {
 		encoded += "0";
