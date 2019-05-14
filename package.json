@@ -22,7 +22,8 @@
 	},
 	"scripts": {
 		"test": "mocha $(find testing/ -name *.test.js) -R spec --colors --check-leaks --globals Promise",
-		"docker": "./dev/build && ./dev/run || true"
+		"docker": "./dev/build && ./dev/run || true",
+		"publish": "./dev/publish"
 	},
 	"repository": {
 		"type": "git",
