@@ -295,11 +295,11 @@ describe(__filename, function() {
 			]
 		});
 		
-		model._validateDocData({ foo : 5 }, function(err) {
-			assert.equal(err instanceof errors.ValidationError, true);
-			
-			done();
-		});
+		assert.throws(function() {
+			model._validateDocData({ foo : 5 });
+		}, errors.ValidationError);
+		
+		return done();
 	});
 	
 	it("should _validateDocData and fail on invalid column", function(done) {
@@ -310,11 +310,11 @@ describe(__filename, function() {
 			]
 		});
 		
-		model._validateDocData({ bar : "test" }, function(err) {
-			assert.equal(err instanceof errors.ValidationError, true);
-			
-			done();
-		});
+		assert.throws(function() {
+			model._validateDocData({ bar : "test" });
+		}, errors.ValidationError);
+		
+		return done();
 	});
 	
 	it("should _validateDocData and succeed on valid type", function(done) {
@@ -325,11 +325,8 @@ describe(__filename, function() {
 			]
 		});
 		
-		model._validateDocData({ foo : "something" }, function(err) {
-			assert.equal(err, null);
-			
-			done();
-		});
+		model._validateDocData({ foo : "something" });
+		return done();
 	});
 	
 	it("should _validateDocData and allowExtraKeys", function(done) {
@@ -339,13 +336,10 @@ describe(__filename, function() {
 		});
 		
 		var data = { fake : "something" };
-		model._validateDocData({ fake : "something" }, function(err) {
-			assert.ifError(err);
-			
-			assert.strictEqual(data.fake, "something");
-			
-			done();
-		});
+		model._validateDocData({ fake : "something" });
+		assert.strictEqual(data.fake, "something");
+		
+		return done();
 	});
 	
 	it("should _validateDocData and deleteExtraKeys", function(done) {
@@ -358,14 +352,12 @@ describe(__filename, function() {
 		});
 		
 		var data = { foo : "something", fake : "somethingElse" };
-		model._validateDocData(data, function(err) {
-			assert.ifError(err);
-			
-			assert.strictEqual(data.foo, "something");
-			assert.strictEqual(data.fake, undefined);
-			
-			done();
-		});
+		model._validateDocData(data);
+		
+		assert.strictEqual(data.foo, "something");
+		assert.strictEqual(data.fake, undefined);
+		
+		return done();
 	});
 	
 	it("should _fillDocDefaults", function(done) {
@@ -408,11 +400,11 @@ describe(__filename, function() {
 			]
 		});
 		
-		model._checkRequired({ foo : "fooValue" }, function(err) {
-			assert.equal(err instanceof Error, true);
-			
-			done();
-		});
+		assert.throws(function() {
+			model._checkRequired({ foo : "fooValue" });
+		}, /ValidationError: Doc failed validation. Column 'bar' is required and not provided./);
+		
+		return done();
 	});
 	
 	it("should processDocs and run validation and defaults and required", function(done) {
@@ -427,46 +419,27 @@ describe(__filename, function() {
 		
 		var args = { validate : true, checkRequired : true };
 		
-		async.series([
-			function(cb) {
-				// should fail required
-				args.data = [{ foo : "something" }];
-				
-				model.processDocs(args, function(err, cleanDocs) {
-					assert.equal(err instanceof Error, true);
-					assert.equal(cleanDocs, undefined);
-					
-					cb(null);
-				});
-			},
-			function(cb) {
-				// should have default rolled in
-				args.data = [{ foo : "something", bar : true }];
-				
-				model.processDocs(args, function(err, cleanDocs) {
-					assert.ifError(err);
-					
-					assert.equal(cleanDocs[0].baz, 5);
-					
-					cb(null);
-				});
-			},
-			function(cb) {
-				// should fail validation
-				args.data = [{ foo : "something", bar : "false" }];
-				
-				model.processDocs(args, function(err, cleanDocs) {
-					assert.equal(err instanceof Error, true);
-					assert.equal(cleanDocs, undefined);
-					
-					cb(null);
-				});
-			}
-		], function(err) {
-			assert.ifError(err);
-			
-			done();
-		});
+		// should fail required
+		args.data = [{ foo : "something" }];
+		
+		assert.throws(function() {
+			model.processDocs(args);
+		}, /Doc failed validation. Column 'bar' is required and not provided./);
+
+		// should have default rolled in
+		args.data = [{ foo : "something", bar : true }];
+		
+		var cleanDocs = model.processDocs(args);
+		assert.equal(cleanDocs[0].baz, 5);
+		
+		// should fail validation
+		args.data = [{ foo : "something", bar : "false" }];
+		
+		assert.throws(function() {
+			model.processDocs(args);
+		}, /ValidationError: Doc failed validation. Column 'bar' is not of valid type 'boolean'. Validation Error is: 'Field should be type 'boolean' but is type 'string'. Value is "false".'/);
+		
+		return done();
 	});
 	
 	it("should processDocs and fail if document errors", function(done) {
@@ -481,12 +454,11 @@ describe(__filename, function() {
 		var test = { foo : 5 };
 		var test2 = { foo : "something" };
 		
-		model.processDocs({ data : [test, test2], validate : true }, function(err, cleanDocs) {
-			assert.equal(err instanceof Error, true);
-			assert.equal(cleanDocs, undefined);
-			
-			done();
-		});
+		assert.throws(function() {
+			model.processDocs({ data : [test, test2], validate : true });
+		}, /ValidationError: Doc failed validation. Column 'foo' is not of valid type 'string'. Validation Error is: 'Field should be type 'string' but is type 'number'. Value is 5.'/);
+		
+		return done();
 	});
 	
 	it("should addHook", function(done) {
@@ -644,7 +616,7 @@ describe(__filename, function() {
 				conn.add({ model : model }, cb);
 			},
 			function(cb) {
-				model.collection.dropAllIndexes(cb);
+				model.collection.dropIndexes(cb);
 			},
 			function(cb) {
 				model.createIndexes(cb);
@@ -2010,7 +1982,7 @@ describe(__filename, function() {
 					handler : function(args, cb) {
 						assert.equal(args.doc, data);
 						assert.deepStrictEqual(args.options, {
-							options : {},
+							options : { upsert : true },
 							hooks : [{ name : "beforeSave_process" }, { name : "afterSave_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
 						});
 						
@@ -2029,7 +2001,7 @@ describe(__filename, function() {
 					handler : function(args, cb) {
 						assert.ok(args.doc instanceof model.Document);
 						assert.deepStrictEqual(args.options, {
-							options : {},
+							options : { upsert : true },
 							custom : { beforePutCalled : true },
 							hooks : [{ name : "beforeSave_process" }, { name : "afterSave_process" }, { name : "beforePut_beforePut" }, { name : "afterPut_afterPut" }]
 						});

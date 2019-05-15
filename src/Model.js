@@ -532,23 +532,26 @@ Model.prototype.insert = function(docs, options, cb) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self.processDocs({ data : args.docs, validate : true, checkRequired : true, stripEmpty : args.options.stripEmpty }, function(err, cleanDocs) {
+			let cleanDocs;
+			try {
+				cleanDocs = self.processDocs({ data : args.docs, validate : true, checkRequired : true, stripEmpty : args.options.stripEmpty });
+			} catch(e) {
+				return cb(e);
+			}
+			
+			// insert the data into mongo
+			self.collection.insertMany(cleanDocs, args.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
-				// insert the data into mongo
-				self.collection.insertMany(cleanDocs, args.options.options, function(err, result) {
+				var castedDocs = self._castDocs(cleanDocs);
+				
+				callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs, options : args.options }, function(err, args) {
 					if (err) { return cb(err); }
 					
-					var castedDocs = self._castDocs(cleanDocs);
-					
-					callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs, options : args.options }, function(err, args) {
+					self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : args.docs, options : args.options } }, function(err, args) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : args.docs, options : args.options } }, function(err, args) {
-							if (err) { return cb(err); }
-							
-							cb(null, isArray ? args.docs : args.docs[0], args.result);
-						});
+						cb(null, isArray ? args.docs : args.docs[0], args.result);
 					});
 				});
 			});
@@ -574,6 +577,7 @@ Model.prototype.save = function(doc, options, cb) {
 	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.save);
 	options.options = options.options || {};
+	options.options.upsert = true;
 	
 	self._executeHooks({ type : "beforeSave", hooks : self._getHooksByType("beforeSave", options.hooks), args : { doc : doc, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
@@ -582,22 +586,25 @@ Model.prototype.save = function(doc, options, cb) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
-			self.processDocs({ data : [args.doc], validate : true, checkRequired : true, stripEmpty : args.options.stripEmpty }, function(err, cleanDocs) {
+			let cleanDocs;
+			try {
+				cleanDocs = self.processDocs({ data : [args.doc], validate : true, checkRequired : true, stripEmpty : args.options.stripEmpty });
+			} catch(e) {
+				return cb(e);
+			}
+			
+			self.collection.replaceOne({ _id : cleanDocs[0]._id }, cleanDocs[0], args.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
-				self.collection.save(cleanDocs[0], args.options.options, function(err, result) {
+				var castedDoc = self._castDocs(cleanDocs)[0];
+				
+				self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc, options : args.options } }, function(err, args) {
 					if (err) { return cb(err); }
 					
-					var castedDoc = self._castDocs(cleanDocs)[0];
-					
-					self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc, options : args.options } }, function(err, args) {
+					self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : args.doc, options : args.options } }, function(err, args) {
 						if (err) { return cb(err); }
 						
-						self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : args.doc, options : args.options } }, function(err, args) {
-							if (err) { return cb(err); }
-							
-							cb(null, castedDoc, args.result);
-						});
+						cb(null, castedDoc, args.result);
 					});
 				});
 			});
@@ -772,7 +779,7 @@ Model.prototype.count = function(filter, options, cb) {
 		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
-			self.collection.count(args.filter, args.options.options, function(err, count) {
+			self.collection.countDocuments(args.filter, args.options.options, function(err, count) {
 				if (err) { return cb(err); }
 				
 				self._executeHooks({ type : "afterCount", hooks : self._getHooksByType("afterCount", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
@@ -804,49 +811,58 @@ Model.prototype.update = function(filter, delta, options, cb) {
 		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", options.hooks), args : { filter : filter, options : options } }, function(err, tempArgs) {
 			if (err) { return cb(err); }
 			
-			var calls = [];
+			let hasOps = true;
 			
 			if (Object.keys(args.delta).filter(function(val, i) { return val.match(/^\$/) !== null }).length === 0) {
+				hasOps = false;
 				// no $ operators at the root level, validate the whole delta
-				calls.push(function(cb) {
-					self.processDocs({ data : [args.delta], validate : true, checkRequired : true, stripEmpty : options.stripEmpty }, function(err, cleanDocs) {
-						if (err) { return cb(err); }
-						
-						args.delta = cleanDocs[0];
-						
-						// update delta cannot modify _id
-						delete args.delta._id;
-						
-						cb(null);
-					});
-				});
+				let cleanDocs;
+				try {
+					cleanDocs = self.processDocs({ data : [args.delta], validate : true, checkRequired : true, stripEmpty : options.stripEmpty });
+				} catch(e) {
+					return cb(e);
+				}
+				
+				args.delta = cleanDocs[0];
+				
+				// update delta cannot modify _id
+				delete args.delta._id;
 			} else {
 				if (args.delta["$set"] !== undefined) {
 					// validate the $set argument
-					calls.push(function(cb) {
-						self._validateDocData(args.delta["$set"], cb);
-					});
+					try {
+						self._validateDocData(args.delta["$set"]);
+					} catch(e) {
+						return cb(e);
+					}
 				}
 				
 				if (args.delta["$setOnInsert"] !== undefined) {
 					// validate the $setOnInsert argument
-					calls.push(function(cb) {
-						self._validateDocData(args.delta["$setOnInsert"], cb);
-					});
+					try {
+						self._validateDocData(args.delta["$setOnInsert"]);
+					} catch(e) {
+						return cb(e);
+					}
 				}
 			}
 			
-			async.series(calls, function(err) {
+			// The old update() syntax supported 3 patterns, update one item, update many items, or fully replace an item
+			// if the delta has no ops, it's a replace, if it has multi true, it's updateMany, if it has neither it's updateOne
+			const method =
+				hasOps === false ? "replaceOne"
+				: tempArgs.options.options.multi === true ? "updateMany"
+				: "updateOne"
+			;
+			
+			delete tempArgs.options.options.multi;
+			self.collection[method](tempArgs.filter, args.delta, tempArgs.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
-				self.collection.update(tempArgs.filter, args.delta, tempArgs.options.options, function(err, result) {
+				self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result } }, function(err, args) {
 					if (err) { return cb(err); }
 					
-					self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result } }, function(err, args) {
-						if (err) { return cb(err); }
-						
-						cb(null, args.result);
-					});
+					cb(null, args.result);
 				});
 			});
 		});
@@ -1155,7 +1171,7 @@ Model.prototype._castDocs = function(docs, options) {
 }
 
 // Validate and fill defaults into an array of documents. If one document fails it will cb an error
-Model.prototype.processDocs = function(args, cb) {
+Model.prototype.processDocs = function(args) {
 	var self = this;
 	
 	validator.validate(args, {
@@ -1169,9 +1185,6 @@ Model.prototype.processDocs = function(args, cb) {
 		allowExtraKeys : false,
 		throwOnInvalid : true
 	});
-	
-	var calls = [];
-	var noop = function(cb) { cb(null); }
 	
 	var newData = [];
 	args.data.forEach(function(val, i) {
@@ -1187,49 +1200,19 @@ Model.prototype.processDocs = function(args, cb) {
 	});
 	
 	newData.forEach(function(val, i) {
-		calls.push(function(cb) {
-			if (args.validate === true) {
-				var call = function(cb) {
-					self._validateDocData(val, cb);
-				}
-			} else {
-				var call = noop;
-			}
-			
-			call(function(err) {
-				if (err) {
-					err.message = util.format("Document %s. %s", i, err.message);
-					return cb(err);
-				}
-				
-				if (args.checkRequired === true) {
-					var call = function(cb) {
-						self._checkRequired(val, cb);
-					}
-				} else {
-					var call = noop;
-				}
-				
-				call(function(err) {
-					if (err) {
-						err.message = util.format("Document %s. %s", i, err.message);
-						return cb(err);
-					}
-					
-					setImmediate(cb);
-				});
-			});
-		});
+		if (args.validate === true) {
+			self._validateDocData(val);
+		}
+		
+		if (args.checkRequired === true) {
+			self._checkRequired(val);
+		}
 	});
 	
-	async.series(calls, function(err) {
-		if (err) { return cb(err); }
-		
-		cb(null, newData);
-	});
+	return newData;
 }
 
-Model.prototype._validateDocData = function(data, cb) {
+Model.prototype._validateDocData = function(data) {
 	var self = this;
 	
 	var errs = [];
@@ -1284,13 +1267,11 @@ Model.prototype._validateDocData = function(data, cb) {
 	});
 	
 	if (errs.length > 0) {
-		return cb(new errors.ValidationError("Doc failed validation. " + errs.join(" ")));
+		throw new errors.ValidationError("Doc failed validation. " + errs.join(" "));
 	}
-	
-	setImmediate(cb);
 }
 
-Model.prototype._checkRequired = function(data, cb) {
+Model.prototype._checkRequired = function(data) {
 	var self = this;
 	
 	var errs = [];
@@ -1302,10 +1283,8 @@ Model.prototype._checkRequired = function(data, cb) {
 	});
 	
 	if (errs.length > 0) {
-		return cb(new errors.ValidationError("Doc failed validation. " + errs.join(" ")));
+		throw new errors.ValidationError("Doc failed validation. " + errs.join(" "));
 	}
-	
-	setImmediate(cb);
 }
 
 Model.prototype._fillDocDefaults = function(data) {
