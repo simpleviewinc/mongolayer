@@ -23,16 +23,6 @@ const {
 const Document = require("./Document.js");
 const QueryLog = require("./QueryLog.js");
 
-const promiseProxy = function(cbVariant, promiseVariant) {
-	return function(...args) {
-		if (args[args.length - 1] instanceof Function) {
-			return cbVariant.apply(this, args);
-		} else {
-			return promiseVariant.apply(this, args);
-		}
-	}
-}
-
 var queryLogMock = {
 	startTimer : function() {},
 	stopTimer : function() {},
@@ -176,6 +166,19 @@ var Model = function(args) {
 	args.indexes.forEach(function(val, i) {
 		self.addIndex(val);
 	});
+	
+	self.promises = {
+		find : find.bind(self),
+		findById : findById.bind(self),
+		aggregate : aggregate.bind(self),
+		insert : util.promisify(insert).bind(self),
+		save : util.promisify(save).bind(self),
+		count : util.promisify(self.count).bind(self),
+		update : util.promisify(self.update).bind(self),
+		remove : util.promisify(self.remove).bind(self),
+		removeAll : util.promisify(self.removeAll).bind(self),
+		createIndexes : util.promisify(self.createIndexes).bind(self)
+	}
 }
 
 // re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
@@ -476,7 +479,7 @@ Model.prototype.addHook = function(args, cb) {
 	self.hooks[args.type][args.name] = args;
 }
 
-Model.prototype.insert = function(docs, options, cb) {
+function insert(docs, options, cb) {
 	var self = this;
 	
 	// if no options, callback is options
@@ -559,7 +562,21 @@ Model.prototype.insert = function(docs, options, cb) {
 	});
 }
 
-Model.prototype.save = function(doc, options, cb) {
+insert[util.promisify.custom] = function(...args) {
+	var self = this;
+	
+	return new Promise(function(resolve, reject) {
+		self.insert(...args, function(err, ignored, result) {
+			if (err) { return reject(err); }
+			
+			return resolve(result);
+		});
+	});
+}
+
+Model.prototype.insert = insert;
+
+function save(doc, options, cb) {
 	var self = this;
 	
 	// if no options, callback is options
@@ -612,6 +629,20 @@ Model.prototype.save = function(doc, options, cb) {
 	});
 }
 
+save[util.promisify.custom] = function(...args) {
+	var self = this;
+	
+	return new Promise(function(resolve, reject) {
+		self.save(...args, function(err, ignored, result) {
+			if (err) { return reject(err); }
+			
+			return resolve(result);
+		});
+	});
+}
+
+Model.prototype.save = save;
+
 async function aggregate(pipeline, options = {}) {
 	var self = this;
 	
@@ -645,18 +676,16 @@ async function aggregate(pipeline, options = {}) {
 	return args.docs;
 }
 
-const aggregateCb = util.callbackify(aggregate);
-Model.prototype.aggregate = promiseProxy(aggregateCb, aggregate);
+Model.prototype.aggregate = util.callbackify(aggregate);
 
 async function findById(id, options = {}) {
 	var self = this;
 	
-	const docs = await self.find({ _id : id instanceof ObjectID ? id : new ObjectID(id) }, options);
+	const docs = await self.promises.find({ _id : id instanceof ObjectID ? id : new ObjectID(id) }, options);
 	return docs.length === 0 ? null : docs[0];
 }
 
-const findByIdCb = util.callbackify(findById);
-Model.prototype.findById = promiseProxy(findByIdCb, findById);
+Model.prototype.findById = util.callbackify(findById);
 
 async function find(filter, options = {}) {
 	var self = this;
@@ -757,8 +786,7 @@ async function find(filter, options = {}) {
 	}
 }
 
-const findCb = util.callbackify(find);
-Model.prototype.find = promiseProxy(findCb, find);
+Model.prototype.find = util.callbackify(find);
 
 Model.prototype.count = function(filter, options, cb) {
 	var self = this;

@@ -10,6 +10,9 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 
 # Changelog
 
+## 5/16/2019 - 1.5.1
+- Adds back the `promises` object to maintain consistency with the Node core strategy of exposing `promises` object. Adds support for all async methods on the `Model`.
+
 ## 5/14/2019 - 1.5
 - Updates to mongodb 3.2.4
 - `find`, `findById`, `aggregate` updated so that if you execute them without passing a callback they will now return a promise, allowing them to executed via await.
