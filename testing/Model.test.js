@@ -675,6 +675,19 @@ describe(__filename, function() {
 		});
 	});
 	
+	it("should have valid callbackified functions", function() {
+		var model = new mongolayer.Model({
+			collection : "foo"
+		});
+		
+		var functions = ["find", "findById", "insert", "update", "save", "aggregate", "remove"];
+		
+		functions.forEach(function(val, i) {
+			assert.strictEqual(model[val].constructor.name, "Function");
+			assert.notStrictEqual(model[val][Symbol.toStringTag], "AsyncFunction");
+		});
+	});
+	
 	describe("conversion", function() {
 		var model;
 		

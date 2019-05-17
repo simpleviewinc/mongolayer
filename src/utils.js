@@ -2,6 +2,7 @@ const { ObjectID } = require("mongodb");
 const typecaster = require("typecaster");
 const extend = require("extend");
 const async = require("async");
+const util = require("util");
 
 const objectLib = require("./lib/objectLib.js");
 const arrayLib = require("./lib/arrayLib.js");
@@ -457,8 +458,16 @@ function _newErrorType(name) {
 	return CustomErrorType;
 }
 
+function callbackify(fn) {
+	const newFn = util.callbackify(fn);
+	return function(...args) {
+		return newFn.call(this, ...args);
+	}
+}
+
 module.exports = {
 	_newErrorType,
+	callbackify,
 	convertValue,
 	errors : {
 		ValidationError : _newErrorType("ValidationError")

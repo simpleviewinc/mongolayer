@@ -11,6 +11,7 @@ const {
 } = require("mongodb");
 
 const {
+	callbackify,
 	errors,
 	getMyHooks,
 	getMyFields,
@@ -676,7 +677,7 @@ async function aggregate(pipeline, options = {}) {
 	return args.docs;
 }
 
-Model.prototype.aggregate = util.callbackify(aggregate);
+Model.prototype.aggregate = callbackify(aggregate);
 
 async function findById(id, options = {}) {
 	var self = this;
@@ -685,7 +686,7 @@ async function findById(id, options = {}) {
 	return docs.length === 0 ? null : docs[0];
 }
 
-Model.prototype.findById = util.callbackify(findById);
+Model.prototype.findById = callbackify(findById);
 
 async function find(filter, options = {}) {
 	var self = this;
@@ -786,7 +787,7 @@ async function find(filter, options = {}) {
 	}
 }
 
-Model.prototype.find = util.callbackify(find);
+Model.prototype.find = callbackify(find);
 
 Model.prototype.count = function(filter, options, cb) {
 	var self = this;
@@ -1155,7 +1156,7 @@ async function _executeHooks(args) {
 
 Model.prototype._executeHooksP = _executeHooks;
 
-Model.prototype._executeHooks = util.callbackify(_executeHooks);
+Model.prototype._executeHooks = callbackify(_executeHooks);
 
 var _getMyFindFields_regex = /^(\w+?)\./;
 Model.prototype._getMyFindFields = function(fields) {
