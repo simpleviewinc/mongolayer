@@ -2435,6 +2435,21 @@ describe(__filename, function() {
 					});
 				});
 				
+				it("should find with count with filter", function(done) {
+					model.find({ foo : "2" }, { fields : { _id : 0 }, count : true }, function(err, result) {
+						assert.ifError(err);
+						
+						assertLib.deepCheck(result, {
+							count : 1,
+							docs : [
+								{ baz : false, foo : "2" }
+							]
+						});
+						
+						return done();
+					});
+				});
+				
 				it("should run beforeFind and afterFind hooks on find", function(done) {
 					model.addHook({
 						name : "before",

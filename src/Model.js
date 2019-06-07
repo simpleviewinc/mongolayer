@@ -745,7 +745,7 @@ async function find(filter, options = {}) {
 			return;
 		}
 		
-		return await cursor.count(false);
+		return await self.collection.countDocuments(args.filter);
 	}
 	
 	const [docs, count] = await Promise.all([
