@@ -1,6 +1,10 @@
 var async = require("async");
 var validator = require("jsvalidator");
 
+const {
+	callbackify
+} = require("./utils.js");
+
 var Connection = function(args) {
 	var self = this;
 	
@@ -12,9 +16,13 @@ var Connection = function(args) {
 	
 	self._models = {}; // store arguments of Connection.add()
 	self._client = args.client;
+	
+	self.promises = {
+		add : add.bind(self)
+	}
 }
 
-Connection.prototype.add = function(args, cb) {
+async function add(args) {
 	var self = this;
 	
 	// args.model
@@ -23,24 +31,16 @@ Connection.prototype.add = function(args, cb) {
 	args.createIndexes = args.createIndexes === undefined ? true : args.createIndexes;
 	args.model._setConnection({ connection : self });
 	
-	var calls = [];
-	
 	// allow option to disable createIndexes on add for performance
 	if (args.createIndexes === true) {
-		calls.push(function(cb) {
-			args.model.createIndexes(cb);
-		});
+		await args.model.promises.createIndexes();
 	}
 	
-	async.series(calls, function(err) {
-		if (err) { return cb(err); }
-		
-		self.models[args.model.name] = args.model;
-		self._models[args.model.name] = args;
-		
-		cb(null);
-	});
+	self.models[args.model.name] = args.model;
+	self._models[args.model.name] = args;
 }
+
+Connection.prototype.add = callbackify(add);
 
 Connection.prototype.remove = function(args, cb) {
 	var self = this;
