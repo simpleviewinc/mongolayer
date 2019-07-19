@@ -11,7 +11,10 @@ var Model = require("./Model.js");
 var Document = require("./Document.js");
 var QueryLog = require("./QueryLog.js");
 
+const pMemoize = require("p-memoize");
+
 const {
+	callbackify,
 	convertValue,
 	errors,
 	resolveRelationship,
@@ -20,46 +23,39 @@ const {
 	typecasterObjectIdDef
 } = require("./utils.js");
 
-var connect = _connect.bind(null, false);
-var connectCached = _connect.bind(null, true);
+const connect = _connect.bind(null, false);
+const connectCached = _connect.bind(null, true);
 
-function _connect(cached, args, cb) {
-	var method = cached === true ? _getClientCached : _getClient;
+async function _connect(cached, args) {
+	const method = cached === true ? _getClientCached : _getClient;
 	
 	// parse the connectionString to detect a dbName
-	var parsed = args.connectionString.match(/mongodb:\/\/.*\/([^?]+)/);
+	const parsed = args.connectionString.match(/mongodb:\/\/.*\/([^?]+)/);
 	if (parsed === null) {
-		return cb(new Error("You must specify a database in your connectionString."));
+		throw new Error("You must specify a database in your connectionString.");
 	}
 	
-	var dbName = parsed[1];
+	const dbName = parsed[1];
+	const client = await method(args);
+	const db = client.db(dbName);
+	const connection = new Connection({ db : db, logger : args.logger, client : client });
 	
-	method(args, function(err, client) {
-		if (err) { return cb(err); }
-		
-		var db = client.db(dbName);
-		
-		var connection = new Connection({ db : db, logger : args.logger, client : client });
-		
-		return cb(null, connection);
-	});
+	return connection;
 }
 
-var _getClient = function(args, cb) {
+var _getClient = function(args) {
 	// args.connectionString
 	// args.options
 	
 	args.options = args.options || {};
 	args.options.useNewUrlParser = true;
 	
-	MongoClient.connect(args.connectionString, args.options, cb);
+	return MongoClient.connect(args.connectionString, args.options);
 }
 
-var _getClientCached = async.memoize(_getClient, function() { return JSON.stringify(arguments) });
+var _getClientCached = pMemoize(_getClient);
 var _clearConnectCache = function() {
-	for(var i in _getClientCached.memo) {
-		delete _getClientCached.memo[i];
-	}
+	pMemoize.clear(_getClientCached);
 }
 
 var toPlain = function(data) {
@@ -85,8 +81,8 @@ var testId = function(str) {
 }
 
 module.exports = {
-	connect,
-	connectCached,
+	connect : callbackify(connect),
+	connectCached : callbackify(connectCached),
 	errors,
 	Model,
 	Document,
@@ -100,5 +96,9 @@ module.exports = {
 	convertValue,
 	resolveRelationship,
 	typecasterObjectIdDef,
-	_clearConnectCache
+	_clearConnectCache,
+	promises : {
+		connect,
+		connectCached
+	}
 };

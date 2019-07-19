@@ -10,6 +10,9 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 
 # Changelog
 
+## 7/19/2019 - 1.5.7
+- Adds `Connection.promises.add`, `mongolayer.promises.connect`, `mongolayer.promises.connectCached`.
+
 ## 5/16/2019 - 1.5.2
 - Adds back the `promises` object to maintain consistency with the Node core strategy of exposing `promises` object. Adds support for all async methods on the `Model`.
 
