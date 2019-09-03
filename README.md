@@ -10,6 +10,9 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 
 # Changelog
 
+## 9/3/2019 - 1.5.8
+- Adds `options.context` for passing state to all descendent hooks. Needed for handling conditions where variables need to be available in the top level hook, and in the nested relationship hooks.
+
 ## 7/19/2019 - 1.5.7
 - Adds `Connection.promises.add`, `mongolayer.promises.connect`, `mongolayer.promises.connectCached`.
 
@@ -1257,6 +1260,7 @@ Arguments
 	* `castDocs` - `boolean` - `default true` - *RECOMMENDED false*. If true it will convert the returned docs into instanceof model.Document, allowing access to virtuals. If false, only virtuals mentioned in the fields object are accessible, which is the recommendataion! castDocs is also recursive, so all relationships will be pulled with castDocs === false as well. If you require virtuals on them, specify it in your fields object.
 	* `hooks` - `array` - `optional` - Array of hooks to run. See [hooks documentation](#runtime_hooks) for syntax.
 	* `count` - `boolean` - `default false` - If true it will return an object with `{ count : count, docs : docs }` including the full count that matches the query (not just count of returned docs).
+	* `context` - `object` - `optional` - If passed, it will be available to all hooks in the descendent query. So this object can be accessed in the hooks and resolvers of relationships.
 * `cb` - `function` - `required`
 	* `Error` or null
 	* `array` of `model.Document`.

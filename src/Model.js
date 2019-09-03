@@ -398,7 +398,8 @@ Model.prototype.addRelationship = function(args) {
 			mapDocs : newOptions.mapDocs,
 			castDocs : newOptions.castDocs,
 			hooks : (newOptions.hooks.length > 0) ? newOptions.hooks : undefined,
-			fields : (Object.keys(newOptions.fields).length > 0) ? newOptions.fields : undefined
+			fields : (Object.keys(newOptions.fields).length > 0) ? newOptions.fields : undefined,
+			context : args.options.context
 		}, function(err, docs) {
 			if (err) { return cb(err); }
 			
@@ -700,6 +701,7 @@ async function find(filter, options = {}) {
 	options.mapDocs = options.mapDocs !== undefined ? options.mapDocs : true;
 	options.fields = options.fields || {};
 	options.options = options.options || {};
+	options.context = options.context || {};
 	
 	var originalFields = Object.assign({}, options.fields);
 	

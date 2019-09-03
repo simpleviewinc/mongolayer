@@ -301,6 +301,7 @@ function resolveRelationship(args, cb) {
 	// args.mapDocs - Whether or not to map docs
 	// args.hooks - Any hooks that need to be run
 	// args.fields - Field restriction on the related item
+	// args.context - Context of the original find() request
 	
 	var fields = args.fields;
 	args.mapDocs = args.mapDocs !== undefined ? args.mapDocs : false;
@@ -373,7 +374,7 @@ function resolveRelationship(args, cb) {
 			}
 			
 			// pass fields, hooks, castDocs, explicitly set mapDocs to false so that relationships don't map data, saving it for the final output map in the main find()
-			model.find(filter, { hooks : args.hooks, fields : fields, castDocs : args.castDocs, mapDocs : args.mapDocs }, function(err, docs) {
+			model.find(filter, { hooks : args.hooks, fields : fields, castDocs : args.castDocs, mapDocs : args.mapDocs, context : args.context }, function(err, docs) {
 				if (err) { return cb(err); }
 				
 				// stash the result to be used after all queries have finished

@@ -1160,6 +1160,21 @@ describe(__filename, function() {
 		var modelRelated;
 		var modelRelated2;
 		
+		const contextHook = {
+			name : "verifyContext",
+			type : "afterFind",
+			required : true,
+			handler : function(args, cb) {
+				if (args.options.context.verifyContext !== undefined) {
+					args.docs.forEach(function(val, i) {
+						val._context = args.options.context.verifyContext;
+					});
+				}
+				
+				return cb(null, args);
+			}
+		};
+		
 		beforeEach(function(done) {
 			model = new mongolayer.Model({
 				collection : "mongolayer_test",
@@ -1216,7 +1231,8 @@ describe(__filename, function() {
 							});
 							return cb(null, args);
 						}
-					}
+					},
+					contextHook
 				],
 				virtuals : [
 					{
@@ -1292,6 +1308,9 @@ describe(__filename, function() {
 				relationships : [
 					{ name : "singleSecond", type : "single", modelName : "mongolayer_testRelated2" },
 					{ name : "singleRequired", type : "single", modelName : "mongolayer_testRelated2", required : true }
+				],
+				hooks : [
+					contextHook
 				]
 			});
 			
@@ -3398,6 +3417,26 @@ describe(__filename, function() {
 									singleRequired : {
 										title : "title2_1"
 									}
+								}
+							}
+						]
+					},
+					{
+						name : "should pass through context",
+						filter : { _id : root4 },
+						options : {
+							hooks : ["afterFind_single"],
+							context : {
+								verifyContext : "data"
+							}
+						},
+						results : [
+							{
+								foo : "foo4",
+								_context : "data",
+								single : {
+									title : "title1_2",
+									_context : "data"
 								}
 							}
 						]
