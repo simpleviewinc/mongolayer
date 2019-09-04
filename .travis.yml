@@ -2,13 +2,6 @@ dist: xenial
 language: node_js
 node_js:
   - "10.15.3"
-addons:
-  apt:
-    sources:
-      - mongodb-3.6-precise
-    packages:
-      - mongodb-org-server
-      - mongodb-org-shell
 before_script:
   - echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.6 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-3.6.list
   - sudo apt-get update
