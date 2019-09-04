@@ -1,4 +1,4 @@
-sudo: false
+dist: xenial
 language: node_js
 node_js:
   - "10.15.3"
@@ -10,5 +10,8 @@ addons:
       - mongodb-org-server
       - mongodb-org-shell
 before_script:
+  - echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.6 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-3.6.list
+  - sudo apt-get update
+  - sudo apt-get install -y mongodb-org=3.6.14 mongodb-org-server=3.6.14 mongodb-org-shell=3.6.14 mongodb-org-mongos=3.6.14 mongodb-org-tools=3.6.14
   - "until nc -z localhost 27017; do echo Waiting for MongoDB; sleep 1; done"
   - mongo --version
