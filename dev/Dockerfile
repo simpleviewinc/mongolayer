@@ -13,4 +13,4 @@ WORKDIR /app
 
 COPY dev/init /root/init
 
-ENTRYPOINT /root/init && /bin/sh
+ENTRYPOINT /root/init && /bin/bash

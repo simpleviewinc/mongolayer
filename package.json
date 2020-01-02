@@ -10,6 +10,7 @@
 		"simple-domain": "*"
 	},
 	"dependencies": {
+		"@simpleview/promiselib": "^1.0.1",
 		"async": "^2.6.2",
 		"extend": "^3.0.2",
 		"jsvalidator": "^1.2.0",

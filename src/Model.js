@@ -11,6 +11,10 @@ const {
 } = require("mongodb");
 
 const {
+	promisifyMethods
+} = require("@simpleview/promiselib");
+
+const {
 	callbackify,
 	errors,
 	getMyHooks,
@@ -172,13 +176,15 @@ var Model = function(args) {
 		find : find.bind(self),
 		findById : findById.bind(self),
 		aggregate : aggregate.bind(self),
-		insert : util.promisify(insert).bind(self),
-		save : util.promisify(save).bind(self),
-		count : util.promisify(self.count).bind(self),
-		update : util.promisify(self.update).bind(self),
-		remove : util.promisify(self.remove).bind(self),
-		removeAll : util.promisify(self.removeAll).bind(self),
-		createIndexes : util.promisify(self.createIndexes).bind(self)
+		...promisifyMethods(this, [
+			"insert",
+			"save",
+			"count",
+			"update",
+			"remove",
+			"removeAll",
+			"createIndexes"
+		])
 	}
 }
 
