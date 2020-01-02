@@ -36,20 +36,22 @@ var queryLogMock = {
 	send : function() {}
 }
 
+const MODEL_CONSTRUCTOR_VALIDATION = {
+	type : "object",
+	schema : [
+		{ name : "collection", type : "string", required : true },
+		{ name : "allowExtraKeys", type : "boolean", default : false },
+		{ name : "deleteExtraKeys", type : "boolean", default : false }
+	],
+	throwOnInvalid : true
+};
+
 var Model = function(args) {
 	var self = this;
 	
 	args = args || {};
 	
-	validator.validate(args, {
-		type : "object",
-		schema : [
-			{ name : "collection", type : "string", required : true },
-			{ name : "allowExtraKeys", type : "boolean", default : false },
-			{ name : "deleteExtraKeys", type : "boolean", default : false }
-		],
-		throwOnInvalid : true
-	});
+	validator.validate(args, MODEL_CONSTRUCTOR_VALIDATION);
 	
 	args.fields = args.fields || [];
 	args.virtuals = args.virtuals || [];
