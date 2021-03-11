@@ -6,38 +6,46 @@ const {
 } = require("./utils.js");
 
 var Connection = function(args) {
-	var self = this;
-	
 	args = args || {};
 	
-	self.db = args.db;
-	self.models = {}; // store public facing models
-	self.logger = args.logger; // stores method to be called on query execution with log information
+	this.db = args.db;
+	this.models = {}; // store public facing models
+	this.logger = args.logger; // stores method to be called on query execution with log information
 	
-	self._models = {}; // store arguments of Connection.add()
-	self._client = args.client;
+	this._models = {}; // store arguments of Connection.add()
+	this._client = args.client;
 	
-	self.promises = {
-		add : add.bind(self)
+	this.promises = {
+		add : add.bind(this)
 	}
 }
 
-async function add(args) {
-	var self = this;
-	
-	// args.model
-	// args.createIndexes
-	
-	args.createIndexes = args.createIndexes === undefined ? true : args.createIndexes;
-	args.model._setConnection({ connection : self });
-	
-	// allow option to disable createIndexes on add for performance
-	if (args.createIndexes === true) {
-		await args.model.promises.createIndexes();
+/**
+ * Adds a model to the connection
+ * @param {object} args
+ * @param {import("./Model")} args.model
+ * @param {boolean} [args.sync] - Whether to sync the state of the model to the database. Has a performance implication if creating indexes or the view can cause issues.
+ * @param {boolean} [args.createIndexes] - Deprecated: Use sync instead. The passed value here will be used to set the value of sync.
+ */
+async function add({ model, sync = true, createIndexes }) {	
+	if (createIndexes !== undefined) {
+		// for backward compatibility we map createIndexes to sync
+		sync = createIndexes
 	}
 	
-	self.models[args.model.name] = args.model;
-	self._models[args.model.name] = args;
+	model._setConnection({ connection : this });
+	
+	// allow option to disable createIndexes on add for performance
+	if (sync === true) {
+		await model.promises.createIndexes();
+	}
+
+	if (sync === true && model.viewOn !== undefined) {
+		await model.createView();
+	}
+	
+	this.models[model.name] = model;
+	this._models[model.name] = { model, sync, createIndexes };
 }
 
 Connection.prototype.add = callbackify(add);

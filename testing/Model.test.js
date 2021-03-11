@@ -1159,6 +1159,7 @@ describe(__filename, function() {
 		var model;
 		var modelRelated;
 		var modelRelated2;
+		var modelView;
 		
 		const contextHook = {
 			name : "verifyContext",
@@ -1182,7 +1183,8 @@ describe(__filename, function() {
 					{ name : "foo", validation : { type : "string" } },
 					{ name : "bar", validation : { type : "string" } },
 					{ name : "baz", default : false, validation : { type : "boolean" } },
-					{ name : "any", validation : { type : "any" } }
+					{ name : "any", validation : { type : "any" } },
+					{ name : "viewOn", validation : { type : "boolean" } }
 				],
 				relationships : [
 					{ name : "single", type : "single", modelName : "mongolayer_testRelated" },
@@ -1355,6 +1357,18 @@ describe(__filename, function() {
 					find : ["afterFind_default"]
 				}
 			});
+
+			modelView = new mongolayer.Model({
+				collection : "mongolayer_testView",
+				viewOn : "mongolayer_test",
+				pipeline : [
+					{
+						$match : {
+							viewOn : true
+						}
+					}
+				]
+			});
 			
 			async.series([
 				function(cb) {
@@ -1367,6 +1381,9 @@ describe(__filename, function() {
 						},
 						function(cb) {
 							conn.add({ model : modelRelated2 }, cb);
+						},
+						function(cb) {
+							conn.add({ model : modelView }, cb);
 						}
 					], cb);
 				},
@@ -3637,6 +3654,122 @@ describe(__filename, function() {
 			testArray(tests, function(test) {
 				var result = model._processFields(test.options);
 				assertLib.deepCheck(result, test.result);
+			});
+		});
+
+		describe("views", function() {
+			beforeEach(async function() {
+				await model.promises.insert([
+					{
+						foo : "one",
+						viewOn : true
+					},
+					{
+						foo : "two"
+					},
+					{
+						foo : "three",
+						viewOn : true
+					},
+					{
+						foo : "four"
+					}
+				]);
+			});
+
+			it("should have a functional find", async function() {
+				const content = await modelView.promises.find();
+				assertLib.deepCheck(content, [
+					{
+						foo : "one",
+						viewOn : true
+					},
+					{
+						foo : "three",
+						viewOn : true
+					}
+				]);
+			});
+
+			it("should have a functional aggregate", async function() {
+				const content = await modelView.promises.aggregate([
+					{
+						$match : {
+							foo : "three"
+						}
+					}
+				]);
+
+				assertLib.deepCheck(content, [
+					{
+						foo : "three",
+						viewOn : true
+					}
+				]);
+			});
+
+			it("should update an existing view with a new definition", async function() {
+				const name = "mongolayer_testView2";
+				try {
+					await conn.db.collection(name).drop();
+				} catch (e) {
+					// ignoring the error thrown if the collection doesn't exist
+				}
+				
+				await conn.db.command({
+					create : name,
+					viewOn : "mongolayer_test",
+					pipeline : []
+				});
+
+				const count = await conn.db.collection(name).countDocuments();
+
+				assert.strictEqual(count, 4);
+
+				const viewTwo = new mongolayer.Model({
+					collection : "mongolayer_testView2",
+					viewOn : "mongolayer_test",
+					pipeline : [
+						{
+							$match : {
+								viewOn : true
+							}
+						}
+					]
+				});
+
+				await conn.promises.add({ model : viewTwo });
+
+				const count2 = await viewTwo.promises.count({});
+
+				assert.strictEqual(count2, 2);
+			});
+
+			it("should createView properly", async function() {
+				const name = "mongolayer_testView3";
+				try {
+					await conn.db.collection(name).drop();
+				} catch(e) {
+
+				}
+
+				const m1 = new mongolayer.Model({
+					collection : name,
+					viewOn : "mongolayer_test",
+					pipeline : []
+				});
+
+				await conn.promises.add({ model : m1, sync : false });
+
+				const result1 = await m1.createView();
+				assert.deepStrictEqual(result1, { created : true, updated : false });
+
+				const result2 = await m1.createView();
+				assert.deepStrictEqual(result2, { created : false, updated : false });
+
+				m1.pipeline = [{ $match : { viewOn : true } }];
+				const result3 = await m1.createView();
+				assert.deepStrictEqual(result3, { created : false, updated : true });
 			});
 		});
 	});

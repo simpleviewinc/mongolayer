@@ -10,6 +10,10 @@ This module is an attempt at providing the vision of `mongoose` (validation, hoo
 
 # Changelog
 
+## 3/11/2020 - 2.0.0
+- Adds support for `Model` based on a mongodb view.
+- `createIndexes` parameter of `connection.add` is deprecated, please use `sync` instead.
+
 ## 9/3/2019 - 1.5.8
 - Adds `options.context` for passing state to all descendent hooks. Needed for handling conditions where variables need to be available in the top level hook, and in the nested relationship hooks.
 
@@ -130,6 +134,20 @@ mongolayer.connectCached({ connectionString : "mongodb://127.0.0.1:27017/mongoLa
 	});
 });
 ```
+
+# Views
+
+Creates a view and exposes it via the model. `viewOn` and `pipeline` pass directly to https://docs.mongodb.com/manual/reference/command/create/.
+
+```js
+const model = new mongolayer.Model({
+	collection : "testing",
+	viewOn : "name_of_model",
+	pipeline : []
+});
+```
+
+Once a view is added to a connection you can query on it with `find`, `aggregate`, `count` and all of the various content querying methods.
 
 # Hooks
 
@@ -837,6 +855,7 @@ Adds a model to a connection. At this moment is also ensures the collection has 
 
 * `args`
 	* `model` - `mongolayer.Model` - `required` - A mongolayer Model to add to the connection.
+	* `sync` - `boolean` - `optional` - Whether to sync the state of the Model to the database. This triggers the creation of indexes or the underlying view.
 * `callback`
 	* `Error` or null
 

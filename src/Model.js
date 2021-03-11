@@ -92,6 +92,8 @@ var Model = function(args) {
 		afterPut : {},
 		beforeFilter : {}
 	};
+	self.viewOn = args.viewOn;
+	self.pipeline = args.pipeline;
 	
 	// private
 	self._onInit = args.onInit;
@@ -207,6 +209,53 @@ Model.prototype.createIndexes = function(cb) {
 	});
 	
 	async.series(calls, cb);
+}
+
+Model.prototype.createView = async function() {
+	try {
+		await this.connection.db.command({
+			create : this.name,
+			viewOn : this.viewOn,
+			pipeline : this.pipeline
+		});
+
+		return {
+			created : true,
+			updated : false
+		}
+	} catch(e) {
+		// err code 48 represents that the collection already exists, which is not a real problem, so we ignore
+		if (e.code !== 48) {
+			throw e;
+		}
+	}
+
+	const collectionInfo = await this.connection.db.listCollections({ name : this.name }).toArray();
+
+	const def = collectionInfo[0];
+
+	const pipelineMatch = JSON.stringify(def.options.pipeline) === JSON.stringify(this.pipeline);
+	const viewOnMatch = def.options.viewOn === this.viewOn;
+
+	if (pipelineMatch && viewOnMatch) {
+		// No need to update definition
+		return {
+			created : false,
+			updated : false
+		};
+	}
+
+	// update collection definition
+	await this.connection.db.command({
+		collMod : this.name,
+		viewOn : this.viewOn,
+		pipeline : this.pipeline
+	});
+
+	return {
+		created : false,
+		updated : true
+	}
 }
 
 Model.prototype._setConnection = function(args) {
