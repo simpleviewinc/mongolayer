@@ -47,8 +47,6 @@ const MODEL_CONSTRUCTOR_VALIDATION = {
 };
 
 var Model = function(args) {
-	var self = this;
-	
 	args = args || {};
 	
 	validator.validate(args, MODEL_CONSTRUCTOR_VALIDATION);
@@ -64,16 +62,19 @@ var Model = function(args) {
 	args.onInit = args.onInit || function() {};
 	
 	// public
-	self.name = args.name || args.collection;
-	self.collectionName = args.collection;
-	self.connected = false;
-	self.collection = null; // stores reference to MongoClient.Db.collection()
-	self.ObjectId = ObjectID;
-	self.fields = {};
-	self.relationships = {};
-	self.methods = {};
-	self.connection = null; // stores Connection ref
-	self.hooks = {
+	this.name = args.name || args.collection;
+	this.collectionName = args.collection;
+	this.connected = false;
+
+	/** @type {import("mongodb").Collection} */
+	this.collection = null; // stores reference to MongoClient.Db.collection()
+	this.ObjectId = ObjectID;
+	this.fields = {};
+	this.relationships = {};
+	this.methods = {};
+	/** @type {import("./Connection")} */
+	this.connection = null; // stores Connection ref
+	this.hooks = {
 		beforeAggregate : {},
 		afterAggregate : {},
 		beforeInsert : {},
@@ -92,21 +93,21 @@ var Model = function(args) {
 		afterPut : {},
 		beforeFilter : {}
 	};
-	self.viewOn = args.viewOn;
-	self.pipeline = args.pipeline;
+	this.viewOn = args.viewOn;
+	this.pipeline = args.pipeline;
 	
 	// private
-	self._onInit = args.onInit;
-	self._allowExtraKeys = args.allowExtraKeys;
-	self._deleteExtraKeys = args.deleteExtraKeys;
-	self._virtuals = {};
-	self._modelMethods = {};
-	self._documentMethods = {};
-	self._indexes = [];
-	self._convertSchema = undefined;
-	self._convertSchemaV2 = undefined;
+	this._onInit = args.onInit;
+	this._allowExtraKeys = args.allowExtraKeys;
+	this._deleteExtraKeys = args.deleteExtraKeys;
+	this._virtuals = {};
+	this._modelMethods = {};
+	this._documentMethods = {};
+	this._indexes = [];
+	this._convertSchema = undefined;
+	this._convertSchemaV2 = undefined;
 	
-	self.defaultHooks = extend({
+	this.defaultHooks = extend({
 		aggregate : [],
 		find : [],
 		count : [],
@@ -116,10 +117,10 @@ var Model = function(args) {
 		remove : []
 	}, args.defaultHooks);
 	
-	self.Document = _getModelDocument(self);
+	this.Document = _getModelDocument(this);
 	
 	// adds _id field
-	self.addField({
+	this.addField({
 		name : "_id",
 		default : function(args, cb) {
 			return new ObjectID();
@@ -131,7 +132,7 @@ var Model = function(args) {
 	});
 	
 	// adds id string alias
-	self.addVirtual({
+	this.addVirtual({
 		name : "id",
 		type : "idToString",
 		options : {
@@ -141,45 +142,45 @@ var Model = function(args) {
 	});
 	
 	// adds storage for core functionality in case we need this in the future
-	self.addField({
+	this.addField({
 		name : "_ml",
 		validation : {
 			type : "object"
 		}
 	});
 	
-	args.modelMethods.forEach(function(val, i) {
-		self.addModelMethod(val);
+	args.modelMethods.forEach(val => {
+		this.addModelMethod(val);
 	});
 	
-	args.documentMethods.forEach(function(val, i) {
-		self.addDocumentMethod(val);
+	args.documentMethods.forEach(val => {
+		this.addDocumentMethod(val);
 	});
 	
-	args.fields.forEach(function(val, i) {
-		self.addField(val);
+	args.fields.forEach(val => {
+		this.addField(val);
 	});
 	
-	args.virtuals.forEach(function(val, i) {
-		self.addVirtual(val);
+	args.virtuals.forEach(val => {
+		this.addVirtual(val);
 	});
 	
-	args.relationships.forEach(function(val, i) {
-		self.addRelationship(val);
+	args.relationships.forEach(val => {
+		this.addRelationship(val);
 	});
 	
-	args.hooks.forEach(function(val, i) {
-		self.addHook(val);
+	args.hooks.forEach(val => {
+		this.addHook(val);
 	});
 	
-	args.indexes.forEach(function(val, i) {
-		self.addIndex(val);
+	args.indexes.forEach(val => {
+		this.addIndex(val);
 	});
 	
-	self.promises = {
-		find : find.bind(self),
-		findById : findById.bind(self),
-		aggregate : aggregate.bind(self),
+	this.promises = {
+		find : find.bind(this),
+		findById : findById.bind(this),
+		aggregate : aggregate.bind(this),
 		...promisifyMethods(this, [
 			"insert",
 			"save",
