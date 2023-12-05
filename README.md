@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/simpleviewinc/mongolayer.svg?branch=master)](https://travis-ci.org/simpleviewinc/mongolayer)
-
 # mongolayer
 
 `npm install mongolayer`
@@ -9,6 +7,10 @@ Mongolayer is a rich document system similar to Mongoose, but thinner, more type
 This module is an attempt at providing the vision of `mongoose` (validation, hooks, relationships) but with less eccentricities, less magic under the hood providing developers with more consistent behaviors.
 
 # Changelog
+
+## 12/5/2023 - 2.0.1
+- Updates to `mongodb` 3.7.4
+- Test db now based on 5.0
 
 ## 3/11/2020 - 2.0.0
 - Adds support for `Model` based on a mongodb view.
