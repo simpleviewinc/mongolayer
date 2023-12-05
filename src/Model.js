@@ -787,6 +787,7 @@ async function find(filter, options = {}) {
 	var cursor = self.collection.find(args.filter, args.options.options);
 	if (findFields) { cursor = cursor.project(findFields); }
 	if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
+	if (args.options.collation) { cursor = cursor.collation(args.options.collation) }
 	if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
 	if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
 	
