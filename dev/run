@@ -1,6 +1,6 @@
 #!/bin/bash
-docker run --rm -it \
-	-v $PWD/src:/app/src \
-	-v $PWD/testing:/app/testing \
-	-v $PWD/package.json:/app/package.json \
-	mongolayer:local /bin/sh
+set -e
+
+docker compose build node
+docker compose run --service-ports --rm node /bin/bash
+docker compose down

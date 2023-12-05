@@ -1,0 +1,17 @@
+version: "3.8"
+services:
+  node:
+    build: "."
+    image: mongolayer:local
+    environment:
+      MONGO_HOST: "db"
+    volumes:
+      - "./package.json:/app/package.json"
+      - "./src:/app/src"
+      - "./testing:/app/testing"
+    depends_on:
+      - "db"
+  db:
+    image: mongo:5.0
+    ports:
+      - "13001:27017"

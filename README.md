@@ -1486,3 +1486,14 @@ Do not alter any of the following properties at runtime, but you can safely read
 * `model.methods` - `object` - Object containing methods attached by `model.addModelMethod`. Please do not attach manually.
 * `model.ObjectId` - `object` - Shortcut reference to `mongolayer.ObjectId`. Can be used to create or cast ids.
 * `model.defaultHooks` - `object` - Object containing arrays for the defaults hooks for each query type
+
+# Development
+
+### Install the repo
+* `sudo sv install mongolayer --type=container`
+
+### Run  it locally
+* You should be running in the `sv-kubernetes` vagrant environment.
+* `cd /sv/containers/dms-core`
+* `sudo npm run docker`
+	* `yarn test` - Run the tests.
