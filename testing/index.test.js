@@ -26,7 +26,7 @@ describe(__filename, function() {
 				name : "connect without a db without trailing slash",
 				args : () => ({
 					args : {
-						connectionString : "mongodb://127.0.0.1:27017"
+						connectionString : "mongodb://db:27017"
 					},
 					error : /You must specify a database in your connectionString\./
 				})
@@ -35,7 +35,7 @@ describe(__filename, function() {
 				name : "connect without a db, trailing slash",
 				args : () => ({
 					args : {
-						connectionString : "mongodb://127.0.0.1:27017/"
+						connectionString : "mongodb://db:27017/"
 					},
 					error : /You must specify a database in your connectionString\./
 				})
@@ -44,7 +44,7 @@ describe(__filename, function() {
 				name : "connect with a db",
 				args : () => ({
 					args : {
-						connectionString : "mongodb://127.0.0.1:27017/mongolayer"
+						connectionString : "mongodb://db:27017/mongolayer"
 					},
 					dbName : "mongolayer"
 				})

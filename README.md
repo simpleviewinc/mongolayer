@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/simpleviewinc/mongolayer.svg?branch=master)](https://travis-ci.org/simpleviewinc/mongolayer)
-
 # mongolayer
 
 `npm install mongolayer`
@@ -9,6 +7,10 @@ Mongolayer is a rich document system similar to Mongoose, but thinner, more type
 This module is an attempt at providing the vision of `mongoose` (validation, hooks, relationships) but with less eccentricities, less magic under the hood providing developers with more consistent behaviors.
 
 # Changelog
+
+## 12/5/2023 - 2.0.1
+- Updates to `mongodb` 3.7.4
+- Test db now based on 5.0
 
 ## 3/11/2020 - 2.0.0
 - Adds support for `Model` based on a mongodb view.
@@ -1492,3 +1494,14 @@ Do not alter any of the following properties at runtime, but you can safely read
 * `model.methods` - `object` - Object containing methods attached by `model.addModelMethod`. Please do not attach manually.
 * `model.ObjectId` - `object` - Shortcut reference to `mongolayer.ObjectId`. Can be used to create or cast ids.
 * `model.defaultHooks` - `object` - Object containing arrays for the defaults hooks for each query type
+
+# Development
+
+### Install the repo
+* `sudo sv install mongolayer --type=container`
+
+### Run  it locally
+* You should be running in the `sv-kubernetes` vagrant environment.
+* `cd /sv/containers/dms-core`
+* `sudo npm run docker`
+	* `yarn test` - Run the tests.

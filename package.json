@@ -2,7 +2,7 @@
 	"name": "mongolayer",
 	"description": "MongoDB model layer with validation and hooks, similar to Mongoose but thinner.",
 	"author": "Owen Allen <owenallenaz@gmail.com>",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"devDependencies": {
 		"@simpleview/assertlib": "^1.0.1",
 		"@simpleview/mochalib": "^1.0.1",
@@ -14,7 +14,7 @@
 		"async": "^2.6.2",
 		"extend": "^3.0.2",
 		"jsvalidator": "^1.2.0",
-		"mongodb": "^3.6.4",
+		"mongodb": "^3.7.4",
 		"p-memoize": "^3.1.0",
 		"typecaster": "^0.0.2"
 	},
@@ -24,8 +24,8 @@
 	},
 	"scripts": {
 		"test": "mocha $(find testing/ -name *.test.js) -R spec --colors --check-leaks --globals Promise",
-		"docker": "./dev/build && ./dev/run || true",
-		"publish": "./dev/publish"
+		"docker": "bash ./dev/run",
+		"publish": "bash ./dev/publish"
 	},
 	"repository": {
 		"type": "git",
