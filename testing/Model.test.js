@@ -2706,6 +2706,39 @@ describe(__filename, function() {
 					
 					await assert.rejects(model.promises.save({ foo : 10 }), /Doc failed validation/);
 				});
+
+				it("should have working collation", async function() {
+					await model.promises.remove({});
+
+					await model.promises.insert([
+						{
+							foo: "gamma"
+						},
+						{
+							foo: "alpha"
+						},
+						{
+							foo: "Test"
+						},
+						{
+							foo: "Alpha"
+						}
+					]);
+
+					const result = await model.promises.find({}, {
+						collation: { locale: "en_US", caseFirst: "upper" },
+						castDocs: false,
+						fields: { foo: true },
+						sort: { foo: 1 }
+					});
+
+					assert.deepStrictEqual(result, [
+						{ foo: "Alpha" },
+						{ foo: "alpha" },
+						{ foo: "gamma" },
+						{ foo: "Test" }
+					]);
+				});
 				
 				var tests = [
 					{

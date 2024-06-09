@@ -1275,6 +1275,7 @@ Arguments
 	* `fields` - `object` - `optional` - Which fields to include in the query. Uses [MongoDB native syntax](http://docs.mongodb.org/manual/tutorial/project-fields-from-query-results/).
 	* `options` - `object` - `optional` - An options object which is passed on to `node-mongodb-native` which performs the query. If you need to pass options at that level, pass them here.
 	* `sort` - `object` - `optional` - Sort criteria. Uses [MongoDB native syntax](http://docs.mongodb.org/manual/reference/method/cursor.sort/)
+	* `collation` - `object` - `optional` - Collation spesification. Uses [MongoDB native syntax](https://docs.mongodb.com/manual/reference/collation/)
 	* `limit` - `number` - `optional` - Number of records to retrieve.
 	* `skip` - `number` - `optional` - Number of records to skip before retrieving records.
 	* `maxSize` - `number` - `optional` - Enforce a maxSize at query time to prevent large data sets from being inadvertently returned, returns an Error if violated.
@@ -1296,6 +1297,11 @@ model.find({}, function(err, docs) {
 
 // find which sorts by created, returns 10 posts, and skips the first 10 posts
 model.find({}, { sort : { created : 1 }, limit : 10, skip : 10 }, function(err, docs) {
+	
+});
+
+// find which sorts by fullName with the collation locale "fr"
+model.find({}, { sort : { fullName : 1 }, collation: { locale: "fr" } }, function(err, docs) {
 	
 });
 
