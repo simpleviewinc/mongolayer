@@ -779,19 +779,24 @@ async function find(filter, options = {}) {
 	args = await self._executeHooksP({ type : "beforeFind", hooks : self._getHooksByType("beforeFind", options.hooks), args : { filter : filter, options : options } });
 	args = await self._executeHooksP({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } });
 	
-	var rawFilter = self.connection.logger === undefined ? {} : extend(true, {}, args.filter);
-	var rawOptions = self.connection.logger === undefined ? {} : extend(true, {}, args.options);
-	
 	var findFields = self._getMyFindFields(args.options.fields);
+
+	let findFilter = args.filter;
+
+	if (options.random !== undefined) {
+		if (options.skip !== undefined || options.limit !== undefined) {
+			throw new Error("When using 'random' you cannot also use 'skip' and 'limit'.")
+		}
+
+		findFilter = await calculateFilterWithRandom(this, args.filter, options.random);
+	}
 	
-	var cursor = self.collection.find(args.filter, args.options.options);
+	var cursor = self.collection.find(findFilter, args.options.options);
 	if (findFields) { cursor = cursor.project(findFields); }
 	if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
 	if (args.options.collation) { cursor = cursor.collation(args.options.collation) }
 	if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
 	if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
-	
-	const calls = [];
 	
 	const getDocsFn = async function() {
 		queryLog.startTimer("raw");
@@ -845,6 +850,30 @@ async function find(filter, options = {}) {
 		return { count : args.count, docs : args.docs };
 	} else {
 		return args.docs;
+	}
+}
+
+async function calculateFilterWithRandom(model, filter, count) {
+	const randomIds = await model.promises.aggregate([
+		{
+			$match: filter
+		},
+		{
+			$sample: {
+				size: count
+			}
+		},
+		{
+			$project: {
+				_id: true
+			}
+		}
+	]);
+
+	return {
+		_id: {
+			$in: randomIds.map(val => val._id)
+		}
 	}
 }
 

@@ -2739,6 +2739,42 @@ describe(__filename, function() {
 						{ foo: "Test" }
 					]);
 				});
+
+				it("should return random", async function() {
+					const results = [];
+					for (let i = 0; i < 50; i++) {
+						const result = await model.promises.find({}, { random: 1, fields: { foo: true } });
+						results.push(result[0].foo);
+					}
+
+					const counts = {};
+					for (const num of results) {
+						counts[num] = counts[num] || 0;
+						counts[num]++;
+					}
+
+					// Assert that we get some random distribution of results
+					assert.ok(counts[1] > 3);
+					assert.ok(counts[2] > 3);
+					assert.ok(counts[3] > 3);
+				});
+
+				it("should filter with random", async function() {
+					const result = await model.promises.find({ foo: "1" }, {
+						random: 1,
+						castDocs: false,
+						fields: {
+							foo: true,
+							bar: true
+						}
+					});
+					assert.deepStrictEqual(result, [
+						{
+							foo: "1",
+							bar: "barValue"
+						}
+					]);
+				});
 				
 				var tests = [
 					{
@@ -3261,6 +3297,47 @@ describe(__filename, function() {
 						return done();
 					});
 				});
+
+				it("should operate the random after execution of beforeFind hooks", async function() {
+					model.addHook({
+						name: "changeFilter",
+						type: "beforeFind",
+						handler: (args, cb) => {
+							args.filter = { _id: root1 };
+							return cb(null, args);
+						}
+					});
+
+					const result = await model.promises.find({}, {
+						hooks: ["beforeFind_changeFilter"],
+						random: 10,
+						castDocs: false,
+						fields: {
+							foo: true,
+							baz: true
+						}
+					});
+
+					assert.deepStrictEqual(result, [
+						{
+							foo: "foo1",
+							baz: false
+						}
+					])
+				});
+
+				it("should preserve counts with random", async function() {
+					const validIds = [root1, root2, root3, root4]
+					const validIdStrings = validIds.map(val => val.toString());
+
+					const result = await model.promises.find({
+						_id: {
+							$in: validIds
+						}
+					}, { random: 1, count: true });
+					assert.strictEqual(result.count, 4);
+					assert.strictEqual(validIdStrings.includes(result.docs[0]._id.toString()), true)
+				});
 				
 				var tests = [
 					{
@@ -3487,6 +3564,32 @@ describe(__filename, function() {
 								single : {
 									title : "title1_2",
 									_context : "data"
+								}
+							}
+						]
+					},
+					{
+						name: "should resolve data with random",
+						filter: {
+							_id: root2
+						},
+						options: {
+							random: 1,
+							castDocs: false,
+							fields: {
+								foo: true,
+								"single.title": true,
+								"single.singleRequired.title": true
+							}
+						},
+						results: [
+							{
+								foo: "foo2",
+								single: {
+									title: "title1_1",
+									singleRequired: {
+										title: "title2_2"
+									}
 								}
 							}
 						]
