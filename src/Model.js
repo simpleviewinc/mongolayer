@@ -5,6 +5,7 @@ var validator = require("jsvalidator");
 var extend = require("extend");
 var async = require("async");
 var util = require("util");
+const shuffle = require("lodash/shuffle");
 
 const {
 	ObjectID
@@ -793,7 +794,7 @@ async function find(filter, options = {}) {
 	
 	var cursor = self.collection.find(findFilter, args.options.options);
 	if (findFields) { cursor = cursor.project(findFields); }
-	if (args.options.sort) { cursor = cursor.sort(args.options.sort) }
+	if (args.options.sort && args.options.sort !== "random") { cursor = cursor.sort(args.options.sort) }
 	if (args.options.collation) { cursor = cursor.collation(args.options.collation) }
 	if (args.options.limit) { cursor = cursor.limit(args.options.limit) }
 	if (args.options.skip) { cursor = cursor.skip(args.options.skip) }
@@ -845,6 +846,10 @@ async function find(filter, options = {}) {
 	queryLog.stopTimer("command");
 	queryLog.set({ rawFilter : args.filter, rawOptions : args.options, count : args.docs.length });
 	queryLog.send();
+
+	if (args.options.sort === "random") {
+		args.docs = shuffle(args.docs);
+	}
 	
 	if (args.count !== undefined) {
 		return { count : args.count, docs : args.docs };

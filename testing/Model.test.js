@@ -2775,6 +2775,29 @@ describe(__filename, function() {
 						}
 					]);
 				});
+
+				it("should random sort when specified", async function() {
+					const counts = {
+						0: 0,
+						1: 0,
+						2: 0
+					};
+					for (let i = 0; i < 50; i++) {
+						const result = await model.promises.find({}, {
+							fields: { foo: true },
+							sort: "random"
+						});
+
+						for (let j = 0; j < result.length; j++) {
+							counts[j] += Number(result[j].foo);
+						}
+					}
+
+					// Assert that we get some random distribution of results
+					assert.ok(counts[0] > 80 && counts[0] < 120);
+					assert.ok(counts[1] > 80 && counts[1] < 120);
+					assert.ok(counts[2] > 80 && counts[2] < 120);
+				});
 				
 				var tests = [
 					{
@@ -3336,6 +3359,7 @@ describe(__filename, function() {
 						}
 					}, { random: 1, count: true });
 					assert.strictEqual(result.count, 4);
+					assert.strictEqual(result.docs.length, 1);
 					assert.strictEqual(validIdStrings.includes(result.docs[0]._id.toString()), true)
 				});
 				
