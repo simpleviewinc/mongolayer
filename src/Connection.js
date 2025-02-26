@@ -27,28 +27,27 @@ var Connection = function(args) {
  * @param {boolean} [args.sync] - Whether to sync the state of the model to the database. Has a performance implication if creating indexes or the view can cause issues.
  * @param {boolean} [args.createIndexes] - Deprecated: Use sync instead. The passed value here will be used to set the value of sync.
  */
+
 async function add({ model, sync = true, createIndexes }) {	
 	if (createIndexes !== undefined) {
 		// for backward compatibility we map createIndexes to sync
 		sync = createIndexes
 	}
-	
 	model._setConnection({ connection : this });
-	
 	// allow option to disable createIndexes on add for performance
 	if (sync === true) {
-		await model.promises.createIndexes();
+		await model.createIndexes();
 	}
-
 	if (sync === true && model.viewOn !== undefined) {
 		await model.createView();
 	}
-	
+
 	this.models[model.name] = model;
 	this._models[model.name] = { model, sync, createIndexes };
 }
 
-Connection.prototype.add = callbackify(add);
+// Connection.prototype.add = callbackify(add);
+Connection.prototype.add = add;
 
 Connection.prototype.remove = function(args, cb) {
 	var self = this;
@@ -74,10 +73,10 @@ Connection.prototype.removeAll = function(cb) {
 	async.series(calls, cb);
 }
 
-Connection.prototype.dropCollection = function(args, cb) {
+Connection.prototype.dropCollection = async function(args) {
 	var self = this;
-	
 	// args.name
+
 	var result = validator.validate(args, {
 		type : "object",
 		schema : [
@@ -89,20 +88,12 @@ Connection.prototype.dropCollection = function(args, cb) {
 	if (result.err) {
 		return cb(result.err);
 	}
-	
-	self.db.dropCollection(args.name, function(err) {
-		if (err && err.errmsg.match(/ns not found/) === null) {
-			return cb(err);
-		}
-		
-		cb(null);
-	});
+	return await self.db.dropCollection(args.name);
 }
 
-Connection.prototype.close = function(cb) {
+Connection.prototype.close = async function() {
 	var self = this;
-	
-	self._client.close(false, cb);
+	await self._client.close(false);
 }
 
 module.exports = Connection;

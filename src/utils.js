@@ -1,4 +1,4 @@
-const { ObjectID } = require("mongodb");
+const { ObjectId } = require("mongodb");
 const typecaster = require("typecaster");
 const extend = require("extend");
 const async = require("async");
@@ -10,14 +10,14 @@ const arrayLib = require("./lib/arrayLib.js");
 const typecasterObjectIdDef = {
 	name : "objectid",
 	handler : function(data, type) {
-		if (data instanceof ObjectID) {
+		if (data instanceof ObjectId) {
 			return data;
 		}
 		
 		try {
-			var temp = new ObjectID(data);
+			var temp = new ObjectId(data);
 		} catch (e) {
-			throw new Error("Cannot convert '" + data + "' to ObjectID, it's value is not a valid objectid");
+			throw new Error("Cannot convert '" + data + "' to ObjectId, it's value is not a valid objectid");
 		}
 		
 		return temp;
@@ -247,7 +247,7 @@ function prepareInsert(data, stripEmpty) {
 	
 	stripEmpty = (stripEmpty === undefined) ? true : stripEmpty;
 	
-	if (data instanceof Date || data instanceof ObjectID) {
+	if (data instanceof Date || data instanceof ObjectId) {
 		// certain types are passed straight in without being unfolded
 	} else if (data instanceof Function) {
 		// Function instanceof Object so have to catch it prior to checking for Object

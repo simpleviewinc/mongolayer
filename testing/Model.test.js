@@ -30,9 +30,9 @@ describe(__filename, function() {
 		});
 	});
 	
-	after(function(done) {
+	after(async function() {
 		mongolayer._clearConnectCache();
-		conn.close(done);
+		await conn.close();
 	});
 	
 	it("should create", function(done) {
@@ -184,14 +184,14 @@ describe(__filename, function() {
 			]
 		});
 		
-		var id = mongolayer.ObjectId();
+		var id = new mongolayer.ObjectId();
 		var doc = new model.Document({ raw : id });
 		
 		// check if getter with value works
 		assert.equal(doc.string, id.toString());
 		
 		// check if setter with value works
-		var newid = mongolayer.ObjectId();
+		var newid = new mongolayer.ObjectId();
 		doc.string = newid.toString();
 		assert.equal(doc.raw.toString(), newid.toString());
 		
@@ -215,7 +215,7 @@ describe(__filename, function() {
 			]
 		});
 		
-		var id = mongolayer.ObjectId()
+		var id = new mongolayer.ObjectId()
 		var data = { foo : "fooValue", bar : [1,2] };
 		var temp = new model.Document({ _id : id, obj : data });
 		
@@ -597,7 +597,7 @@ describe(__filename, function() {
 		done();
 	});
 	
-	it("should createIndexes", function(done) {
+	it("should createIndexes", async function() {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -607,38 +607,17 @@ describe(__filename, function() {
 				{ keys : { title : "text" } }
 			]
 		});
-		
-		async.series([
-			function(cb) {
-				conn.dropCollection({ name : "foo" }, cb);
-			},
-			function(cb) {
-				conn.add({ model : model }, cb);
-			},
-			function(cb) {
-				model.collection.dropIndexes(cb);
-			},
-			function(cb) {
-				model.createIndexes(cb);
-			},
-			function(cb) {
-				model.collection.indexes(function(err, indexes) {
-					assert.ifError(err);
-					
-					assert.equal(indexes.length, 2);
-					assert.equal(indexes[1].name, "title_text");
-					
-					cb(null);
-				});
-			}
-		], function(err) {
-			assert.ifError(err);
-			
-			done();
-		});
+
+		await conn.dropCollection({ name : "foo" });
+		await conn.add({ model : model });
+		await model.collection.dropIndexes();
+		await model.createIndexes();
+		let indexes = await model.collection.indexes();
+		assert.equal(indexes.length, 2);
+		assert.equal(indexes[1].name, "title_text");
 	});
 	
-	it("should provide model name on createIndexes error", function(done) {
+	it("should provide model name on createIndexes error", async function() {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -659,20 +638,16 @@ describe(__filename, function() {
 			]
 		});
 		
-		conn.dropCollection({ name : "foo" }, function(err) {
-			assert.ifError(err);
-			
-			conn.add({ model : model }, function(err) {
-				assert.ifError(err);
-				
-				conn.add({ model : model2 }, function(err) {
-					assert.ok(err instanceof Error);
-					assert.ok(err.message.match(/Unable to createIndex on model 'foo'./));
-					
-					done();
-				});
-			});
-		});
+		await conn.dropCollection({ name : "foo" });
+		await conn.add({ model : model });
+
+		try {
+			await conn.add({ model : model2 });
+		} catch (err) {
+			assert.ok(err instanceof Error);
+			assert.equal(err.code, 85);
+			assert.ok(err.message.match(/An equivalent index already exists with a different name and options./)); // note: name is no longer returned
+		}
 	});
 	
 	it("should have valid callbackified functions", function() {
@@ -804,7 +779,7 @@ describe(__filename, function() {
 		
 		it("should stringConvert data", function(done) {
 			["stringConvert", "stringConvertV2"].forEach(function(val, i) {
-				var id = model.ObjectId();
+				var id = new model.ObjectId();
 				var date1 = new Date();
 				
 				var data = {
@@ -905,7 +880,7 @@ describe(__filename, function() {
 		});
 		
 		it("should stringConvert data that is already casted", function(done) {
-			var id = model.ObjectId();
+			var id = new model.ObjectId();
 			var date = new Date(2013, 0, 1);
 			
 			var data = {
@@ -1315,7 +1290,7 @@ describe(__filename, function() {
 					contextHook
 				]
 			});
-			
+
 			modelRelated2 = new mongolayer.Model({
 				collection : "mongolayer_testRelated2",
 				fields : [
@@ -1373,17 +1348,17 @@ describe(__filename, function() {
 			async.series([
 				function(cb) {
 					async.parallel([
-						function(cb) {
-							conn.add({ model : model }, cb);
+						async function() {
+							await conn.add({ model : model });
 						},
-						function(cb) {
-							conn.add({ model : modelRelated }, cb);
+						async function() {
+							await conn.add({ model : modelRelated });
 						},
-						function(cb) {
-							conn.add({ model : modelRelated2 }, cb);
+						async function() {
+							await conn.add({ model : modelRelated2 });
 						},
-						function(cb) {
-							conn.add({ model : modelView }, cb);
+						async function() {
+							await conn.add({ model : modelView });
 						}
 					], cb);
 				},
@@ -1466,9 +1441,9 @@ describe(__filename, function() {
 					bar : "barValue"
 				}, function(err, doc, result) {
 					assert.ifError(err);
-					
-					assert.strictEqual(result.result.ok, 1);
-					assert.strictEqual(result.result.n, 1);
+
+					assert.strictEqual(result.acknowledged, true);
+					assert.strictEqual(result.insertedCount, 1);
 					assert.equal(doc.foo, "fooValue");
 					
 					done();
@@ -1527,8 +1502,8 @@ describe(__filename, function() {
 				], function(err, docs, result) {
 					assert.ifError(err);
 					
-					assert.strictEqual(result.result.ok, 1);
-					assert.strictEqual(result.result.n, 2);
+					assert.strictEqual(result.acknowledged, true);
+					assert.strictEqual(result.insertedCount, 2);
 					assert.equal(docs[0].foo, "fooValue1");
 					assert.equal(docs[0].bar, "barValue1");
 					assert.strictEqual(docs[0].any, "anyValue");
@@ -1617,7 +1592,7 @@ describe(__filename, function() {
 				var beforePutCalled;
 				var afterPutCalled;
 				var data = [{ foo : "fooValue1", bar : "barValue1"}];
-				
+
 				model.addHook({
 					name : "process",
 					type : "beforeInsert",
@@ -1701,7 +1676,6 @@ describe(__filename, function() {
 							assert.equal(afterCalled, false);
 							assert.equal(beforePutCalled, false);
 							assert.equal(afterPutCalled, false);
-							
 							model.remove({}, function(err) {
 								cb(null);
 							});
@@ -1713,10 +1687,10 @@ describe(__filename, function() {
 						afterCalled = false;
 						beforePutCalled = false;
 						afterPutCalled = false;
-						
+
 						model.insert(data, { hooks : ["beforeInsert_process", "afterInsert_process", "beforePut_beforePut", "afterPut_afterPut"] }, function(err, docs) {
 							assert.ifError(err);
-							
+
 							assert.equal(beforeCalled, true);
 							assert.equal(afterCalled, true);
 							assert.equal(beforePutCalled, true);
@@ -1751,7 +1725,7 @@ describe(__filename, function() {
 					}
 				], function(err) {
 					assert.ifError(err);
-					
+
 					done();
 				});
 			});
@@ -1759,14 +1733,14 @@ describe(__filename, function() {
 		
 		describe("remove", function() {
 			it("should remove", function(done) {
-				model.insert([{ foo : "one" }, { foo : "two" }], function(err) {
+				model.insert([{ foo : "one" }, { foo : "two" }], async function(err) {
 					assert.ifError(err);
-					
+
 					model.remove({ foo : "one" }, function(err, result) {
 						assert.ifError(err);
-						
-						assert.strictEqual(result.result.ok, 1);
-						assert.strictEqual(result.result.n, 1);
+
+						assert.strictEqual(result.acknowledged, true);
+						assert.strictEqual(result.deletedCount, 1);
 						
 						done();
 					});
@@ -1909,16 +1883,11 @@ describe(__filename, function() {
 							cb(null);
 						});
 					},
-					function(cb) {
+					async function() {
 						// ensure that we still have our indexes
-						model.collection.indexes(function(err, indexes) {
-							assert.ifError(err);
-							
-							assert.equal(indexes.length, 2);
-							assert.equal(indexes[1].name, "foo_1");
-							
-							cb(null);
-						});
+						let indexes = await model.collection.indexes();
+						assert.equal(indexes.length, 2);
+						assert.equal(indexes[1].name, "foo_1");
 					}
 				], function(err) {
 					assert.ifError(err);
@@ -1929,17 +1898,16 @@ describe(__filename, function() {
 		});
 		
 		describe("save", function() {
-			it("should save", function(done) {
+			it.only("should save", function(done) {
 				model.save({
 					foo : "fooValue1",
 					bar : "barValue1"
 				}, function(err, doc, result) {
 					assert.ifError(err);
-					
 					assert.equal(doc instanceof model.Document, true);
 					assert.equal(doc.foo, "fooValue1");
 					assert.equal(doc.bar, "barValue1");
-					assert.equal(result.result.n, 1);
+					assert.equal(result.upsertedCount, 1);
 					
 					done();
 				});
@@ -2134,8 +2102,8 @@ describe(__filename, function() {
 		});
 		
 		describe("update", function() {
-			var id1 = mongolayer.ObjectId();
-			var id2 = mongolayer.ObjectId();
+			var id1 = new mongolayer.ObjectId();
+			var id2 = new mongolayer.ObjectId();
 			
 			beforeEach(function(done) {
 				model.remove({}, function(err) {

@@ -8,7 +8,7 @@ var util = require("util");
 const shuffle = require("lodash/shuffle");
 
 const {
-	ObjectID
+	ObjectId
 } = require("mongodb");
 
 const {
@@ -69,7 +69,7 @@ var Model = function(args) {
 
 	/** @type {import("mongodb").Collection} */
 	this.collection = null; // stores reference to MongoClient.Db.collection()
-	this.ObjectId = ObjectID;
+	this.ObjectId = ObjectId;
 	this.fields = {};
 	this.relationships = {};
 	this.methods = {};
@@ -124,11 +124,11 @@ var Model = function(args) {
 	this.addField({
 		name : "_id",
 		default : function(args, cb) {
-			return new ObjectID();
+			return new ObjectId();
 		},
 		validation : {
 			type : "class",
-			class : ObjectID
+			class : ObjectId
 		}
 	});
 	
@@ -195,22 +195,12 @@ var Model = function(args) {
 }
 
 // re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
-Model.prototype.createIndexes = function(cb) {
+Model.prototype.createIndexes = async function() {
 	var self = this;
-	
-	var calls = [];
-	
-	self._indexes.forEach(function(val, i) {
-		calls.push(function(cb) {
-			self.collection.createIndex(val.keys, val.options, function(err) {
-				if (err) { return cb(new Error(util.format("Unable to createIndex on model '%s'. Original: %s", self.name, err.message))); }
-				
-				cb(null);
-			});
-		});
-	});
-	
-	async.series(calls, cb);
+
+	for (const loopIndex of self._indexes) {
+		await self.collection.createIndex(loopIndex.keys, loopIndex.options);
+	}
 }
 
 Model.prototype.createView = async function() {
@@ -317,7 +307,7 @@ Model.prototype.addVirtual = function(args) {
 				return;
 			}
 			
-			this[args.options.key] = new ObjectID(val);
+			this[args.options.key] = new ObjectId(val);
 		};
 	} else if (args.type === "jsonToObject") {
 		args.get = function() {
@@ -401,7 +391,7 @@ Model.prototype.addRelationship = function(args) {
 			{ name : "hookRequired", type : "boolean" },
 			{ name : "leftKey", type : "string", default : function(args) { return args.current.name + "_" + (args.current.type === "single" ? "id" : "ids") } },
 			{ name : "rightKey", type : "string", default : "_id" },
-			{ name : "rightKeyValidation", type : "object", default : { type : "class", class : ObjectID } }
+			{ name : "rightKeyValidation", type : "object", default : { type : "class", class : ObjectId } }
 		],
 		throwOnInvalid : true,
 		allowExtraKeys : false
@@ -541,8 +531,7 @@ Model.prototype.addHook = function(args, cb) {
 }
 
 function insert(docs, options, cb) {
-	var self = this;
-	
+	let self = this;
 	// if no options, callback is options
 	cb = cb || options;
 	
@@ -553,7 +542,7 @@ function insert(docs, options, cb) {
 	// if options is callback, default the options
 	options = options === cb ? {} : options;
 	
-	var isArray = docs instanceof Array;
+	let isArray = docs instanceof Array;
 	
 	// ensure docs is always an array
 	docs = docs instanceof Array ? docs : [docs];
@@ -562,14 +551,14 @@ function insert(docs, options, cb) {
 	options.options = options.options || {};
 	
 	// used in beforePut and afterPut because that hook takes a single document while insert could work on bulk
-	var callPutHook = function(args, cb) {
+	let callPutHook = function(args, cb) {
 		// args.hooks
 		// args.docs
 		// args.type
 		// args.options
 		
-		var calls = [];
-		var newDocs = [];
+		let calls = [];
+		let newDocs = [];
 		args.docs.forEach(function(val, i) {
 			calls.push(function(cb) {
 				self._executeHooks({ type : args.type, hooks : args.hooks, args : { doc : val, options : args.options } }, function(err, temp) {
@@ -581,10 +570,9 @@ function insert(docs, options, cb) {
 				});
 			});
 		});
-		
 		async.parallel(calls, function(err) {
 			if (err) { return cb(err); }
-			
+
 			cb(null, { docs : newDocs, options : args.options });
 		});
 	}
@@ -592,7 +580,7 @@ function insert(docs, options, cb) {
 	self._executeHooks({ type : "beforeInsert", hooks : self._getHooksByType("beforeInsert", options.hooks), args : { docs : docs, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		callPutHook({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), docs : args.docs, options : args.options }, function(err, args) {
+		callPutHook({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), docs : args.docs, options : args.options }, async function(err, args) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
@@ -604,19 +592,16 @@ function insert(docs, options, cb) {
 			}
 			
 			// insert the data into mongo
-			self.collection.insertMany(cleanDocs, args.options.options, function(err, result) {
+			let result = await self.collection.insertMany(cleanDocs, args.options.options);
+			let castedDocs = self._castDocs(cleanDocs);
+
+			callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs, options : args.options }, function(err, args) {
 				if (err) { return cb(err); }
 				
-				var castedDocs = self._castDocs(cleanDocs);
-				
-				callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs, options : args.options }, function(err, args) {
+				self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : args.docs, options : args.options } }, function(err, args) {
 					if (err) { return cb(err); }
-					
-					self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : args.docs, options : args.options } }, function(err, args) {
-						if (err) { return cb(err); }
-						
-						cb(null, isArray ? args.docs : args.docs[0], args.result);
-					});
+
+					cb(null, isArray ? args.docs : args.docs[0], args.result);
 				});
 			});
 		});
@@ -638,7 +623,7 @@ insert[util.promisify.custom] = function(...args) {
 Model.prototype.insert = insert;
 
 function save(doc, options, cb) {
-	var self = this;
+	let self = this;
 	
 	// if no options, callback is options
 	cb = cb || options;
@@ -660,7 +645,7 @@ function save(doc, options, cb) {
 	self._executeHooks({ type : "beforeSave", hooks : self._getHooksByType("beforeSave", options.hooks), args : { doc : doc, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), args : { doc : args.doc, options : args.options } }, function(err, args) {
+		self._executeHooks({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), args : { doc : args.doc, options : args.options } }, async function(err, args) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
@@ -671,19 +656,16 @@ function save(doc, options, cb) {
 				return cb(e);
 			}
 			
-			self.collection.replaceOne({ _id : cleanDocs[0]._id }, cleanDocs[0], args.options.options, function(err, result) {
+			let result = await self.collection.replaceOne({ _id : cleanDocs[0]._id }, cleanDocs[0], args.options.options);
+			let castedDoc = self._castDocs(cleanDocs)[0];
+				
+			self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc, options : args.options } }, function(err, args) {
 				if (err) { return cb(err); }
 				
-				var castedDoc = self._castDocs(cleanDocs)[0];
-				
-				self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc, options : args.options } }, function(err, args) {
+				self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : args.doc, options : args.options } }, function(err, args) {
 					if (err) { return cb(err); }
-					
-					self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : args.doc, options : args.options } }, function(err, args) {
-						if (err) { return cb(err); }
-						
-						cb(null, castedDoc, args.result);
-					});
+
+					cb(null, castedDoc, args.result);
 				});
 			});
 		});
@@ -742,7 +724,7 @@ Model.prototype.aggregate = callbackify(aggregate);
 async function findById(id, options = {}) {
 	var self = this;
 	
-	const docs = await self.promises.find({ _id : id instanceof ObjectID ? id : new ObjectID(id) }, options);
+	const docs = await self.promises.find({ _id : id instanceof ObjectId ? id : new ObjectId(id) }, options);
 	return docs.length === 0 ? null : docs[0];
 }
 
@@ -900,17 +882,12 @@ Model.prototype.count = function(filter, options, cb) {
 	self._executeHooks({ type : "beforeCount", hooks : self._getHooksByType("beforeCount", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, async function(err, args) {
 			if (err) { return cb(err); }
-			
-			self.collection.countDocuments(args.filter, args.options.options, function(err, count) {
+			let count = await self.collection.countDocuments(args.filter, args.options.options);
+			self._executeHooks({ type : "afterCount", hooks : self._getHooksByType("afterCount", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
 				if (err) { return cb(err); }
-				
-				self._executeHooks({ type : "afterCount", hooks : self._getHooksByType("afterCount", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
-					if (err) { return cb(err); }
-					
-					cb(null, args.count);
-				});
+				cb(null, args.count);
 			});
 		});
 	});
@@ -1010,30 +987,24 @@ Model.prototype.remove = function(filter, options, cb) {
 	self._executeHooks({ type : "beforeRemove", hooks : self._getHooksByType("beforeRemove", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, function(err, args) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, async function(err, args) {
 			if (err) { return cb(err); }
 			
-			self.collection.deleteMany(args.filter, args.options.options, function(err, result) {
+			let result = await self.collection.deleteMany(args.filter, args.options.options);
+			self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, result : result } }, function(err, args) {
 				if (err) { return cb(err); }
 				
-				self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, result : result } }, function(err, args) {
-					if (err) { return cb(err); }
-					
-					cb(null, args.result);
-				});
+				cb(null, args.result);
 			});
 		});
 	});
 }
 
-Model.prototype.removeAll = function(cb) {
+Model.prototype.removeAll = async function() {
 	var self = this;
-	
-	self.connection.dropCollection({ name : self.collectionName }, function(err) {
-		if (err) { return cb(err); }
-		
-		self.createIndexes(cb);
-	});
+
+	await self.connection.dropCollection({ name : self.collectionName });
+	await self.createIndexes();
 }
 
 Model.prototype.stringConvert = function(data) {
