@@ -18,9 +18,9 @@ describe(__filename, function() {
 		});
 	});
 	
-	after(async function() {
+	after(function(done) {
 		mongolayer._clearConnectCache();
-		await conn.close();
+		conn.close(done);
 	});
 	
 
@@ -29,11 +29,11 @@ describe(__filename, function() {
 		let model2 = new mongolayer.Model({ name : "foo_bar", collection : "foo" });
 
 		async.parallel([
-			async function() {
-				await conn.add({ model : model1 });
+			function(cb) {
+				conn.add({ model : model1 }, cb);
 			},
-			async function() {
-				await conn.add({ model : model2 });
+			function(cb) {
+				conn.add({ model : model2 }, cb);
 			}
 		], function(err) {
 			assert.ifError(err);
@@ -56,11 +56,11 @@ describe(__filename, function() {
 		let model2 = new mongolayer.Model({ collection : "foo_bar" });
 		
 		async.parallel([
-			async function() {
-				await conn.add({ model : model1 });
+			function(cb) {
+				conn.add({ model : model1 }, cb);
 			},
-			async function() {
-				await conn.add({ model : model2 });
+			function(cb) {
+				conn.add({ model : model2 }, cb);
 			}
 		], function(err) {
 			assert.ifError(err);
@@ -80,11 +80,11 @@ describe(__filename, function() {
 		var model2 = new mongolayer.Model({ collection : "foo_bar" });
 		
 		async.parallel([
-			async function(cb) {
-				await conn.add({ model : model1 });
+			function(cb) {
+				conn.add({ model : model1 }, cb);
 			},
-			async function(cb) {
-				await conn.add({ model : model2 });
+			function(cb) {
+				conn.add({ model : model2 }, cb);
 			}
 		], function(err) {
 			assert.ifError(err);
@@ -101,69 +101,119 @@ describe(__filename, function() {
 		});
 	});
 	
-	it("should dropCollection that doesn't exist", async function() {
-		let result = await conn.dropCollection({ name : "fakeCollection" });
-		assert.equal(result, true);
+	it("should dropCollection that doesn't exist", function(done) {
+		conn.dropCollection({ name : "fakeCollection" }, function(err) {
+			assert.ifError(err);
+
+			done();
+		});
 	});
 	
-	it("should dropCollection that does exist", async function() {
-		let model = new mongolayer.Model({
+	it("should dropCollection that does exist", function(done) {
+		var model = new mongolayer.Model({
 			collection : "testDrop",
 			fields : [{ name : "foo", validation : { type : "string" } }]
 		});
-		
-		await conn.add({ model : model });
-		let resultInsert = await model.promises.insert({ foo : "something" }, {});
-		assert.equal(resultInsert.insertedCount, 1);
-		let resultDrop = await conn.dropCollection({ name : "testDrop" });
-		assert.equal(resultDrop, true);
+
+		conn.add({ model : model }, function(err) {
+			assert.ifError(err);
+
+			model.insert({ foo : "something" }, function(err) {
+				conn.dropCollection({ name : "testDrop" }, function(err) {
+					assert.ifError(err);
+
+					done();
+				});
+			});
+		});
 	});
 	
-	it("should createIndexes on add", async function() {
-		let result = await conn.dropCollection({ name : "foo" });
-		assert.equal(result, true);
+	it("should createIndexes on add", function(done) {
+		conn.dropCollection({ name : "foo" }, function(err) {
+			assert.ifError(err);
 
-		let model1 = new mongolayer.Model({
-			collection : "foo",
-			fields : [
-				{ name : "foo", validation : { type : "string" } },
-				{ name : "bar", validation : { type : "string" } }
-			],
-			indexes : [
-				{ keys : { "foo" : 1 } },
-				{ keys : { "bar" : 1 }, options : { unique : true } }
-			]
+			var model1 = new mongolayer.Model({
+				collection : "foo",
+				fields : [
+					{ name : "foo", validation : { type : "string" } },
+					{ name : "bar", validation : { type : "string" } }
+				],
+				indexes : [
+					{ keys : { "foo" : 1 } },
+					{ keys : { "bar" : 1 }, options : { unique : true } }
+				]
+			});
+
+			conn.add({ model : model1 }, async function(err) {
+				assert.ifError(err);
+
+				let indexes = await model1.collection.indexes();
+				assert.equal(indexes[1].key.foo, 1);
+				assert.equal(indexes[1].name, "foo_1");
+				assert.equal(indexes[2].name, "bar_1");
+				assert.equal(indexes[2].unique, true);
+				return done();
+			});
 		});
-
-		await conn.add({ model : model1 });
-		let indexes = await model1.collection.indexes();
-		assert.equal(indexes[1].key.foo, 1);
-		assert.equal(indexes[1].name, "foo_1");
-		assert.equal(indexes[2].name, "bar_1");
-		assert.equal(indexes[2].unique, true);
 	});
 	
-	it("should not add if createIndexes === false", async function() {
-		let result = await conn.dropCollection({ name : "foo" });
-		var model1 = new mongolayer.Model({
-			collection : "foo",
-			fields : [
-				{ name : "foo", validation : { type : "string" } },
-				{ name : "bar", validation : { type : "string" } }
-			],
-			indexes : [
-				{ keys : { "foo" : 1 } },
-				{ keys : { "bar" : 1 }, options : { unique : true } }
-			]
+	it("should not add if createIndexes === false", function(done) {
+		conn.dropCollection({ name : "foo" }, function(err) {
+			assert.ifError(err);
+
+			var model1 = new mongolayer.Model({
+				collection : "foo",
+				fields : [
+					{ name : "foo", validation : { type : "string" } },
+					{ name : "bar", validation : { type : "string" } }
+				],
+				indexes : [
+					{ keys : { "foo" : 1 } },
+					{ keys : { "bar" : 1 }, options : { unique : true } }
+				]
+			});
+
+			conn.add({ model : model1, createIndexes : false }, async function(err) {
+				assert.ifError(err);
+				
+				try {
+					await model1.collection.indexes();
+					assert.fail("should not have gotten here");
+				} catch (err) {
+					assert.strictEqual(err.code, 26);
+					assert.strictEqual(err.message, "ns does not exist: mongolayer.foo");
+				}
+				return done();
+			});
 		});
-		
-		await conn.add({ model : model1, createIndexes : false });
-		try {
-			await model1.collection.indexes();
-			assert.fail("should not have gotten here");
-		} catch (err) {
-			assert.strictEqual(err.code, 26);
-			assert.strictEqual(err.message, "ns does not exist: mongolayer.foo");
-		}
+	});
+
+	it("should createIndexes on add", function(done) {
+		conn.dropCollection({ name : "foo" }, function(err) {
+			assert.ifError(err);
+
+			var model1 = new mongolayer.Model({
+				collection : "foo",
+				fields : [
+					{ name : "foo", validation : { type : "string" } },
+					{ name : "bar", validation : { type : "string" } }
+				],
+				indexes : [
+					{ keys : { "foo" : 1 } },
+					{ keys : { "bar" : 1 }, options : { unique : true } }
+				]
+			});
+
+			conn.add({ model : model1 }, async function(err) {
+				assert.ifError(err);
+
+				let indexes = await model1.collection.indexes();
+				assert.equal(indexes[1].key.foo, 1);
+				assert.equal(indexes[1].name, "foo_1");
+				assert.equal(indexes[2].name, "bar_1");
+				assert.equal(indexes[2].unique, true);
+				return done();
+			});
+		});
 	});
 });

@@ -4,7 +4,6 @@ var config = require("./config.js");
 var mongodb = require("mongodb");
 var async = require("async");
 const { testArray } = require("@simpleview/mochalib");
-const lodash = require("lodash");
 
 const {
 	_newErrorType,
@@ -54,7 +53,7 @@ describe(__filename, function() {
 		
 		testArray(tests, function(test) {
 			return new Promise(function(resolve) {
-				mongolayer.connect(test.args, async function(err, conn) {
+				mongolayer.connect(test.args, function(err, conn) {
 					if (test.error) {
 						assert.ok(err.message.match(test.error));
 						return resolve();
@@ -70,8 +69,7 @@ describe(__filename, function() {
 					assert.strictEqual(conn._client instanceof mongodb.MongoClient, true);
 					// isConnected() was deprecated, removed check
 
-					await conn.close();
-					return resolve();
+					return conn.close(resolve);
 				});
 			});
 		});
@@ -116,39 +114,24 @@ describe(__filename, function() {
 					assert.ifError(err);
 					
 					conn4 = conn;
-					
+
 					cb(null);
 				});
 			}
-		], async function(err) {
+		], function(err) {
 			assert.notEqual(conn1.db, conn2.db);
 			assert.notEqual(conn1, conn2);
-
-			/////////
-			// i added this junk to test more
-			if (lodash.isEqual(conn3.db, conn4.db, function(result) {
-				console.log('equal', result);
-			})) {
-				console.log('test');
-			} else {
-				console.log('not equal');
-			}
-
-			// console.log('conn3.db', conn3.db);
-			// console.log('conn4.db', conn4.db);
-
-			// not sure what is up with this, this should work... but /shrug, could be a real issue after upgrade
+			// BEGIN TODO THIS MIGHT BE AN ISSUE, NEED TO INVESTIGATE WHY THIS FAILS NOW AND IF IT IS A PROBLEM
 			// assert.equal(conn3.db, conn4.db); 
-			/////////
-
-
+			// END TODO
 			assert.notEqual(conn3, conn4);
 
-			await conn1.close();
-			await conn2.close();
-			await conn3.close();
-			await conn4.close();
-			return done();
+			async.series([
+				(cb) => conn1.close(cb),
+				(cb) => conn2.close(cb),
+				(cb) => conn3.close(cb),
+				(cb) => conn4.close(cb)
+			], done);
 		});
 	});
 	

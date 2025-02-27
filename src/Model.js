@@ -195,13 +195,14 @@ var Model = function(args) {
 }
 
 // re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
-Model.prototype.createIndexes = async function() {
+async function createIndexes() {
 	var self = this;
 
 	for (const loopIndex of self._indexes) {
 		await self.collection.createIndex(loopIndex.keys, loopIndex.options);
 	}
 }
+Model.prototype.createIndexes = callbackify(createIndexes);
 
 Model.prototype.createView = async function() {
 	try {
@@ -998,11 +999,14 @@ Model.prototype.remove = function(filter, options, cb) {
 	});
 }
 
-Model.prototype.removeAll = async function() {
+Model.prototype.removeAll = function(cb) {
 	var self = this;
 
-	await self.connection.dropCollection({ name : self.collectionName });
-	await self.createIndexes();
+	self.connection.dropCollection({ name : self.collectionName }, function(err) {
+		if (err) { return cb(err); }
+
+		self.createIndexes(cb);
+	});
 }
 
 Model.prototype.stringConvert = function(data) {

@@ -36,7 +36,7 @@ async function add({ model, sync = true, createIndexes }) {
 	model._setConnection({ connection : this });
 	// allow option to disable createIndexes on add for performance
 	if (sync === true) {
-		await model.createIndexes();
+		await model.promises.createIndexes();
 	}
 	if (sync === true && model.viewOn !== undefined) {
 		await model.createView();
@@ -46,8 +46,7 @@ async function add({ model, sync = true, createIndexes }) {
 	this._models[model.name] = { model, sync, createIndexes };
 }
 
-// Connection.prototype.add = callbackify(add);
-Connection.prototype.add = add;
+Connection.prototype.add = callbackify(add);
 
 Connection.prototype.remove = function(args, cb) {
 	var self = this;
@@ -73,7 +72,7 @@ Connection.prototype.removeAll = function(cb) {
 	async.series(calls, cb);
 }
 
-Connection.prototype.dropCollection = async function(args) {
+async function dropCollection(args) {
 	var self = this;
 	// args.name
 
@@ -90,10 +89,12 @@ Connection.prototype.dropCollection = async function(args) {
 	}
 	return await self.db.dropCollection(args.name);
 }
+Connection.prototype.dropCollection = callbackify(dropCollection);
 
-Connection.prototype.close = async function() {
+async function close() {
 	var self = this;
 	await self._client.close(false);
 }
+Connection.prototype.close = callbackify(close);
 
 module.exports = Connection;

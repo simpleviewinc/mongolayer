@@ -30,9 +30,9 @@ describe(__filename, function() {
 		});
 	});
 	
-	after(async function() {
+	after(function(done) {
 		mongolayer._clearConnectCache();
-		await conn.close();
+		conn.close(done);
 	});
 	
 	it("should create", function(done) {
@@ -597,7 +597,7 @@ describe(__filename, function() {
 		done();
 	});
 	
-	it("should createIndexes", async function() {
+	it("should createIndexes", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -608,16 +608,32 @@ describe(__filename, function() {
 			]
 		});
 
-		await conn.dropCollection({ name : "foo" });
-		await conn.add({ model : model });
-		await model.collection.dropIndexes();
-		await model.createIndexes();
-		let indexes = await model.collection.indexes();
-		assert.equal(indexes.length, 2);
-		assert.equal(indexes[1].name, "title_text");
+		async.series([
+			function(cb) {
+				conn.dropCollection({ name : "foo" }, cb);
+			},
+			function(cb) {
+				conn.add({ model : model }, cb);
+			},
+			async function() {
+				await model.collection.dropIndexes();
+			},
+			function(cb) {
+				model.createIndexes(cb);
+			},
+			async function() {
+				let indexes = await model.collection.indexes();
+				assert.equal(indexes.length, 2);
+				assert.equal(indexes[1].name, "title_text");
+			}
+		], function(err) {
+			assert.ifError(err);
+
+			done();
+		});
 	});
 	
-	it("should provide model name on createIndexes error", async function() {
+	it("should provide model name on createIndexes error", function(done) {
 		var model = new mongolayer.Model({
 			collection : "foo",
 			fields : [
@@ -637,17 +653,22 @@ describe(__filename, function() {
 				{ keys : { title : "text", description : "text" } }
 			]
 		});
-		
-		await conn.dropCollection({ name : "foo" });
-		await conn.add({ model : model });
 
-		try {
-			await conn.add({ model : model2 });
-		} catch (err) {
-			assert.ok(err instanceof Error);
-			assert.equal(err.code, 85);
-			assert.ok(err.message.match(/An equivalent index already exists with a different name and options./)); // note: name is no longer returned
-		}
+		conn.dropCollection({ name : "foo" }, function(err) {
+			assert.ifError(err);
+
+			conn.add({ model : model }, function(err) {
+				assert.ifError(err);
+
+				conn.add({ model : model2 }, function(err) {
+					assert.ok(err instanceof Error);
+					assert.equal(err.code, 85);
+					assert.ok(err.message.match(/An equivalent index already exists with a different name and options./)); // note: name is no longer returned
+
+					done();
+				});
+			});
+		});
 	});
 	
 	it("should have valid callbackified functions", function() {
@@ -1348,17 +1369,17 @@ describe(__filename, function() {
 			async.series([
 				function(cb) {
 					async.parallel([
-						async function() {
-							await conn.add({ model : model });
+						function(cb) {
+							conn.add({ model : model }, cb);
 						},
-						async function() {
-							await conn.add({ model : modelRelated });
+						function(cb) {
+							conn.add({ model : modelRelated }, cb);
 						},
-						async function() {
-							await conn.add({ model : modelRelated2 });
+						function(cb) {
+							conn.add({ model : modelRelated2 }, cb);
 						},
-						async function() {
-							await conn.add({ model : modelView });
+						function(cb) {
+							conn.add({ model : modelView }, cb);
 						}
 					], cb);
 				},
@@ -1733,7 +1754,7 @@ describe(__filename, function() {
 		
 		describe("remove", function() {
 			it("should remove", function(done) {
-				model.insert([{ foo : "one" }, { foo : "two" }], async function(err) {
+				model.insert([{ foo : "one" }, { foo : "two" }], function(err) {
 					assert.ifError(err);
 
 					model.remove({ foo : "one" }, function(err, result) {
@@ -3926,17 +3947,17 @@ describe(__filename, function() {
 						cb(null);
 					});
 				},
-				add : async function() {
-					await conn.add({ model : model });
+				add : function(cb) {
+					conn.add({ model : model }, cb);
 				},
 				remove : function(cb) {
 					model.remove({}, cb);
 				}
 			}, done);
 		});
-		
-		after(async function() {
-			await conn.close();
+
+		after(function(done) {
+			conn.close(done);
 		});
 		
 		it("should maintain domain on insert", function(done) {
