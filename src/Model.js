@@ -909,7 +909,7 @@ Model.prototype.update = function(filter, delta, options, cb) {
 	self._executeHooks({ type : "beforeUpdate", hooks : self._getHooksByType("beforeUpdate", options.hooks), args : { filter : filter, delta: delta, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", options.hooks), args : { filter : filter, options : options } }, function(err, tempArgs) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", options.hooks), args : { filter : filter, options : options } }, async function(err, tempArgs) {
 			if (err) { return cb(err); }
 			
 			let hasOps = true;
@@ -957,14 +957,12 @@ Model.prototype.update = function(filter, delta, options, cb) {
 			;
 			
 			delete tempArgs.options.options.multi;
-			self.collection[method](tempArgs.filter, args.delta, tempArgs.options.options, function(err, result) {
+
+			let result = await self.collection[method](tempArgs.filter, args.delta, tempArgs.options.options);
+			self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result } }, function(err, args) {
 				if (err) { return cb(err); }
 				
-				self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result } }, function(err, args) {
-					if (err) { return cb(err); }
-					
-					cb(null, args.result);
-				});
+				cb(null, args.result);
 			});
 		});
 	});

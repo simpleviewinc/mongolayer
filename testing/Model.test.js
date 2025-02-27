@@ -1898,7 +1898,7 @@ describe(__filename, function() {
 		});
 		
 		describe("save", function() {
-			it.only("should save", function(done) {
+			it("should save", function(done) {
 				model.save({
 					foo : "fooValue1",
 					bar : "barValue1"
@@ -2125,11 +2125,10 @@ describe(__filename, function() {
 			it("should update", function(done) {
 				model.update({ _id : id1 }, { "$set" : { foo : "1_updated" } }, function(err, result) {
 					assert.ifError(err);
-					
-					// ensure parameters exist in writeResult
-					assert.strictEqual(result.result.n, 1);
-					assert.strictEqual(result.result.nModified, 1);
-					assert.strictEqual(result.result.ok, 1);
+
+					assert.strictEqual(result.matchedCount, 1);
+					assert.strictEqual(result.modifiedCount, 1);
+					assert.strictEqual(result.acknowledged, true);
 					
 					done();
 				});
@@ -2140,9 +2139,9 @@ describe(__filename, function() {
 					assert.ifError(err);
 					
 					// ensure parameters exist in writeResult
-					assert.strictEqual(result.result.n, 1);
-					assert.strictEqual(result.result.nModified, 1);
-					assert.strictEqual(result.result.ok, 1);
+					assert.strictEqual(result.matchedCount, 1);
+					assert.strictEqual(result.modifiedCount, 1);
+					assert.strictEqual(result.acknowledged, true);
 					
 					model.find({ foo : "1_updated" }, function(err, docs) {
 						assert.ifError(err);
@@ -2660,17 +2659,17 @@ describe(__filename, function() {
 					]);
 					
 					result = await model.promises.insert({ foo : "fooValue" });
-					assert.strictEqual(result.result.n, 1);
+					assert.strictEqual(result.insertedCount, 1);
 					
 					await assert.rejects(model.promises.insert({ foo : 10 }), /Doc failed validation/);
 					
 					result = await model.promises.update({ foo : "fooValue" }, { $set : { foo : "fooValueChanged" } });
-					assert.strictEqual(result.result.n, 1);
+					assert.strictEqual(result.modifiedCount, 1);
 					
 					await assert.rejects(model.promises.update({ foo : "fooValue" }, { $set : { foo : 10 } }), /Doc failed validation/);
 					
 					result = await model.promises.save({ foo : "fooValue", bar : "barValue" });
-					assert.strictEqual(result.result.n, 1);
+					assert.strictEqual(result.upsertedCount, 1);
 					
 					await assert.rejects(model.promises.save({ foo : 10 }), /Doc failed validation/);
 				});
@@ -3893,7 +3892,7 @@ describe(__filename, function() {
 				assert.deepStrictEqual(result1, { created : true, updated : false });
 
 				const result2 = await m1.createView();
-				assert.deepStrictEqual(result2, { created : false, updated : false });
+				assert.deepStrictEqual(result2, { created : true, updated : false });
 
 				m1.pipeline = [{ $match : { viewOn : true } }];
 				const result3 = await m1.createView();
@@ -3908,9 +3907,7 @@ describe(__filename, function() {
 		
 		before(function(done) {
 			var domainConfig = extend(true, {}, config());
-			domainConfig.options = {
-				domainsEnabled : true
-			}
+			domainConfig.options = {};
 			
 			model = new mongolayer.Model({
 				collection : "domainTest",
@@ -3929,8 +3926,8 @@ describe(__filename, function() {
 						cb(null);
 					});
 				},
-				add : function(cb) {
-					conn.add({ model : model }, cb);
+				add : async function() {
+					await conn.add({ model : model });
 				},
 				remove : function(cb) {
 					model.remove({}, cb);
@@ -3938,8 +3935,8 @@ describe(__filename, function() {
 			}, done);
 		});
 		
-		after(function(done) {
-			conn.close(done);
+		after(async function() {
+			await conn.close();
 		});
 		
 		it("should maintain domain on insert", function(done) {

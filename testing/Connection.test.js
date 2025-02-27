@@ -103,7 +103,6 @@ describe(__filename, function() {
 	
 	it("should dropCollection that doesn't exist", async function() {
 		let result = await conn.dropCollection({ name : "fakeCollection" });
-		console.log('result', result);
 		assert.equal(result, true);
 	});
 	
