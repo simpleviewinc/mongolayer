@@ -60,7 +60,7 @@ describe(__filename, function() {
 					}
 					
 					assert.ifError(err);
-
+					
 					if (test.dbName) {
 						assert.strictEqual(conn.db.databaseName, test.dbName);
 					} else {
@@ -69,7 +69,7 @@ describe(__filename, function() {
 					
 					assert.strictEqual(conn._client instanceof mongodb.MongoClient, true);
 					// isConnected() was deprecated, removed check
-					// TODO is there a better way to check if the connection is open?
+					// TODO is there a replacement way to check if the connection is open?
 
 					return conn.close(resolve);
 				});

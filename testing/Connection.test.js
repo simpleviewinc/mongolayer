@@ -25,9 +25,9 @@ describe(__filename, function() {
 	
 
 	it("should add", function(done) {
-		let model1 = new mongolayer.Model({ collection : "foo" });
-		let model2 = new mongolayer.Model({ name : "foo_bar", collection : "foo" });
-
+		var model1 = new mongolayer.Model({ collection : "foo" });
+		var model2 = new mongolayer.Model({ name : "foo_bar", collection : "foo" });
+		
 		async.parallel([
 			function(cb) {
 				conn.add({ model : model1 }, cb);
@@ -52,8 +52,8 @@ describe(__filename, function() {
 	});
 	
 	it("should remove", function(done) {
-		let model1 = new mongolayer.Model({ collection : "foo" });
-		let model2 = new mongolayer.Model({ collection : "foo_bar" });
+		var model1 = new mongolayer.Model({ collection : "foo" });
+		var model2 = new mongolayer.Model({ collection : "foo_bar" });
 		
 		async.parallel([
 			function(cb) {
@@ -70,6 +70,7 @@ describe(__filename, function() {
 				assert.equal(model2.connected, false);
 				assert.equal(conn.models["foo_bar"], undefined);
 				assert.equal(conn._models["foo_bar"], undefined);
+
 				done();
 			});
 		});
@@ -96,6 +97,7 @@ describe(__filename, function() {
 				assert.equal(conn._models["foo"], undefined);
 				assert.equal(conn.models["foo_bar"], undefined);
 				assert.equal(conn._models["foo_bar"], undefined);
+
 				done();
 			});
 		});
@@ -172,7 +174,7 @@ describe(__filename, function() {
 					{ keys : { "bar" : 1 }, options : { unique : true } }
 				]
 			});
-
+			
 			conn.add({ model : model1, createIndexes : false }, async function(err) {
 				assert.ifError(err);
 				

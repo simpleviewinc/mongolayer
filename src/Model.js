@@ -533,7 +533,7 @@ Model.prototype.addHook = function(args, cb) {
 
 function insert(docs, options, cb) {
 	var self = this;
-
+	
 	// if no options, callback is options
 	cb = cb || options;
 	
@@ -572,7 +572,7 @@ function insert(docs, options, cb) {
 				});
 			});
 		});
-
+		
 		async.parallel(calls, function(err) {
 			if (err) { return cb(err); }
 			

@@ -27,15 +27,14 @@ var Connection = function(args) {
  * @param {boolean} [args.sync] - Whether to sync the state of the model to the database. Has a performance implication if creating indexes or the view can cause issues.
  * @param {boolean} [args.createIndexes] - Deprecated: Use sync instead. The passed value here will be used to set the value of sync.
  */
-
-async function add({ model, sync = true, createIndexes }) {	
+async function add({ model, sync = true, createIndexes }) {
 	if (createIndexes !== undefined) {
 		// for backward compatibility we map createIndexes to sync
 		sync = createIndexes
 	}
-
+	
 	model._setConnection({ connection : this });
-
+	
 	// allow option to disable createIndexes on add for performance
 	if (sync === true) {
 		await model.promises.createIndexes();

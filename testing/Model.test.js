@@ -1697,7 +1697,7 @@ describe(__filename, function() {
 							assert.equal(afterCalled, false);
 							assert.equal(beforePutCalled, false);
 							assert.equal(afterPutCalled, false);
-
+							
 							model.remove({}, function(err) {
 								cb(null);
 							});
@@ -1712,7 +1712,7 @@ describe(__filename, function() {
 						
 						model.insert(data, { hooks : ["beforeInsert_process", "afterInsert_process", "beforePut_beforePut", "afterPut_afterPut"] }, function(err, docs) {
 							assert.ifError(err);
-
+							
 							assert.equal(beforeCalled, true);
 							assert.equal(afterCalled, true);
 							assert.equal(beforePutCalled, true);
@@ -1926,7 +1926,7 @@ describe(__filename, function() {
 					bar : "barValue1"
 				}, function(err, doc, result) {
 					assert.ifError(err);
-
+					
 					assert.equal(doc instanceof model.Document, true);
 					assert.equal(doc.foo, "fooValue1");
 					assert.equal(doc.bar, "barValue1");
