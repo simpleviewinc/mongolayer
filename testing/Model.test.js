@@ -607,7 +607,7 @@ describe(__filename, function() {
 				{ keys : { title : "text" } }
 			]
 		});
-
+		
 		async.series([
 			function(cb) {
 				conn.dropCollection({ name : "foo" }, cb);
@@ -628,7 +628,7 @@ describe(__filename, function() {
 			}
 		], function(err) {
 			assert.ifError(err);
-
+			
 			done();
 		});
 	});
@@ -653,13 +653,13 @@ describe(__filename, function() {
 				{ keys : { title : "text", description : "text" } }
 			]
 		});
-
+		
 		conn.dropCollection({ name : "foo" }, function(err) {
 			assert.ifError(err);
-
+			
 			conn.add({ model : model }, function(err) {
 				assert.ifError(err);
-
+				
 				conn.add({ model : model2 }, function(err) {
 					assert.ok(err instanceof Error);
 					assert.equal(err.code, 85);
@@ -1311,7 +1311,7 @@ describe(__filename, function() {
 					contextHook
 				]
 			});
-
+			
 			modelRelated2 = new mongolayer.Model({
 				collection : "mongolayer_testRelated2",
 				fields : [
@@ -1462,7 +1462,7 @@ describe(__filename, function() {
 					bar : "barValue"
 				}, function(err, doc, result) {
 					assert.ifError(err);
-
+					
 					assert.strictEqual(result.acknowledged, true);
 					assert.strictEqual(result.insertedCount, 1);
 					assert.equal(doc.foo, "fooValue");
@@ -1613,7 +1613,7 @@ describe(__filename, function() {
 				var beforePutCalled;
 				var afterPutCalled;
 				var data = [{ foo : "fooValue1", bar : "barValue1"}];
-
+				
 				model.addHook({
 					name : "process",
 					type : "beforeInsert",
@@ -1697,6 +1697,7 @@ describe(__filename, function() {
 							assert.equal(afterCalled, false);
 							assert.equal(beforePutCalled, false);
 							assert.equal(afterPutCalled, false);
+
 							model.remove({}, function(err) {
 								cb(null);
 							});
@@ -1708,7 +1709,7 @@ describe(__filename, function() {
 						afterCalled = false;
 						beforePutCalled = false;
 						afterPutCalled = false;
-
+						
 						model.insert(data, { hooks : ["beforeInsert_process", "afterInsert_process", "beforePut_beforePut", "afterPut_afterPut"] }, function(err, docs) {
 							assert.ifError(err);
 
@@ -1746,7 +1747,7 @@ describe(__filename, function() {
 					}
 				], function(err) {
 					assert.ifError(err);
-
+					
 					done();
 				});
 			});
@@ -1756,10 +1757,10 @@ describe(__filename, function() {
 			it("should remove", function(done) {
 				model.insert([{ foo : "one" }, { foo : "two" }], function(err) {
 					assert.ifError(err);
-
+					
 					model.remove({ foo : "one" }, function(err, result) {
 						assert.ifError(err);
-
+						
 						assert.strictEqual(result.acknowledged, true);
 						assert.strictEqual(result.deletedCount, 1);
 						
@@ -1925,6 +1926,7 @@ describe(__filename, function() {
 					bar : "barValue1"
 				}, function(err, doc, result) {
 					assert.ifError(err);
+
 					assert.equal(doc instanceof model.Document, true);
 					assert.equal(doc.foo, "fooValue1");
 					assert.equal(doc.bar, "barValue1");
@@ -3955,7 +3957,7 @@ describe(__filename, function() {
 				}
 			}, done);
 		});
-
+		
 		after(function(done) {
 			conn.close(done);
 		});

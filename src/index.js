@@ -5,6 +5,7 @@ const {
 var async = require("async");
 var extend = require("extend");
 var typecaster = require("typecaster");
+
 var Connection = require("./Connection.js");
 var Model = require("./Model.js");
 var Document = require("./Document.js");
@@ -27,7 +28,7 @@ const connectCached = _connect.bind(null, true);
 
 async function _connect(cached, args) {
 	const method = cached === true ? _getClientCached : _getClient;
-
+	
 	// parse the connectionString to detect a dbName
 	const parsed = args.connectionString.match(/mongodb:\/\/.*\/([^?]+)/);
 	if (parsed === null) {
@@ -38,7 +39,7 @@ async function _connect(cached, args) {
 	const client = await method(args);
 	const db = client.db(dbName);
 	const connection = new Connection({ db : db, logger : args.logger, client : client });
-
+	
 	return connection;
 }
 

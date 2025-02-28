@@ -60,6 +60,7 @@ describe(__filename, function() {
 					}
 					
 					assert.ifError(err);
+
 					if (test.dbName) {
 						assert.strictEqual(conn.db.databaseName, test.dbName);
 					} else {
@@ -68,6 +69,7 @@ describe(__filename, function() {
 					
 					assert.strictEqual(conn._client instanceof mongodb.MongoClient, true);
 					// isConnected() was deprecated, removed check
+					// TODO is there a better way to check if the connection is open?
 
 					return conn.close(resolve);
 				});
@@ -114,7 +116,7 @@ describe(__filename, function() {
 					assert.ifError(err);
 					
 					conn4 = conn;
-
+					
 					cb(null);
 				});
 			}
@@ -125,7 +127,7 @@ describe(__filename, function() {
 			// assert.equal(conn3.db, conn4.db); 
 			// END TODO
 			assert.notEqual(conn3, conn4);
-
+			
 			async.series([
 				(cb) => conn1.close(cb),
 				(cb) => conn2.close(cb),

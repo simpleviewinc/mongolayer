@@ -33,15 +33,18 @@ async function add({ model, sync = true, createIndexes }) {
 		// for backward compatibility we map createIndexes to sync
 		sync = createIndexes
 	}
+
 	model._setConnection({ connection : this });
+
 	// allow option to disable createIndexes on add for performance
 	if (sync === true) {
 		await model.promises.createIndexes();
 	}
+
 	if (sync === true && model.viewOn !== undefined) {
 		await model.createView();
 	}
-
+	
 	this.models[model.name] = model;
 	this._models[model.name] = { model, sync, createIndexes };
 }

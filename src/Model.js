@@ -532,7 +532,8 @@ Model.prototype.addHook = function(args, cb) {
 }
 
 function insert(docs, options, cb) {
-	let self = this;
+	var self = this;
+
 	// if no options, callback is options
 	cb = cb || options;
 	
@@ -543,7 +544,7 @@ function insert(docs, options, cb) {
 	// if options is callback, default the options
 	options = options === cb ? {} : options;
 	
-	let isArray = docs instanceof Array;
+	var isArray = docs instanceof Array;
 	
 	// ensure docs is always an array
 	docs = docs instanceof Array ? docs : [docs];
@@ -552,14 +553,14 @@ function insert(docs, options, cb) {
 	options.options = options.options || {};
 	
 	// used in beforePut and afterPut because that hook takes a single document while insert could work on bulk
-	let callPutHook = function(args, cb) {
+	var callPutHook = function(args, cb) {
 		// args.hooks
 		// args.docs
 		// args.type
 		// args.options
 		
-		let calls = [];
-		let newDocs = [];
+		var calls = [];
+		var newDocs = [];
 		args.docs.forEach(function(val, i) {
 			calls.push(function(cb) {
 				self._executeHooks({ type : args.type, hooks : args.hooks, args : { doc : val, options : args.options } }, function(err, temp) {
@@ -571,9 +572,10 @@ function insert(docs, options, cb) {
 				});
 			});
 		});
+
 		async.parallel(calls, function(err) {
 			if (err) { return cb(err); }
-
+			
 			cb(null, { docs : newDocs, options : args.options });
 		});
 	}
@@ -624,7 +626,7 @@ insert[util.promisify.custom] = function(...args) {
 Model.prototype.insert = insert;
 
 function save(doc, options, cb) {
-	let self = this;
+	var self = this;
 	
 	// if no options, callback is options
 	cb = cb || options;
@@ -1001,10 +1003,10 @@ Model.prototype.remove = function(filter, options, cb) {
 
 Model.prototype.removeAll = function(cb) {
 	var self = this;
-
+	
 	self.connection.dropCollection({ name : self.collectionName }, function(err) {
 		if (err) { return cb(err); }
-
+		
 		self.createIndexes(cb);
 	});
 }
