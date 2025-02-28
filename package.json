@@ -6,8 +6,7 @@
 	"devDependencies": {
 		"@simpleview/assertlib": "^1.0.1",
 		"@simpleview/mochalib": "^1.0.1",
-		"mocha": "^6.1.4",
-		"simple-domain": "*"
+		"mocha": "^6.1.4"
 	},
 	"dependencies": {
 		"@simpleview/promiselib": "^1.0.1",

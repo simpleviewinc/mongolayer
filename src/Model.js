@@ -533,7 +533,7 @@ Model.prototype.addHook = function(args, cb) {
 
 function insert(docs, options, cb) {
 	var self = this;
-	
+	const insertMany = callbackify(self.collection.insertMany.bind(self.collection));
 	// if no options, callback is options
 	cb = cb || options;
 	
@@ -583,7 +583,7 @@ function insert(docs, options, cb) {
 	self._executeHooks({ type : "beforeInsert", hooks : self._getHooksByType("beforeInsert", options.hooks), args : { docs : docs, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		callPutHook({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), docs : args.docs, options : args.options }, async function(err, args) {
+		callPutHook({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), docs : args.docs, options : args.options }, function(err, args) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
@@ -595,16 +595,19 @@ function insert(docs, options, cb) {
 			}
 			
 			// insert the data into mongo
-			let result = await self.collection.insertMany(cleanDocs, args.options.options);
-			let castedDocs = self._castDocs(cleanDocs);
-
-			callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs, options : args.options }, function(err, args) {
+			insertMany(cleanDocs, args.options.options, function(err, result) {
 				if (err) { return cb(err); }
-				
-				self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : args.docs, options : args.options } }, function(err, args) {
-					if (err) { return cb(err); }
 
-					cb(null, isArray ? args.docs : args.docs[0], args.result);
+				var castedDocs = self._castDocs(cleanDocs);
+				
+				callPutHook({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), docs : castedDocs, options : args.options }, function(err, args) {
+					if (err) { return cb(err); }
+					
+					self._executeHooks({ type : "afterInsert", hooks : self._getHooksByType("afterInsert", args.options.hooks), args : { result : result, docs : args.docs, options : args.options } }, function(err, args) {
+						if (err) { return cb(err); }
+						
+						cb(null, isArray ? args.docs : args.docs[0], args.result);
+					});
 				});
 			});
 		});
@@ -627,6 +630,7 @@ Model.prototype.insert = insert;
 
 function save(doc, options, cb) {
 	var self = this;
+	const replaceOne = callbackify(self.collection.replaceOne.bind(self.collection));
 	
 	// if no options, callback is options
 	cb = cb || options;
@@ -648,7 +652,7 @@ function save(doc, options, cb) {
 	self._executeHooks({ type : "beforeSave", hooks : self._getHooksByType("beforeSave", options.hooks), args : { doc : doc, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), args : { doc : args.doc, options : args.options } }, async function(err, args) {
+		self._executeHooks({ type : "beforePut", hooks : self._getHooksByType("beforePut", args.options.hooks), args : { doc : args.doc, options : args.options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
 			// validate/add defaults
@@ -659,16 +663,19 @@ function save(doc, options, cb) {
 				return cb(e);
 			}
 			
-			let result = await self.collection.replaceOne({ _id : cleanDocs[0]._id }, cleanDocs[0], args.options.options);
-			let castedDoc = self._castDocs(cleanDocs)[0];
-				
-			self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc, options : args.options } }, function(err, args) {
+			replaceOne({ _id : cleanDocs[0]._id }, cleanDocs[0], args.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
-				self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : args.doc, options : args.options } }, function(err, args) {
+				var castedDoc = self._castDocs(cleanDocs)[0];
+				
+				self._executeHooks({ type : "afterPut", hooks : self._getHooksByType("afterPut", args.options.hooks), args : { doc : castedDoc, options : args.options } }, function(err, args) {
 					if (err) { return cb(err); }
-
-					cb(null, castedDoc, args.result);
+					
+					self._executeHooks({ type : "afterSave", hooks : self._getHooksByType("afterSave", args.options.hooks), args : { result : result, doc : args.doc, options : args.options } }, function(err, args) {
+						if (err) { return cb(err); }
+						
+						cb(null, castedDoc, args.result);
+					});
 				});
 			});
 		});
@@ -871,7 +878,8 @@ Model.prototype.find = callbackify(find);
 
 Model.prototype.count = function(filter, options, cb) {
 	var self = this;
-	
+	const countDocuments = callbackify(self.collection.countDocuments.bind(self.collection));
+
 	cb = cb || options;
 	
 	if (self.connected === false) {
@@ -885,12 +893,17 @@ Model.prototype.count = function(filter, options, cb) {
 	self._executeHooks({ type : "beforeCount", hooks : self._getHooksByType("beforeCount", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, async function(err, args) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 			if (err) { return cb(err); }
-			let count = await self.collection.countDocuments(args.filter, args.options.options);
-			self._executeHooks({ type : "afterCount", hooks : self._getHooksByType("afterCount", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
+			
+			countDocuments(args.filter, args.options.options, function(err, count) {
 				if (err) { return cb(err); }
-				cb(null, args.count);
+				
+				self._executeHooks({ type : "afterCount", hooks : self._getHooksByType("afterCount", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
+					if (err) { return cb(err); }
+					
+					cb(null, args.count);
+				});
 			});
 		});
 	});
@@ -912,7 +925,7 @@ Model.prototype.update = function(filter, delta, options, cb) {
 	self._executeHooks({ type : "beforeUpdate", hooks : self._getHooksByType("beforeUpdate", options.hooks), args : { filter : filter, delta: delta, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", options.hooks), args : { filter : filter, options : options } }, async function(err, tempArgs) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", options.hooks), args : { filter : filter, options : options } }, function(err, tempArgs) {
 			if (err) { return cb(err); }
 			
 			let hasOps = true;
@@ -961,11 +974,14 @@ Model.prototype.update = function(filter, delta, options, cb) {
 			
 			delete tempArgs.options.options.multi;
 
-			let result = await self.collection[method](tempArgs.filter, args.delta, tempArgs.options.options);
-			self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result } }, function(err, args) {
+			callbackify(self.collection[method].bind(self.collection))(tempArgs.filter, args.delta, tempArgs.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
-				cb(null, args.result);
+				self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result } }, function(err, args) {
+					if (err) { return cb(err); }
+					
+					cb(null, args.result);
+				});
 			});
 		});
 	});
@@ -974,7 +990,8 @@ Model.prototype.update = function(filter, delta, options, cb) {
 // Removes from model
 Model.prototype.remove = function(filter, options, cb) {
 	var self = this;
-	
+	const deleteMany = callbackify(self.collection.deleteMany.bind(self.collection));
+
 	cb = cb || options;
 	
 	if (self.connected === false) {
@@ -990,12 +1007,15 @@ Model.prototype.remove = function(filter, options, cb) {
 		
 		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, async function(err, args) {
 			if (err) { return cb(err); }
-			
-			let result = await self.collection.deleteMany(args.filter, args.options.options);
-			self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, result : result } }, function(err, args) {
+
+			deleteMany(args.filter, args.options.options, function(err, result) {
 				if (err) { return cb(err); }
-				
-				cb(null, args.result);
+
+				self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, result : result } }, function(err, args) {
+					if (err) { return cb(err); }
+
+					cb(null, args.result);
+				});
 			});
 		});
 	});
