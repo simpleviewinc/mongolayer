@@ -1,4 +1,3 @@
-const { ObjectId } = require("mongodb");
 const typecaster = require("typecaster");
 const extend = require("extend");
 const async = require("async");
@@ -6,6 +5,8 @@ const util = require("util");
 
 const objectLib = require("./lib/objectLib.js");
 const arrayLib = require("./lib/arrayLib.js");
+
+const { ObjectId } = require("./ObjectId");
 
 const typecasterObjectIdDef = {
 	name : "objectid",

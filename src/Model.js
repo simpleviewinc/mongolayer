@@ -9,7 +9,7 @@ const shuffle = require("lodash/shuffle");
 
 const {
 	ObjectId
-} = require("mongodb");
+} = require("./ObjectId");
 
 const {
 	promisifyMethods

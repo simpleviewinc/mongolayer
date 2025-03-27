@@ -1,5 +1,4 @@
 const {
-	ObjectId,
 	MongoClient
 } = require("mongodb");
 var async = require("async");
@@ -12,6 +11,8 @@ var Document = require("./Document.js");
 var QueryLog = require("./QueryLog.js");
 
 const pMemoize = require("p-memoize");
+
+const { ObjectId } = require("./ObjectId.js");
 
 const {
 	callbackify,
