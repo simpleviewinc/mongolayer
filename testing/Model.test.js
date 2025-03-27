@@ -2,7 +2,6 @@ var assert = require("assert");
 var domain = require("domain");
 var util = require("util");
 var extend = require("extend");
-var simpleDomain = require("simple-domain");
 var mongolayer = require("../src/index.js");
 var config = require("./config.js");
 var assertLib = require("@simpleview/assertlib");
