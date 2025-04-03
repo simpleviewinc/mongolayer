@@ -458,4 +458,25 @@ describe(__filename, function() {
 		
 		done();
 	});
+
+	it("should wrap ObjectId", function(done) {
+		const { ObjectId } = mongolayer;
+
+		const withNew = new ObjectId();
+		const withNewArgs = new ObjectId("5a5a00000000000000000000");
+		const withoutNew = ObjectId();
+		const withoutNewArgs = ObjectId("5a5a00000000000000000000");
+
+		assert(withNew instanceof ObjectId);
+		assert(withNewArgs instanceof ObjectId);
+		assert(withoutNew instanceof ObjectId);
+		assert(withoutNewArgs instanceof ObjectId);
+		assert(withNew instanceof mongodb.ObjectId);
+		assert(withNewArgs instanceof mongodb.ObjectId);
+		assert(withoutNew instanceof mongodb.ObjectId);
+		assert(withoutNewArgs instanceof mongodb.ObjectId);
+
+		done();
+	});
 });
+
