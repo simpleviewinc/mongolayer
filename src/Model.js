@@ -107,6 +107,7 @@ var Model = function(args) {
 	this._indexes = [];
 	this._convertSchema = undefined;
 	this._convertSchemaV2 = undefined;
+	this._collectionMethods = undefined;
 	
 	this.defaultHooks = extend({
 		aggregate : [],
@@ -182,24 +183,22 @@ var Model = function(args) {
 		find : find.bind(this),
 		findById : findById.bind(this),
 		aggregate : aggregate.bind(this),
+		createIndexes: createIndexes.bind(this),
 		...promisifyMethods(this, [
 			"insert",
 			"save",
 			"count",
 			"update",
 			"remove",
-			"removeAll",
-			"createIndexes"
+			"removeAll"
 		])
 	}
 }
 
 // re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
 async function createIndexes() {
-	var self = this;
-
-	for (const loopIndex of self._indexes) {
-		await self.collection.createIndex(loopIndex.keys, loopIndex.options);
+	for (const index of this._indexes) {
+		await this.collection.createIndex(index.keys, index.options);
 	}
 }
 Model.prototype.createIndexes = callbackify(createIndexes);
@@ -251,22 +250,29 @@ Model.prototype.createView = async function() {
 	}
 }
 
-Model.prototype._setConnection = function(args) {
-	var self = this;
-	
+Model.prototype.setConnection = function(args) {
 	// args.connection
 	
-	self.connection = args.connection;
-	self.collection = args.connection.db.collection(self.collectionName);
+	this.connection = args.connection;
+	this.collection = args.connection.db.collection(this.collectionName);
+	this._collectionMethods = {
+		countDocuments: callbackify(this.collection.countDocuments.bind(this.collection)),
+		deleteMany: callbackify(this.collection.deleteMany.bind(this.collection)),
+		insertMany: callbackify(this.collection.insertMany.bind(this.collection)),
+		replaceOne: callbackify(this.collection.replaceOne.bind(this.collection)),
+		updateOne: callbackify(this.collection.updateOne.bind(this.collection)),
+		updateMany: callbackify(this.collection.updateMany.bind(this.collection))
+	}
 	
-	self.connected = true;
+	this.connected = true;
 }
 
-Model.prototype._disconnect = function() {
+Model.prototype.disconnect = function() {
 	var self = this;
 	
 	self.connection = null;
 	self.collection = null;
+	self._collectionMethods = undefined;
 	
 	self.connected = false;
 }
@@ -531,9 +537,11 @@ Model.prototype.addHook = function(args, cb) {
 	self.hooks[args.type][args.name] = args;
 }
 
+/** 
+ * @this {Model}
+*/
 function insert(docs, options, cb) {
 	var self = this;
-	const insertMany = callbackify(self.collection.insertMany.bind(self.collection));
 	// if no options, callback is options
 	cb = cb || options;
 	
@@ -595,7 +603,7 @@ function insert(docs, options, cb) {
 			}
 			
 			// insert the data into mongo
-			insertMany(cleanDocs, args.options.options, function(err, result) {
+			self._collectionMethods.insertMany(cleanDocs, args.options.options, function(err, result) {
 				if (err) { return cb(err); }
 
 				var castedDocs = self._castDocs(cleanDocs);
@@ -628,9 +636,11 @@ insert[util.promisify.custom] = function(...args) {
 
 Model.prototype.insert = insert;
 
+/** 
+ * @this {Model}
+*/
 function save(doc, options, cb) {
 	var self = this;
-	const replaceOne = callbackify(self.collection.replaceOne.bind(self.collection));
 	
 	// if no options, callback is options
 	cb = cb || options;
@@ -663,7 +673,7 @@ function save(doc, options, cb) {
 				return cb(e);
 			}
 			
-			replaceOne({ _id : cleanDocs[0]._id }, cleanDocs[0], args.options.options, function(err, result) {
+			self._collectionMethods.replaceOne({ _id : cleanDocs[0]._id }, cleanDocs[0], args.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
 				var castedDoc = self._castDocs(cleanDocs)[0];
@@ -878,7 +888,6 @@ Model.prototype.find = callbackify(find);
 
 Model.prototype.count = function(filter, options, cb) {
 	var self = this;
-	const countDocuments = callbackify(self.collection.countDocuments.bind(self.collection));
 
 	cb = cb || options;
 	
@@ -896,7 +905,7 @@ Model.prototype.count = function(filter, options, cb) {
 		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 			if (err) { return cb(err); }
 			
-			countDocuments(args.filter, args.options.options, function(err, count) {
+			self._collectionMethods.countDocuments(args.filter, args.options.options, function(err, count) {
 				if (err) { return cb(err); }
 				
 				self._executeHooks({ type : "afterCount", hooks : self._getHooksByType("afterCount", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
@@ -974,7 +983,7 @@ Model.prototype.update = function(filter, delta, options, cb) {
 			
 			delete tempArgs.options.options.multi;
 
-			callbackify(self.collection[method].bind(self.collection))(tempArgs.filter, args.delta, tempArgs.options.options, function(err, result) {
+			self._collectionMethods[method](tempArgs.filter, args.delta, tempArgs.options.options, function(err, result) {
 				if (err) { return cb(err); }
 				
 				self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result } }, function(err, args) {
@@ -990,7 +999,6 @@ Model.prototype.update = function(filter, delta, options, cb) {
 // Removes from model
 Model.prototype.remove = function(filter, options, cb) {
 	var self = this;
-	const deleteMany = callbackify(self.collection.deleteMany.bind(self.collection));
 
 	cb = cb || options;
 	
@@ -1005,10 +1013,10 @@ Model.prototype.remove = function(filter, options, cb) {
 	self._executeHooks({ type : "beforeRemove", hooks : self._getHooksByType("beforeRemove", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
 		if (err) { return cb(err); }
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, async function(err, args) {
+		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : args.filter, options : args.options } }, function(err, args) {
 			if (err) { return cb(err); }
 
-			deleteMany(args.filter, args.options.options, function(err, result) {
+			self._collectionMethods.deleteMany(args.filter, args.options.options, function(err, result) {
 				if (err) { return cb(err); }
 
 				self._executeHooks({ type : "afterRemove", hooks : self._getHooksByType("afterRemove", args.options.hooks), args : { filter : args.filter, options : args.options, result : result } }, function(err, args) {

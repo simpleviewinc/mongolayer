@@ -1,4 +1,3 @@
-var async = require("async");
 var validator = require("jsvalidator");
 
 const {
@@ -16,7 +15,11 @@ var Connection = function(args) {
 	this._client = args.client;
 	
 	this.promises = {
-		add : add.bind(this)
+		add : add.bind(this),
+		close: close.bind(this),
+		dropCollection: dropCollection.bind(this),
+		remove: remove.bind(this),
+		removeAll: removeAll.bind(this)
 	}
 }
 
@@ -33,7 +36,7 @@ async function add({ model, sync = true, createIndexes }) {
 		sync = createIndexes
 	}
 	
-	model._setConnection({ connection : this });
+	model.setConnection({ connection : this });
 	
 	// allow option to disable createIndexes on add for performance
 	if (sync === true) {
@@ -50,33 +53,28 @@ async function add({ model, sync = true, createIndexes }) {
 
 Connection.prototype.add = callbackify(add);
 
-Connection.prototype.remove = function(args, cb) {
+async function remove(args) {
 	var self = this;
 	
-	args.model._disconnect();
+	args.model.disconnect();
 	delete self.models[args.model.name];
 	delete self._models[args.model.name];
-	
-	cb(null);
 }
 
-Connection.prototype.removeAll = function(cb) {
+Connection.prototype.remove = callbackify(remove);
+
+async function removeAll() {
 	var self = this;
-	
-	var calls = [];
-	
-	Object.keys(self.models).forEach(function(val, i) {
-		calls.push(function(cb) {
-			self.remove({ model : self.models[val] }, cb);
-		});
-	});
-	
-	async.series(calls, cb);
+
+	for (const [key, model] of Object.entries(self.models)) {
+		await self.promises.remove({ model: model });
+	}
 }
+
+Connection.prototype.removeAll = callbackify(removeAll);
 
 async function dropCollection(args) {
 	var self = this;
-	// args.name
 
 	var result = validator.validate(args, {
 		type : "object",

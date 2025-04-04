@@ -178,13 +178,8 @@ describe(__filename, function() {
 			conn.add({ model : model1, createIndexes : false }, async function(err) {
 				assert.ifError(err);
 				
-				try {
-					await model1.collection.indexes();
-					assert.fail("should not have gotten here");
-				} catch (err) {
-					assert.strictEqual(err.code, 26);
-					assert.strictEqual(err.message, "ns does not exist: mongolayer.foo");
-				}
+				await assert.rejects(() => model1.collection.indexes(), { message: "ns does not exist: mongolayer.foo" });
+
 				return done();
 			});
 		});

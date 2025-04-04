@@ -5,14 +5,14 @@ var async = require("async");
 var extend = require("extend");
 var typecaster = require("typecaster");
 
-var Connection = require("./Connection.js");
+var Connection = require("./Connection");
 var Model = require("./Model.js");
-var Document = require("./Document.js");
-var QueryLog = require("./QueryLog.js");
+var Document = require("./Document");
+var QueryLog = require("./QueryLog");
 
 const pMemoize = require("p-memoize");
 
-const { ObjectId } = require("./ObjectId.js");
+const { ObjectId } = require("./ObjectId");
 
 const {
 	callbackify,

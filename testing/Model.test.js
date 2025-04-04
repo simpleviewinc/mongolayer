@@ -6,6 +6,7 @@ var mongolayer = require("../src/index.js");
 var config = require("./config.js");
 var assertLib = require("@simpleview/assertlib");
 const { testArray } = require("@simpleview/mochalib");
+const { Collection } = require("mongodb");
 
 var async = require("async");
 
@@ -35,31 +36,27 @@ describe(__filename, function() {
 	});
 	
 	it("should create", function(done) {
-		var model = new mongolayer.Model({ collection : "foo" });
+		new mongolayer.Model({ collection : "foo" });
 		
 		done();
 	});
 	
-	it("should _setConnection and _disconnect", function(done) {
+	it("should setConnection and disconnect", async function() {
 		var model = new mongolayer.Model({ collection : "some_table" });
-		
-		var collection = function() { return "collectionReturn" }
-		
-		model._setConnection({
-			connection : { db : { collection : collection }, foo : "bar" }
+		const conn = await mongolayer.promises.connectCached(config());
+
+		model.setConnection({
+			connection: conn
 		});
 		
-		assert.equal(model.connected, true);
-		assert.equal(model.connection.foo, "bar");
-		assert.equal(model.collection, "collectionReturn");
+		assert.strictEqual(model.connected, true);
+		assert.strictEqual(model.collection instanceof Collection, true);
 		
-		model._disconnect();
+		model.disconnect();
 		
-		assert.equal(model.connected, false);
-		assert.equal(model.connection, null);
-		assert.equal(model.collection, null);
-		
-		done();
+		assert.strictEqual(model.connected, false);
+		assert.strictEqual(model.connection, null);
+		assert.strictEqual(model.collection, null);
 	});
 	
 	it("should get id and _id fields by default", function(done) {
