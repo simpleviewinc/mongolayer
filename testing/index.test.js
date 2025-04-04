@@ -69,9 +69,6 @@ describe(__filename, function() {
 					}
 					
 					assert.strictEqual(conn.client instanceof mongodb.MongoClient, true);
-					console.log("conn", conn.client);
-					// isConnected() was deprecated, removed check
-					// TODO is there a replacement way to check if the connection is open?
 
 					return conn.close(resolve);
 				});
