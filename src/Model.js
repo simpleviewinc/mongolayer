@@ -177,15 +177,15 @@ var Model = function(args) {
 	});
 	
 	this.promises = {
+		count: count.bind(this),
 		find : find.bind(this),
 		findById : findById.bind(this),
 		aggregate : aggregate.bind(this),
 		createIndexes: createIndexes.bind(this),
+		update: update.bind(this),
 		...promisifyMethods(this, [
 			"insert",
 			"save",
-			"count",
-			"update",
 			"remove",
 			"removeAll"
 		])
@@ -883,115 +883,89 @@ async function calculateFilterWithRandom(model, filter, count) {
 
 Model.prototype.find = callbackify(find);
 
-Model.prototype.count = function(filter, options, cb) {
+/**
+ * @this {Model}
+ */
+async function count(filter, options = {}) {
 	var self = this;
-
-	cb = cb || options;
 	
 	if (self.connected === false) {
-		return cb(new Error("Model not connected to a MongoDB database"));
+		throw new Error("Model not connected to a MongoDB database");
 	}
 	
-	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.count);
 	options.options = options.options || {};
 	
-	self._executeHooks({ type : "beforeCount", hooks : self._getHooksByType("beforeCount", options.hooks), args : { filter : filter, options : options } }, function(err, args) {
-		if (err) { return cb(err); }
-		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", args.options.hooks), args : { filter : filter, options : options } }, function(err, args) {
-			if (err) { return cb(err); }
-			
-			self._collectionMethods.countDocuments(args.filter, args.options.options, function(err, count) {
-				if (err) { return cb(err); }
-				
-				self._executeHooks({ type : "afterCount", hooks : self._getHooksByType("afterCount", args.options.hooks), args : { filter : args.filter, options : args.options, count : count } }, function(err, args) {
-					if (err) { return cb(err); }
-					
-					cb(null, args.count);
-				});
-			});
-		});
-	});
+	let args;
+	args = await self._executeHooksP({ type: "beforeCount", hooks: self._getHooksByType("beforeCount", options.hooks), args: { filter: filter, options: options } });
+	args = await self._executeHooksP({ type: "beforeFilter", hooks: self._getHooksByType("beforeFilter", args.options.hooks), args: { filter: args.filter, options: args.options } });
+
+	const count = await self.collection.countDocuments(args.filter, args.options.options);
+	const resultArgs = await self._executeHooksP({ type: "afterCount", hooks: self._getHooksByType("afterCount", args.options.hooks), args: { filter: args.filter, options: args.options, count: count } });
+
+	return resultArgs.count;
 }
 
-Model.prototype.update = function(filter, delta, options, cb) {
+Model.prototype.count = callbackify(count);
+
+/** 
+ * @this {Model}
+*/
+async function update(filter, delta, options = {}) {
 	var self = this;
 	
-	cb = cb || options;
-	
 	if (self.connected === false) {
-		return cb(new Error("Model not connected to a MongoDB database"));
+		throw new Error("Model not connected to a MongoDB database");
 	}
 	
-	options = options === cb ? {} : options;
 	options.hooks = self._normalizeHooks(options.hooks || self.defaultHooks.update);
 	options.options = options.options || {};
 	
-	self._executeHooks({ type : "beforeUpdate", hooks : self._getHooksByType("beforeUpdate", options.hooks), args : { filter : filter, delta: delta, options : options } }, function(err, args) {
-		if (err) { return cb(err); }
+	const args = await self._executeHooksP({ type: "beforeUpdate", hooks: self._getHooksByType("beforeUpdate", options.hooks), args: { filter: filter, delta: delta, options: options } });
+	const filterArgs = await self._executeHooksP({ type: "beforeFilter", hooks: self._getHooksByType("beforeFilter", options.hooks), args: { filter: args.filter, options: args.options } });
+			
+	let hasOps = true;
+	
+	if (Object.keys(args.delta).filter(function(val, i) { return val.match(/^\$/) !== null }).length === 0) {
+		hasOps = false;
+		// no $ operators at the root level, validate the whole delta
+		let cleanDocs;
+		cleanDocs = self.processDocs({ data : [args.delta], validate : true, checkRequired : true, stripEmpty : options.stripEmpty });
 		
-		self._executeHooks({ type : "beforeFilter", hooks : self._getHooksByType("beforeFilter", options.hooks), args : { filter : filter, options : options } }, function(err, tempArgs) {
-			if (err) { return cb(err); }
-			
-			let hasOps = true;
-			
-			if (Object.keys(args.delta).filter(function(val, i) { return val.match(/^\$/) !== null }).length === 0) {
-				hasOps = false;
-				// no $ operators at the root level, validate the whole delta
-				let cleanDocs;
-				try {
-					cleanDocs = self.processDocs({ data : [args.delta], validate : true, checkRequired : true, stripEmpty : options.stripEmpty });
-				} catch(e) {
-					return cb(e);
-				}
-				
-				args.delta = cleanDocs[0];
-				
-				// update delta cannot modify _id
-				delete args.delta._id;
-			} else {
-				if (args.delta["$set"] !== undefined) {
-					// validate the $set argument
-					try {
-						self._validateDocData(args.delta["$set"]);
-					} catch(e) {
-						return cb(e);
-					}
-				}
-				
-				if (args.delta["$setOnInsert"] !== undefined) {
-					// validate the $setOnInsert argument
-					try {
-						self._validateDocData(args.delta["$setOnInsert"]);
-					} catch(e) {
-						return cb(e);
-					}
-				}
-			}
-			
-			// The old update() syntax supported 3 patterns, update one item, update many items, or fully replace an item
-			// if the delta has no ops, it's a replace, if it has multi true, it's updateMany, if it has neither it's updateOne
-			const method =
-				hasOps === false ? "replaceOne"
-				: tempArgs.options.options.multi === true ? "updateMany"
-				: "updateOne"
-			;
-			
-			delete tempArgs.options.options.multi;
+		
+		args.delta = cleanDocs[0];
+		
+		// update delta cannot modify _id
+		delete args.delta._id;
+	} else {
+		if (args.delta["$set"] !== undefined) {
+			// validate the $set argument
+			self._validateDocData(args.delta["$set"]);
+		}
+		
+		if (args.delta["$setOnInsert"] !== undefined) {
+			// validate the $setOnInsert argument
+			self._validateDocData(args.delta["$setOnInsert"]);
+		}
+	}
+	
+	// The old update() syntax supported 3 patterns, update one item, update many items, or fully replace an item
+	// if the delta has no ops, it's a replace, if it has multi true, it's updateMany, if it has neither it's updateOne
+	const method =
+		hasOps === false ? "replaceOne"
+		: filterArgs.options.options.multi === true ? "updateMany"
+		: "updateOne"
+	;
+	
+	delete filterArgs.options.options.multi;
 
-			self._collectionMethods[method](tempArgs.filter, args.delta, tempArgs.options.options, function(err, result) {
-				if (err) { return cb(err); }
-				
-				self._executeHooks({ type : "afterUpdate", hooks : self._getHooksByType("afterUpdate", args.options.hooks), args : { filter : tempArgs.filter, delta : args.delta, options : tempArgs.options, result : result } }, function(err, args) {
-					if (err) { return cb(err); }
-					
-					cb(null, args.result);
-				});
-			});
-		});
-	});
+	const result = await self.collection[method](filterArgs.filter, args.delta, filterArgs.options.options);
+		
+	const finalResult = await self._executeHooksP({ type: "afterUpdate", hooks: self._getHooksByType("afterUpdate", args.options.hooks), args: { filter: filterArgs.filter, delta: args.delta, options: filterArgs.options, result: result } });
+	return finalResult.result;
 }
+
+Model.prototype.update = callbackify(update);
 
 // Removes from model
 Model.prototype.remove = function(filter, options, cb) {
