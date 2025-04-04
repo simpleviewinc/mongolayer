@@ -1,17 +1,14 @@
 const {
-	ObjectID,
 	MongoClient
 } = require("mongodb");
-var async = require("async");
 var extend = require("extend");
-var typecaster = require("typecaster");
 
-var Connection = require("./Connection.js");
+var Connection = require("./Connection");
 var Model = require("./Model.js");
-var Document = require("./Document.js");
-var QueryLog = require("./QueryLog.js");
-
+var Document = require("./Document");
+var QueryLog = require("./QueryLog");
 const pMemoize = require("p-memoize");
+const ObjectId = require("./ObjectId");
 
 const {
 	callbackify,
@@ -21,7 +18,7 @@ const {
 	stringConvert,
 	stringConvertV2,
 	typecasterObjectIdDef
-} = require("./utils.js");
+} = require("./utils");
 
 const connect = _connect.bind(null, false);
 const connectCached = _connect.bind(null, true);
@@ -48,7 +45,6 @@ var _getClient = function(args) {
 	// args.options
 	
 	args.options = args.options || {};
-	args.options.useNewUrlParser = true;
 	
 	return MongoClient.connect(args.connectionString, args.options);
 }
@@ -77,7 +73,7 @@ var testId = function(str) {
 		encoded += "0";
 	}
 	
-	return new ObjectID(encoded);
+	return new ObjectId(encoded);
 }
 
 module.exports = {
@@ -88,7 +84,7 @@ module.exports = {
 	Document,
 	Connection,
 	QueryLog,
-	ObjectId : ObjectID,
+	ObjectId,
 	testId,
 	toPlain,
 	stringConvert,

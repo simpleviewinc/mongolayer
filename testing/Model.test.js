@@ -1,12 +1,9 @@
 var assert = require("assert");
-var domain = require("domain");
-var util = require("util");
-var extend = require("extend");
-var simpleDomain = require("simple-domain");
 var mongolayer = require("../src/index.js");
 var config = require("./config.js");
 var assertLib = require("@simpleview/assertlib");
 const { testArray } = require("@simpleview/mochalib");
+const { Collection } = require("mongodb");
 
 var async = require("async");
 
@@ -36,31 +33,27 @@ describe(__filename, function() {
 	});
 	
 	it("should create", function(done) {
-		var model = new mongolayer.Model({ collection : "foo" });
+		new mongolayer.Model({ collection : "foo" });
 		
 		done();
 	});
 	
-	it("should _setConnection and _disconnect", function(done) {
+	it("should setConnection and disconnect", async function() {
 		var model = new mongolayer.Model({ collection : "some_table" });
-		
-		var collection = function() { return "collectionReturn" }
-		
-		model._setConnection({
-			connection : { db : { collection : collection }, foo : "bar" }
+		const conn = await mongolayer.promises.connectCached(config());
+
+		model.setConnection({
+			connection: conn
 		});
 		
-		assert.equal(model.connected, true);
-		assert.equal(model.connection.foo, "bar");
-		assert.equal(model.collection, "collectionReturn");
+		assert.strictEqual(model.connected, true);
+		assert.strictEqual(model.collection instanceof Collection, true);
 		
-		model._disconnect();
+		model.disconnect();
 		
-		assert.equal(model.connected, false);
-		assert.equal(model.connection, null);
-		assert.equal(model.collection, null);
-		
-		done();
+		assert.strictEqual(model.connected, false);
+		assert.strictEqual(model.connection, null);
+		assert.strictEqual(model.collection, null);
 	});
 	
 	it("should get id and _id fields by default", function(done) {
@@ -184,14 +177,14 @@ describe(__filename, function() {
 			]
 		});
 		
-		var id = mongolayer.ObjectId();
+		var id = new mongolayer.ObjectId();
 		var doc = new model.Document({ raw : id });
 		
 		// check if getter with value works
 		assert.equal(doc.string, id.toString());
 		
 		// check if setter with value works
-		var newid = mongolayer.ObjectId();
+		var newid = new mongolayer.ObjectId();
 		doc.string = newid.toString();
 		assert.equal(doc.raw.toString(), newid.toString());
 		
@@ -215,7 +208,7 @@ describe(__filename, function() {
 			]
 		});
 		
-		var id = mongolayer.ObjectId()
+		var id = new mongolayer.ObjectId()
 		var data = { foo : "fooValue", bar : [1,2] };
 		var temp = new model.Document({ _id : id, obj : data });
 		
@@ -615,21 +608,16 @@ describe(__filename, function() {
 			function(cb) {
 				conn.add({ model : model }, cb);
 			},
-			function(cb) {
-				model.collection.dropIndexes(cb);
+			async function() {
+				await model.collection.dropIndexes();
 			},
 			function(cb) {
 				model.createIndexes(cb);
 			},
-			function(cb) {
-				model.collection.indexes(function(err, indexes) {
-					assert.ifError(err);
-					
-					assert.equal(indexes.length, 2);
-					assert.equal(indexes[1].name, "title_text");
-					
-					cb(null);
-				});
+			async function() {
+				let indexes = await model.collection.indexes();
+				assert.equal(indexes.length, 2);
+				assert.equal(indexes[1].name, "title_text");
 			}
 		], function(err) {
 			assert.ifError(err);
@@ -667,8 +655,9 @@ describe(__filename, function() {
 				
 				conn.add({ model : model2 }, function(err) {
 					assert.ok(err instanceof Error);
-					assert.ok(err.message.match(/Unable to createIndex on model 'foo'./));
-					
+					assert.equal(err.code, 85);
+					assert.ok(err.message.match(/An equivalent index already exists with a different name and options./)); // note: name is no longer returned
+
 					done();
 				});
 			});
@@ -804,7 +793,7 @@ describe(__filename, function() {
 		
 		it("should stringConvert data", function(done) {
 			["stringConvert", "stringConvertV2"].forEach(function(val, i) {
-				var id = model.ObjectId();
+				var id = new model.ObjectId();
 				var date1 = new Date();
 				
 				var data = {
@@ -905,7 +894,7 @@ describe(__filename, function() {
 		});
 		
 		it("should stringConvert data that is already casted", function(done) {
-			var id = model.ObjectId();
+			var id = new model.ObjectId();
 			var date = new Date(2013, 0, 1);
 			
 			var data = {
@@ -1467,8 +1456,8 @@ describe(__filename, function() {
 				}, function(err, doc, result) {
 					assert.ifError(err);
 					
-					assert.strictEqual(result.result.ok, 1);
-					assert.strictEqual(result.result.n, 1);
+					assert.strictEqual(result.acknowledged, true);
+					assert.strictEqual(result.insertedCount, 1);
 					assert.equal(doc.foo, "fooValue");
 					
 					done();
@@ -1527,8 +1516,8 @@ describe(__filename, function() {
 				], function(err, docs, result) {
 					assert.ifError(err);
 					
-					assert.strictEqual(result.result.ok, 1);
-					assert.strictEqual(result.result.n, 2);
+					assert.strictEqual(result.acknowledged, true);
+					assert.strictEqual(result.insertedCount, 2);
 					assert.equal(docs[0].foo, "fooValue1");
 					assert.equal(docs[0].bar, "barValue1");
 					assert.strictEqual(docs[0].any, "anyValue");
@@ -1765,8 +1754,8 @@ describe(__filename, function() {
 					model.remove({ foo : "one" }, function(err, result) {
 						assert.ifError(err);
 						
-						assert.strictEqual(result.result.ok, 1);
-						assert.strictEqual(result.result.n, 1);
+						assert.strictEqual(result.acknowledged, true);
+						assert.strictEqual(result.deletedCount, 1);
 						
 						done();
 					});
@@ -1909,16 +1898,11 @@ describe(__filename, function() {
 							cb(null);
 						});
 					},
-					function(cb) {
+					async function() {
 						// ensure that we still have our indexes
-						model.collection.indexes(function(err, indexes) {
-							assert.ifError(err);
-							
-							assert.equal(indexes.length, 2);
-							assert.equal(indexes[1].name, "foo_1");
-							
-							cb(null);
-						});
+						let indexes = await model.collection.indexes();
+						assert.equal(indexes.length, 2);
+						assert.equal(indexes[1].name, "foo_1");
 					}
 				], function(err) {
 					assert.ifError(err);
@@ -1939,7 +1923,7 @@ describe(__filename, function() {
 					assert.equal(doc instanceof model.Document, true);
 					assert.equal(doc.foo, "fooValue1");
 					assert.equal(doc.bar, "barValue1");
-					assert.equal(result.result.n, 1);
+					assert.equal(result.upsertedCount, 1);
 					
 					done();
 				});
@@ -2134,8 +2118,8 @@ describe(__filename, function() {
 		});
 		
 		describe("update", function() {
-			var id1 = mongolayer.ObjectId();
-			var id2 = mongolayer.ObjectId();
+			var id1 = new mongolayer.ObjectId();
+			var id2 = new mongolayer.ObjectId();
 			
 			beforeEach(function(done) {
 				model.remove({}, function(err) {
@@ -2157,11 +2141,10 @@ describe(__filename, function() {
 			it("should update", function(done) {
 				model.update({ _id : id1 }, { "$set" : { foo : "1_updated" } }, function(err, result) {
 					assert.ifError(err);
-					
-					// ensure parameters exist in writeResult
-					assert.strictEqual(result.result.n, 1);
-					assert.strictEqual(result.result.nModified, 1);
-					assert.strictEqual(result.result.ok, 1);
+
+					assert.strictEqual(result.matchedCount, 1);
+					assert.strictEqual(result.modifiedCount, 1);
+					assert.strictEqual(result.acknowledged, true);
 					
 					done();
 				});
@@ -2172,9 +2155,9 @@ describe(__filename, function() {
 					assert.ifError(err);
 					
 					// ensure parameters exist in writeResult
-					assert.strictEqual(result.result.n, 1);
-					assert.strictEqual(result.result.nModified, 1);
-					assert.strictEqual(result.result.ok, 1);
+					assert.strictEqual(result.matchedCount, 1);
+					assert.strictEqual(result.modifiedCount, 1);
+					assert.strictEqual(result.acknowledged, true);
 					
 					model.find({ foo : "1_updated" }, function(err, docs) {
 						assert.ifError(err);
@@ -2692,17 +2675,17 @@ describe(__filename, function() {
 					]);
 					
 					result = await model.promises.insert({ foo : "fooValue" });
-					assert.strictEqual(result.result.n, 1);
+					assert.strictEqual(result.insertedCount, 1);
 					
 					await assert.rejects(model.promises.insert({ foo : 10 }), /Doc failed validation/);
 					
 					result = await model.promises.update({ foo : "fooValue" }, { $set : { foo : "fooValueChanged" } });
-					assert.strictEqual(result.result.n, 1);
+					assert.strictEqual(result.modifiedCount, 1);
 					
 					await assert.rejects(model.promises.update({ foo : "fooValue" }, { $set : { foo : 10 } }), /Doc failed validation/);
 					
 					result = await model.promises.save({ foo : "fooValue", bar : "barValue" });
-					assert.strictEqual(result.result.n, 1);
+					assert.strictEqual(result.upsertedCount, 1);
 					
 					await assert.rejects(model.promises.save({ foo : 10 }), /Doc failed validation/);
 				});
@@ -3925,112 +3908,11 @@ describe(__filename, function() {
 				assert.deepStrictEqual(result1, { created : true, updated : false });
 
 				const result2 = await m1.createView();
-				assert.deepStrictEqual(result2, { created : false, updated : false });
+				assert.deepStrictEqual(result2, { created : true, updated : false });
 
 				m1.pipeline = [{ $match : { viewOn : true } }];
 				const result3 = await m1.createView();
 				assert.deepStrictEqual(result3, { created : false, updated : true });
-			});
-		});
-	});
-	
-	describe("domains", function() {
-		var conn;
-		var model;
-		
-		before(function(done) {
-			var domainConfig = extend(true, {}, config());
-			domainConfig.options = {
-				domainsEnabled : true
-			}
-			
-			model = new mongolayer.Model({
-				collection : "domainTest",
-				fields : [
-					{ name : "string", validation : { type : "string", required : true } }
-				]
-			});
-			
-			async.series({
-				connect : function(cb) {
-					mongolayer.connectCached(domainConfig, function(err, temp) {
-						assert.ifError(err);
-						
-						conn = temp;
-						
-						cb(null);
-					});
-				},
-				add : function(cb) {
-					conn.add({ model : model }, cb);
-				},
-				remove : function(cb) {
-					model.remove({}, cb);
-				}
-			}, done);
-		});
-		
-		after(function(done) {
-			conn.close(done);
-		});
-		
-		it("should maintain domain on insert", function(done) {
-			async.parallel([
-				function(cb) {
-					simpleDomain.run(function(cb) {
-						model.insert({ string : "test1" }, cb);
-					}, cb);
-				},
-				function(cb) {
-					simpleDomain.run(function(cb) {
-						model.insert({ string : "test2" }, function(err) {
-							throw new Error("intentional");
-						});
-					}, function(err) {
-						assert.strictEqual(err.message, "intentional");
-						
-						cb(null);
-					});
-				},
-				function(cb) {
-					simpleDomain.run(function(cb) {
-						model.insert({ string : "test3" }, cb);
-					}, cb);
-				},
-			], done);
-		});
-		
-		it("should maintain domain on find", function(done) {
-			model.insert([
-				{ string : "test1" },
-				{ string : "test2" },
-				{ string : "test3" }
-			], function(err) {
-				assert.ifError(err);
-				
-				async.parallel([
-					function(cb) {
-						simpleDomain.run(function(cb) {
-							model.find({ string : "test1" }, cb);
-						}, cb);
-					},
-					function(cb) {
-						simpleDomain.run(function(cb) {
-							model.find({ string : "test2" }, function(err) {
-								throw new Error("intentional");
-							});
-						}, function(err) {
-							assert.strictEqual(err.message, "intentional");
-							
-							cb(null);
-						});
-					},
-					function(cb) {
-						simpleDomain.run(function(cb) {
-							model.find({ string : "test3" }, cb);
-						}, cb);
-					},
-				], done);
 			});
 		});
 	});

@@ -6,8 +6,7 @@
 	"devDependencies": {
 		"@simpleview/assertlib": "^1.0.1",
 		"@simpleview/mochalib": "^1.0.1",
-		"mocha": "^6.1.4",
-		"simple-domain": "*"
+		"mocha": "^6.1.4"
 	},
 	"dependencies": {
 		"@simpleview/promiselib": "^1.0.1",
@@ -15,7 +14,7 @@
 		"extend": "^3.0.2",
 		"jsvalidator": "^1.2.0",
 		"lodash": "^4.17.21",
-		"mongodb": "^3.7.4",
+		"mongodb": "6.15.0",
 		"p-memoize": "^3.1.0",
 		"typecaster": "^0.0.2"
 	},
@@ -26,6 +25,7 @@
 	"scripts": {
 		"test": "mocha $(find testing/ -name *.test.js) -R spec --colors --check-leaks --globals Promise",
 		"docker": "bash ./dev/run",
+		"install:host": "npm install -f --package-lock false",
 		"publish": "bash ./dev/publish"
 	},
 	"repository": {

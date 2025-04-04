@@ -23,6 +23,7 @@ describe(__filename, function() {
 		conn.close(done);
 	});
 	
+
 	it("should add", function(done) {
 		var model1 = new mongolayer.Model({ collection : "foo" });
 		var model2 = new mongolayer.Model({ name : "foo_bar", collection : "foo" });
@@ -69,7 +70,7 @@ describe(__filename, function() {
 				assert.equal(model2.connected, false);
 				assert.equal(conn.models["foo_bar"], undefined);
 				assert.equal(conn._models["foo_bar"], undefined);
-				
+
 				done();
 			});
 		});
@@ -96,7 +97,7 @@ describe(__filename, function() {
 				assert.equal(conn._models["foo"], undefined);
 				assert.equal(conn.models["foo_bar"], undefined);
 				assert.equal(conn._models["foo_bar"], undefined);
-				
+
 				done();
 			});
 		});
@@ -144,20 +145,16 @@ describe(__filename, function() {
 					{ keys : { "bar" : 1 }, options : { unique : true } }
 				]
 			});
-			
-			conn.add({ model : model1 }, function(err) {
+
+			conn.add({ model : model1 }, async function(err) {
 				assert.ifError(err);
-				
-				model1.collection.indexes(function(err, indexes) {
-					assert.ifError(err);
-					
-					assert.equal(indexes[1].key.foo, 1);
-					assert.equal(indexes[1].name, "foo_1");
-					assert.equal(indexes[2].name, "bar_1");
-					assert.equal(indexes[2].unique, true);
-					
-					done();
-				});
+
+				let indexes = await model1.collection.indexes();
+				assert.equal(indexes[1].key.foo, 1);
+				assert.equal(indexes[1].name, "foo_1");
+				assert.equal(indexes[2].name, "bar_1");
+				assert.equal(indexes[2].unique, true);
+				return done();
 			});
 		});
 	});
@@ -178,16 +175,12 @@ describe(__filename, function() {
 				]
 			});
 			
-			conn.add({ model : model1, createIndexes : false }, function(err) {
+			conn.add({ model : model1, createIndexes : false }, async function(err) {
 				assert.ifError(err);
 				
-				model1.collection.indexes(function(err, indexes) {
-					// if you request indexes on a collection without indexes it returns code 26 "no collection", an odd result for no indexes
-					assert.strictEqual(err.code, 26);
-					assert.strictEqual(err.message, "ns does not exist: mongolayer.foo");
-					
-					done();
-				});
+				await assert.rejects(() => model1.collection.indexes(), { message: "ns does not exist: mongolayer.foo" });
+
+				return done();
 			});
 		});
 	});

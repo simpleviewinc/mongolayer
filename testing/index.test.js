@@ -4,6 +4,7 @@ var config = require("./config.js");
 var mongodb = require("mongodb");
 var async = require("async");
 const { testArray } = require("@simpleview/mochalib");
+const ObjectId = require("../src/ObjectId");
 
 const {
 	_newErrorType,
@@ -12,7 +13,7 @@ const {
 	getMyHooks,
 	getMyFields,
 	prepareInsert
-} = require("../src/utils.js");
+} = require("../src/utils");
 
 describe(__filename, function() {
 	after(function(done) {
@@ -67,71 +68,29 @@ describe(__filename, function() {
 						assert.strictEqual(conn.db, undefined);
 					}
 					
-					assert.strictEqual(conn._client instanceof mongodb.MongoClient, true);
-					assert.strictEqual(conn._client.isConnected(), true);
-					
+					assert.strictEqual(conn.client instanceof mongodb.MongoClient, true);
+
 					return conn.close(resolve);
 				});
 			});
 		});
 	});
 	
-	it("should connectCached", function(done) {
-		var conn1;
-		var conn2;
-		var conn3;
-		var conn4;
+	it("should connectCached", async function() {
+		const conn1 = await mongolayer.promises.connect(config());
+		const conn2 = await mongolayer.promises.connect(config());
+		const conn3 = await mongolayer.promises.connectCached(config());
+		const conn4 = await mongolayer.promises.connectCached(config());
 		
-		async.series([
-			function(cb) {
-				mongolayer.connect(config(), function(err, conn) {
-					assert.ifError(err);
-					
-					conn1 = conn;
-					
-					cb(null);
-				});
-			},
-			function(cb) {
-				mongolayer.connect(config(), function(err, conn) {
-					assert.ifError(err);
-					
-					conn2 = conn;
-					
-					cb(null);
-				});
-			},
-			function(cb) {
-				mongolayer.connectCached(config(), function(err, conn) {
-					assert.ifError(err);
-					
-					conn3 = conn;
-					
-					cb(null);
-				});
-			},
-			function(cb) {
-				mongolayer.connectCached(config(), function(err, conn) {
-					assert.ifError(err);
-					
-					conn4 = conn;
-					
-					cb(null);
-				});
-			}
-		], function(err) {
-			assert.notEqual(conn1.db, conn2.db);
-			assert.notEqual(conn1, conn2);
-			assert.equal(conn3.db, conn4.db);
-			assert.notEqual(conn3, conn4);
-			
-			async.series([
-				(cb) => conn1.close(cb),
-				(cb) => conn2.close(cb),
-				(cb) => conn3.close(cb),
-				(cb) => conn4.close(cb)
-			], done);
-		});
+		assert.notEqual(conn1.db, conn2.db);
+		assert.notEqual(conn1, conn2);
+		assert.strictEqual(conn3.client, conn4.client);
+		assert.notEqual(conn3, conn4);
+		
+		await conn1.promises.close();
+		await conn2.promises.close();
+		await conn3.promises.close();
+		await conn4.promises.close();
 	});
 	
 	it("should _newErrorType", function(done) {
@@ -371,7 +330,7 @@ describe(__filename, function() {
 			var temp = convertValue(date.getTime().toString(), "date");
 			assert.equal(temp.getTime(), date.getTime());
 			
-			var id = mongolayer.ObjectId();
+			var id = new mongolayer.ObjectId();
 			
 			var temp = convertValue(id.toString(), "objectid");
 			assert.equal(temp.toString(), id.toString());
@@ -455,4 +414,23 @@ describe(__filename, function() {
 		
 		done();
 	});
+
+	it("should wrap ObjectId", function(done) {
+		const withNew = new ObjectId();
+		const withNewArgs = new ObjectId("5a5a00000000000000000000");
+		const withoutNew = ObjectId();
+		const withoutNewArgs = ObjectId("5a5a00000000000000000000");
+
+		assert(withNew instanceof ObjectId);
+		assert(withNewArgs instanceof ObjectId);
+		assert(withoutNew instanceof ObjectId);
+		assert(withoutNewArgs instanceof ObjectId);
+		assert(withNew instanceof mongodb.ObjectId);
+		assert(withNewArgs instanceof mongodb.ObjectId);
+		assert(withoutNew instanceof mongodb.ObjectId);
+		assert(withoutNewArgs instanceof mongodb.ObjectId);
+
+		done();
+	});
 });
+

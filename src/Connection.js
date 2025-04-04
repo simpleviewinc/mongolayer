@@ -1,4 +1,3 @@
-var async = require("async");
 var validator = require("jsvalidator");
 
 const {
@@ -13,10 +12,14 @@ var Connection = function(args) {
 	this.logger = args.logger; // stores method to be called on query execution with log information
 	
 	this._models = {}; // store arguments of Connection.add()
-	this._client = args.client;
+	this.client = args.client;
 	
 	this.promises = {
-		add : add.bind(this)
+		add : add.bind(this),
+		close: close.bind(this),
+		dropCollection: dropCollection.bind(this),
+		remove: remove.bind(this),
+		removeAll: removeAll.bind(this)
 	}
 }
 
@@ -27,13 +30,13 @@ var Connection = function(args) {
  * @param {boolean} [args.sync] - Whether to sync the state of the model to the database. Has a performance implication if creating indexes or the view can cause issues.
  * @param {boolean} [args.createIndexes] - Deprecated: Use sync instead. The passed value here will be used to set the value of sync.
  */
-async function add({ model, sync = true, createIndexes }) {	
+async function add({ model, sync = true, createIndexes }) {
 	if (createIndexes !== undefined) {
 		// for backward compatibility we map createIndexes to sync
 		sync = createIndexes
 	}
 	
-	model._setConnection({ connection : this });
+	model.setConnection({ connection : this });
 	
 	// allow option to disable createIndexes on add for performance
 	if (sync === true) {
@@ -50,34 +53,29 @@ async function add({ model, sync = true, createIndexes }) {
 
 Connection.prototype.add = callbackify(add);
 
-Connection.prototype.remove = function(args, cb) {
+async function remove(args) {
 	var self = this;
 	
-	args.model._disconnect();
+	args.model.disconnect();
 	delete self.models[args.model.name];
 	delete self._models[args.model.name];
-	
-	cb(null);
 }
 
-Connection.prototype.removeAll = function(cb) {
+Connection.prototype.remove = callbackify(remove);
+
+async function removeAll() {
 	var self = this;
-	
-	var calls = [];
-	
-	Object.keys(self.models).forEach(function(val, i) {
-		calls.push(function(cb) {
-			self.remove({ model : self.models[val] }, cb);
-		});
-	});
-	
-	async.series(calls, cb);
+
+	for (const [key, model] of Object.entries(self.models)) {
+		await self.promises.remove({ model: model });
+	}
 }
 
-Connection.prototype.dropCollection = function(args, cb) {
+Connection.prototype.removeAll = callbackify(removeAll);
+
+async function dropCollection(args) {
 	var self = this;
-	
-	// args.name
+
 	var result = validator.validate(args, {
 		type : "object",
 		schema : [
@@ -89,20 +87,13 @@ Connection.prototype.dropCollection = function(args, cb) {
 	if (result.err) {
 		return cb(result.err);
 	}
-	
-	self.db.dropCollection(args.name, function(err) {
-		if (err && err.errmsg.match(/ns not found/) === null) {
-			return cb(err);
-		}
-		
-		cb(null);
-	});
+	return await self.db.dropCollection(args.name);
 }
+Connection.prototype.dropCollection = callbackify(dropCollection);
 
-Connection.prototype.close = function(cb) {
-	var self = this;
-	
-	self._client.close(false, cb);
+async function close() {
+	await this.client.close(false);
 }
+Connection.prototype.close = callbackify(close);
 
 module.exports = Connection;
