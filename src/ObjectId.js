@@ -1,11 +1,11 @@
-const mongodb = require("mongodb");
+const { ObjectId: ObjectIdCore } = require("mongodb");
 
 // wrapper for ObjectId to allow use with or without `new`
 function ObjectId(...args) {
-    return new mongodb.ObjectId(...args);
+	return new ObjectIdCore(...args);
 }
 
-ObjectId.prototype = mongodb.ObjectId.prototype;
+ObjectId.prototype = ObjectIdCore.prototype;
 
-module.exports = { ObjectId };
+module.exports = ObjectId;
 

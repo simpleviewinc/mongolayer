@@ -6,7 +6,7 @@ const util = require("util");
 const objectLib = require("./lib/objectLib.js");
 const arrayLib = require("./lib/arrayLib.js");
 
-const { ObjectId } = require("./ObjectId");
+const ObjectId = require("./ObjectId");
 
 const typecasterObjectIdDef = {
 	name : "objectid",

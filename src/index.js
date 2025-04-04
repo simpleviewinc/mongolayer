@@ -1,18 +1,14 @@
 const {
 	MongoClient
 } = require("mongodb");
-var async = require("async");
 var extend = require("extend");
-var typecaster = require("typecaster");
 
 var Connection = require("./Connection");
 var Model = require("./Model.js");
 var Document = require("./Document");
 var QueryLog = require("./QueryLog");
-
 const pMemoize = require("p-memoize");
-
-const { ObjectId } = require("./ObjectId");
+const ObjectId = require("./ObjectId");
 
 const {
 	callbackify,
@@ -22,7 +18,7 @@ const {
 	stringConvert,
 	stringConvertV2,
 	typecasterObjectIdDef
-} = require("./utils.js");
+} = require("./utils");
 
 const connect = _connect.bind(null, false);
 const connectCached = _connect.bind(null, true);
@@ -88,7 +84,7 @@ module.exports = {
 	Document,
 	Connection,
 	QueryLog,
-	ObjectId : ObjectId,
+	ObjectId,
 	testId,
 	toPlain,
 	stringConvert,

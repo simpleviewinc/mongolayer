@@ -6,10 +6,7 @@ var extend = require("extend");
 var async = require("async");
 var util = require("util");
 const shuffle = require("lodash/shuffle");
-
-const {
-	ObjectId
-} = require("./ObjectId");
+const ObjectId = require("./ObjectId");
 
 const {
 	promisifyMethods

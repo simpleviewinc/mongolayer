@@ -12,7 +12,7 @@ var Connection = function(args) {
 	this.logger = args.logger; // stores method to be called on query execution with log information
 	
 	this._models = {}; // store arguments of Connection.add()
-	this._client = args.client;
+	this.client = args.client;
 	
 	this.promises = {
 		add : add.bind(this),
@@ -92,8 +92,7 @@ async function dropCollection(args) {
 Connection.prototype.dropCollection = callbackify(dropCollection);
 
 async function close() {
-	var self = this;
-	await self._client.close(false);
+	await this.client.close(false);
 }
 Connection.prototype.close = callbackify(close);
 

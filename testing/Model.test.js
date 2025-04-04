@@ -1,7 +1,4 @@
 var assert = require("assert");
-var domain = require("domain");
-var util = require("util");
-var extend = require("extend");
 var mongolayer = require("../src/index.js");
 var config = require("./config.js");
 var assertLib = require("@simpleview/assertlib");
@@ -3917,45 +3914,6 @@ describe(__filename, function() {
 				const result3 = await m1.createView();
 				assert.deepStrictEqual(result3, { created : false, updated : true });
 			});
-		});
-	});
-	
-	describe("domains", function() {
-		var conn;
-		var model;
-		
-		before(function(done) {
-			var domainConfig = extend(true, {}, config());
-			domainConfig.options = {};
-			
-			model = new mongolayer.Model({
-				collection : "domainTest",
-				fields : [
-					{ name : "string", validation : { type : "string", required : true } }
-				]
-			});
-			
-			async.series({
-				connect : function(cb) {
-					mongolayer.connectCached(domainConfig, function(err, temp) {
-						assert.ifError(err);
-						
-						conn = temp;
-						
-						cb(null);
-					});
-				},
-				add : function(cb) {
-					conn.add({ model : model }, cb);
-				},
-				remove : function(cb) {
-					model.remove({}, cb);
-				}
-			}, done);
-		});
-		
-		after(function(done) {
-			conn.close(done);
 		});
 	});
 });
