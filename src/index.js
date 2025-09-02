@@ -27,7 +27,7 @@ async function _connect(cached, args) {
 	const method = cached === true ? _getClientCached : _getClient;
 	
 	// parse the connectionString to detect a dbName
-	const parsed = args.connectionString.match(/mongodb:\/\/.*\/([^?]+)/);
+	const parsed = args.connectionString.match(/mongodb(?:\+srv)?:\/\/.*\/([^?]+)/);
 	if (parsed === null) {
 		throw new Error("You must specify a database in your connectionString.");
 	}
