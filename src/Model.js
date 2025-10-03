@@ -195,10 +195,6 @@ var Model = function(args) {
 // re-add all of the indexes to a model, useful if a collection needs to be dropped and re-built at run-time
 async function createIndexes() {
 	for (const index of this._indexes) {
-		// Remove background option if it exists
-        // if (index.options && index.options.background) {
-        //     delete index.options.background;
-        // }
 		await this.collection.createIndex(index.keys, index.options);
 	}
 }
