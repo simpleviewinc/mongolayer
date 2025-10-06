@@ -16,4 +16,4 @@ services:
     ports:
       - "13001:27017"
     volumes:
-      - ./init-fcv.js:/docker-entrypoint-initdb.d/init-fcv.js
+      - ./init-fcv.js:/docker-entrypoint-initdb.d/init-fcv.js # used only this if we want to stick to a specific version of fcv
