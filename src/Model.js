@@ -1335,7 +1335,7 @@ Model.prototype._validateDocData = function(data) {
 				return;
 			}
 			
-			if (val === null || val === undefined) {
+			if (val === null) {
 				// allow null to be saved to DB regardless of validation type
 				return;
 			}
